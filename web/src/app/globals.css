@@ -1,0 +1,414 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
+
+@custom-variant dark (&:is(.dark *));
+
+/* =========================================================================
+   BUDGET MEAL PLANNER — DESIGN SYSTEM
+   Tailwind v4 CSS-first config. Dark is the primary theme.
+   Brand: Swiggy orange (#FC8019) with warm amber gradients over a
+   warm-charcoal surface scale (never clinical gray — it should feel edible).
+   All colors in oklch for perceptual consistency.
+   ========================================================================= */
+
+/* -------------------------------------------------------------------------
+   @theme inline — exposes tokens to Tailwind utilities.
+   Semantic vars (--background etc.) are re-mapped per theme in :root / .dark
+   below, so utilities like bg-background flip automatically.
+   ------------------------------------------------------------------------- */
+@theme inline {
+  /* Fonts (variables provided by next/font in layout.tsx) */
+  --font-sans: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
+  --font-display: var(--font-space-grotesk), var(--font-inter), sans-serif;
+  --font-mono: var(--font-geist-mono), ui-monospace, monospace;
+  --font-heading: var(--font-space-grotesk), sans-serif;
+
+  /* --- Brand: Swiggy orange scale 50–900 --- */
+  --color-brand-50: var(--brand-50);
+  --color-brand-100: var(--brand-100);
+  --color-brand-200: var(--brand-200);
+  --color-brand-300: var(--brand-300);
+  --color-brand-400: var(--brand-400);
+  --color-brand-500: var(--brand-500); /* #FC8019 — the Swiggy orange */
+  --color-brand-600: var(--brand-600);
+  --color-brand-700: var(--brand-700);
+  --color-brand-800: var(--brand-800);
+  --color-brand-900: var(--brand-900);
+
+  /* --- Warm amber (secondary accent / gradient partner) --- */
+  --color-amber-300: var(--amber-300);
+  --color-amber-400: var(--amber-400);
+  --color-amber-500: var(--amber-500);
+  --color-amber-600: var(--amber-600);
+
+  /* --- Semantic surface + text tokens --- */
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-surface: var(--surface);
+  --color-surface-elevated: var(--surface-elevated);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent-brand: var(--accent-brand);
+
+  /* --- Semantic status --- */
+  --color-success: var(--success);
+  --color-success-foreground: var(--success-foreground);
+  --color-warning: var(--warning);
+  --color-danger: var(--danger);
+  --color-danger-foreground: var(--danger-foreground);
+
+  /* --- Meal-type accents --- */
+  --color-meal-breakfast: var(--meal-breakfast);
+  --color-meal-lunch: var(--meal-lunch);
+  --color-meal-dinner: var(--meal-dinner);
+  --color-meal-snack: var(--meal-snack);
+
+  /* --- shadcn contract (mapped to brand palette below) --- */
+  --color-sidebar-ring: var(--sidebar-ring);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar: var(--sidebar);
+  --color-chart-5: var(--chart-5);
+  --color-chart-4: var(--chart-4);
+  --color-chart-3: var(--chart-3);
+  --color-chart-2: var(--chart-2);
+  --color-chart-1: var(--chart-1);
+  --color-ring: var(--ring);
+  --color-input: var(--input);
+  --color-border: var(--border);
+  --color-destructive: var(--destructive);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-accent: var(--accent);
+  --color-muted: var(--muted);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-secondary: var(--secondary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-primary: var(--primary);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-popover: var(--popover);
+  --color-card-foreground: var(--card-foreground);
+  --color-card: var(--card);
+
+  /* --- Type scale (font-size / line-height) --- */
+  --text-xs: 0.75rem;
+  --text-xs--line-height: 1.1rem;
+  --text-sm: 0.875rem;
+  --text-sm--line-height: 1.35rem;
+  --text-base: 1rem;
+  --text-base--line-height: 1.6rem;
+  --text-lg: 1.125rem;
+  --text-lg--line-height: 1.7rem;
+  --text-xl: 1.375rem;
+  --text-xl--line-height: 1.85rem;
+  --text-2xl: 1.75rem;
+  --text-2xl--line-height: 2.15rem;
+  --text-2xl--letter-spacing: -0.01em;
+  --text-3xl: 2.25rem;
+  --text-3xl--line-height: 2.55rem;
+  --text-3xl--letter-spacing: -0.015em;
+  --text-4xl: 3rem;
+  --text-4xl--line-height: 3.15rem;
+  --text-4xl--letter-spacing: -0.02em;
+  --text-5xl: 4rem;
+  --text-5xl--line-height: 4.1rem;
+  --text-5xl--letter-spacing: -0.025em;
+
+  /* --- Radius scale --- */
+  --radius-sm: calc(var(--radius) * 0.6);
+  --radius-md: calc(var(--radius) * 0.8);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) * 1.4);
+  --radius-2xl: calc(var(--radius) * 1.8);
+  --radius-3xl: calc(var(--radius) * 2.2);
+  --radius-4xl: calc(var(--radius) * 2.6);
+
+  /* --- Elevation / shadow tokens --- */
+  --shadow-soft: 0 1px 2px oklch(0 0 0 / 0.18), 0 4px 12px oklch(0 0 0 / 0.14);
+  --shadow-layered:
+    0 1px 2px oklch(0 0 0 / 0.16),
+    0 6px 16px oklch(0 0 0 / 0.20),
+    0 18px 48px oklch(0 0 0 / 0.24);
+  --shadow-glow: 0 0 0 1px var(--brand-500-a20), 0 8px 30px var(--brand-500-a30);
+  --shadow-glass:
+    inset 0 1px 0 oklch(1 0 0 / 0.08),
+    0 8px 32px oklch(0 0 0 / 0.30);
+}
+
+/* -------------------------------------------------------------------------
+   LIGHT THEME (:root default) + explicit override via [data-theme="light"]
+   ------------------------------------------------------------------------- */
+:root,
+:root[data-theme="light"] {
+  --radius: 0.75rem;
+
+  /* Brand scale (identical across themes — brand is brand) */
+  --brand-50: oklch(0.971 0.021 68);
+  --brand-100: oklch(0.941 0.045 68);
+  --brand-200: oklch(0.897 0.083 66);
+  --brand-300: oklch(0.842 0.120 62);
+  --brand-400: oklch(0.780 0.158 55);
+  --brand-500: oklch(0.720 0.178 47.5); /* #FC8019 */
+  --brand-600: oklch(0.652 0.176 44);
+  --brand-700: oklch(0.560 0.155 41);
+  --brand-800: oklch(0.470 0.128 40);
+  --brand-900: oklch(0.395 0.100 40);
+  --brand-500-a20: oklch(0.720 0.178 47.5 / 0.20);
+  --brand-500-a30: oklch(0.720 0.178 47.5 / 0.30);
+
+  --amber-300: oklch(0.880 0.115 78);
+  --amber-400: oklch(0.828 0.140 74);
+  --amber-500: oklch(0.780 0.155 70);
+  --amber-600: oklch(0.710 0.150 64);
+
+  /* Warm-tinted light surfaces */
+  --background: oklch(0.992 0.004 70);
+  --foreground: oklch(0.205 0.012 55);
+  --surface: oklch(1 0 0);
+  --surface-elevated: oklch(1 0 0);
+  --muted-foreground: oklch(0.520 0.014 55);
+  --accent-brand: var(--brand-600);
+
+  --success: oklch(0.620 0.150 150);
+  --success-foreground: oklch(0.985 0.01 150);
+  --warning: oklch(0.760 0.150 78);
+  --danger: oklch(0.585 0.225 27);
+  --danger-foreground: oklch(0.985 0.01 27);
+
+  --meal-breakfast: oklch(0.780 0.155 70);  /* amber sunrise */
+  --meal-lunch: oklch(0.720 0.178 47.5);    /* brand orange */
+  --meal-dinner: oklch(0.560 0.140 300);    /* dusk violet */
+  --meal-snack: oklch(0.680 0.140 165);     /* teal */
+
+  /* shadcn contract */
+  --card: oklch(1 0 0);
+  --card-foreground: var(--foreground);
+  --popover: oklch(1 0 0);
+  --popover-foreground: var(--foreground);
+  --primary: var(--brand-500);
+  --primary-foreground: oklch(0.995 0.004 70);
+  --secondary: oklch(0.965 0.008 70);
+  --secondary-foreground: oklch(0.255 0.012 55);
+  --muted: oklch(0.965 0.008 70);
+  --accent: oklch(0.955 0.020 68);
+  --accent-foreground: var(--brand-700);
+  --destructive: var(--danger);
+  --border: oklch(0.905 0.008 68);
+  --input: oklch(0.905 0.008 68);
+  --ring: var(--brand-500);
+  --chart-1: var(--brand-500);
+  --chart-2: var(--amber-500);
+  --chart-3: var(--meal-dinner);
+  --chart-4: var(--meal-snack);
+  --chart-5: var(--success);
+  --sidebar: oklch(0.985 0.006 70);
+  --sidebar-foreground: var(--foreground);
+  --sidebar-primary: var(--brand-500);
+  --sidebar-primary-foreground: oklch(0.995 0.004 70);
+  --sidebar-accent: oklch(0.955 0.020 68);
+  --sidebar-accent-foreground: var(--brand-700);
+  --sidebar-border: oklch(0.905 0.008 68);
+  --sidebar-ring: var(--brand-500);
+
+  /* Gradient tokens */
+  --gradient-brand: linear-gradient(135deg, var(--brand-500) 0%, var(--amber-400) 100%);
+  --gradient-surface: linear-gradient(180deg, oklch(1 0 0) 0%, oklch(0.982 0.006 70) 100%);
+  --gradient-glow: radial-gradient(60% 60% at 50% 0%, var(--brand-500-a20) 0%, transparent 70%);
+  --gradient-mesh:
+    radial-gradient(45% 55% at 12% 8%, oklch(0.842 0.120 62 / 0.35) 0%, transparent 60%),
+    radial-gradient(40% 50% at 88% 12%, oklch(0.880 0.115 78 / 0.30) 0%, transparent 60%),
+    radial-gradient(55% 60% at 55% 100%, oklch(0.780 0.158 55 / 0.20) 0%, transparent 65%),
+    linear-gradient(180deg, oklch(0.992 0.004 70) 0%, oklch(0.985 0.010 68) 100%);
+}
+
+/* -------------------------------------------------------------------------
+   DARK THEME — PRIMARY. Applied via .dark class (next-themes) OR
+   [data-theme="dark"], and as the default when the OS prefers dark.
+   ------------------------------------------------------------------------- */
+.dark,
+:root[data-theme="dark"] {
+  /* Warm-charcoal surface scale — a faint orange hue keeps it appetizing */
+  --background: oklch(0.178 0.010 55);
+  --foreground: oklch(0.965 0.006 70);
+  --surface: oklch(0.215 0.011 55);
+  --surface-elevated: oklch(0.255 0.013 55);
+  --muted-foreground: oklch(0.700 0.014 62);
+  --accent-brand: var(--brand-400);
+
+  --success: oklch(0.700 0.160 150);
+  --success-foreground: oklch(0.180 0.02 150);
+  --warning: oklch(0.800 0.150 78);
+  --danger: oklch(0.650 0.205 27);
+  --danger-foreground: oklch(0.985 0.01 27);
+
+  --meal-breakfast: oklch(0.828 0.140 74);
+  --meal-lunch: oklch(0.780 0.158 55);
+  --meal-dinner: oklch(0.680 0.150 300);
+  --meal-snack: oklch(0.740 0.140 165);
+
+  /* shadcn contract */
+  --card: oklch(0.215 0.011 55);
+  --card-foreground: var(--foreground);
+  --popover: oklch(0.230 0.012 55);
+  --popover-foreground: var(--foreground);
+  --primary: var(--brand-500);
+  --primary-foreground: oklch(0.180 0.02 47);
+  --secondary: oklch(0.268 0.013 55);
+  --secondary-foreground: var(--foreground);
+  --muted: oklch(0.268 0.013 55);
+  --accent: oklch(0.285 0.020 52);
+  --accent-foreground: var(--brand-300);
+  --destructive: var(--danger);
+  --border: oklch(1 0 0 / 0.09);
+  --input: oklch(1 0 0 / 0.12);
+  --ring: var(--brand-500);
+  --chart-1: var(--brand-500);
+  --chart-2: var(--amber-400);
+  --chart-3: var(--meal-dinner);
+  --chart-4: var(--meal-snack);
+  --chart-5: var(--success);
+  --sidebar: oklch(0.198 0.010 55);
+  --sidebar-foreground: var(--foreground);
+  --sidebar-primary: var(--brand-500);
+  --sidebar-primary-foreground: oklch(0.180 0.02 47);
+  --sidebar-accent: oklch(0.285 0.020 52);
+  --sidebar-accent-foreground: var(--brand-300);
+  --sidebar-border: oklch(1 0 0 / 0.09);
+  --sidebar-ring: var(--brand-500);
+
+  /* Gradient tokens (tuned for dark) */
+  --gradient-brand: linear-gradient(135deg, var(--brand-500) 0%, var(--amber-400) 100%);
+  --gradient-surface: linear-gradient(180deg, oklch(0.235 0.012 55) 0%, oklch(0.205 0.010 55) 100%);
+  --gradient-glow: radial-gradient(60% 60% at 50% 0%, var(--brand-500-a30) 0%, transparent 70%);
+  --gradient-mesh:
+    radial-gradient(48% 58% at 10% 6%, oklch(0.720 0.178 47.5 / 0.28) 0%, transparent 60%),
+    radial-gradient(42% 52% at 90% 10%, oklch(0.780 0.155 70 / 0.22) 0%, transparent 60%),
+    radial-gradient(60% 65% at 55% 105%, oklch(0.560 0.140 300 / 0.20) 0%, transparent 65%),
+    linear-gradient(180deg, oklch(0.190 0.010 55) 0%, oklch(0.165 0.009 55) 100%);
+}
+
+/* Follow OS preference when no explicit data-theme is set on :root.
+   next-themes still adds .dark for its own toggle; this covers first paint. */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --background: oklch(0.178 0.010 55);
+    --foreground: oklch(0.965 0.006 70);
+    --surface: oklch(0.215 0.011 55);
+    --surface-elevated: oklch(0.255 0.013 55);
+    --muted-foreground: oklch(0.700 0.014 62);
+    --accent-brand: var(--brand-400);
+
+    --success: oklch(0.700 0.160 150);
+    --success-foreground: oklch(0.180 0.02 150);
+    --warning: oklch(0.800 0.150 78);
+    --danger: oklch(0.650 0.205 27);
+    --danger-foreground: oklch(0.985 0.01 27);
+
+    --meal-breakfast: oklch(0.828 0.140 74);
+    --meal-lunch: oklch(0.780 0.158 55);
+    --meal-dinner: oklch(0.680 0.150 300);
+    --meal-snack: oklch(0.740 0.140 165);
+
+    --card: oklch(0.215 0.011 55);
+    --card-foreground: oklch(0.965 0.006 70);
+    --popover: oklch(0.230 0.012 55);
+    --popover-foreground: oklch(0.965 0.006 70);
+    --primary: var(--brand-500);
+    --primary-foreground: oklch(0.180 0.02 47);
+    --secondary: oklch(0.268 0.013 55);
+    --secondary-foreground: oklch(0.965 0.006 70);
+    --muted: oklch(0.268 0.013 55);
+    --accent: oklch(0.285 0.020 52);
+    --accent-foreground: var(--brand-300);
+    --destructive: oklch(0.650 0.205 27);
+    --border: oklch(1 0 0 / 0.09);
+    --input: oklch(1 0 0 / 0.12);
+    --ring: var(--brand-500);
+    --sidebar: oklch(0.198 0.010 55);
+    --sidebar-foreground: oklch(0.965 0.006 70);
+    --sidebar-primary: var(--brand-500);
+    --sidebar-primary-foreground: oklch(0.180 0.02 47);
+    --sidebar-accent: oklch(0.285 0.020 52);
+    --sidebar-accent-foreground: var(--brand-300);
+    --sidebar-border: oklch(1 0 0 / 0.09);
+    --sidebar-ring: var(--brand-500);
+
+    --gradient-surface: linear-gradient(180deg, oklch(0.235 0.012 55) 0%, oklch(0.205 0.010 55) 100%);
+    --gradient-glow: radial-gradient(60% 60% at 50% 0%, var(--brand-500-a30) 0%, transparent 70%);
+    --gradient-mesh:
+      radial-gradient(48% 58% at 10% 6%, oklch(0.720 0.178 47.5 / 0.28) 0%, transparent 60%),
+      radial-gradient(42% 52% at 90% 10%, oklch(0.780 0.155 70 / 0.22) 0%, transparent 60%),
+      radial-gradient(60% 65% at 55% 105%, oklch(0.560 0.140 300 / 0.20) 0%, transparent 65%),
+      linear-gradient(180deg, oklch(0.190 0.010 55) 0%, oklch(0.165 0.009 55) 100%);
+  }
+}
+
+/* -------------------------------------------------------------------------
+   Base layer
+   ------------------------------------------------------------------------- */
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  body {
+    @apply bg-background text-foreground;
+    font-feature-settings: "cv11", "ss01";
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+  html {
+    @apply font-sans;
+    color-scheme: dark;
+  }
+  :root[data-theme="light"] {
+    color-scheme: light;
+  }
+  h1, h2, h3, h4 {
+    @apply font-display;
+    letter-spacing: -0.015em;
+  }
+  ::selection {
+    background: var(--brand-500-a30);
+  }
+}
+
+/* -------------------------------------------------------------------------
+   Utility helpers surfaced as classes (used by design.ts strings)
+   ------------------------------------------------------------------------- */
+@utility bg-gradient-brand {
+  background-image: var(--gradient-brand);
+}
+@utility bg-gradient-surface {
+  background-image: var(--gradient-surface);
+}
+@utility bg-gradient-glow {
+  background-image: var(--gradient-glow);
+}
+@utility bg-gradient-mesh {
+  background-image: var(--gradient-mesh);
+}
+@utility text-gradient-brand {
+  background-image: var(--gradient-brand);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+@utility shadow-soft {
+  box-shadow: var(--shadow-soft);
+}
+@utility shadow-layered {
+  box-shadow: var(--shadow-layered);
+}
+@utility shadow-glow {
+  box-shadow: var(--shadow-glow);
+}
+@utility glass-panel {
+  background: color-mix(in oklch, var(--surface) 72%, transparent);
+  backdrop-filter: blur(16px) saturate(1.4);
+  -webkit-backdrop-filter: blur(16px) saturate(1.4);
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow-glass);
+}

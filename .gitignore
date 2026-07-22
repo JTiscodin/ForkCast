@@ -1,0 +1,27 @@
+# ---- secrets ----
+backend/.env
+web/.env.local
+*.local
+
+# ---- python ----
+backend/.venv/
+__pycache__/
+*.pyc
+
+# ---- local db ----
+backend/*.db
+
+# ---- node / next ----
+web/node_modules/
+web/.next/
+web/out/
+web/build/
+web/next-env.d.ts
+web/.turbo/
+node_modules/
+
+# ---- misc ----
+.DS_Store
+*.log
+D:/Temp/
+/scratchpad/

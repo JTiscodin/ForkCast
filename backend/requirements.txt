@@ -1,0 +1,4 @@
+fastapi>=0.115
+uvicorn>=0.30
+# stdlib only otherwise: sqlite3, urllib, re, json, dataclasses
+# LLM (optional): set GEMINI_API_KEY env var to enable free-form intake parsing
