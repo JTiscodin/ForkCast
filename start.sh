@@ -11,8 +11,9 @@ FRONTEND_PORT="${FRONTEND_PORT:-6001}"   # 6000 is blocked by browsers/Next (x11
 # ---- pick backend python (prefer the uv venv) ----
 pick_python() {
   if [ -n "${PYTHON:-}" ]; then echo "$PYTHON"; return; fi
-  if [ -x "backend/.venv/Scripts/python.exe" ]; then echo "backend/.venv/Scripts/python.exe"; return; fi
-  if [ -x "backend/.venv/bin/python" ]; then echo "backend/.venv/bin/python"; return; fi
+  # absolute paths so `cd backend` later doesn't double the prefix
+  if [ -x "$ROOT/backend/.venv/Scripts/python.exe" ]; then echo "$ROOT/backend/.venv/Scripts/python.exe"; return; fi
+  if [ -x "$ROOT/backend/.venv/bin/python" ]; then echo "$ROOT/backend/.venv/bin/python"; return; fi
   for c in python3 python py; do
     if command -v "$c" >/dev/null 2>&1; then echo "$c"; return; fi
   done

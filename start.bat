@@ -6,12 +6,12 @@ cd /d "%~dp0"
 set "BACKEND_PORT=8343"
 set "FRONTEND_PORT=6001"
 
-REM pick backend python (prefer uv venv)
+REM pick backend python (prefer uv venv) — absolute path so cd doesn't double it
 set "PY=python"
-if exist "backend\.venv\Scripts\python.exe" set "PY=backend\.venv\Scripts\python.exe"
+if exist "%~dp0backend\.venv\Scripts\python.exe" set "PY=%~dp0backend\.venv\Scripts\python.exe"
 
 echo Backend  : http://localhost:%BACKEND_PORT%
-start "meal-backend" cmd /c "cd backend && %PY% -m uvicorn app:app --port %BACKEND_PORT%"
+start "meal-backend" cmd /c "cd /d %~dp0backend && "%PY%" -m uvicorn app:app --port %BACKEND_PORT%"
 
 if not exist "web\node_modules" (
   echo Installing web dependencies ^(first run^)...
