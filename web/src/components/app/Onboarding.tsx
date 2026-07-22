@@ -11,14 +11,24 @@ import { gradients, gradientText, surfaces } from "@/lib/design";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { MapPin, Loader2, ArrowRight } from "lucide-react";
+import { ConnectSwiggy } from "./ConnectSwiggy";
 
 export function Onboarding({
   live,
+  needsAuth = false,
+  onConnected,
   onStart,
 }: {
   live: boolean;
+  needsAuth?: boolean;
+  onConnected?: () => void;
   onStart: (name: string, address: SwiggyAddress | null) => Promise<void> | void;
 }) {
+  // When Swiggy is desired but not connected, show the connect step first —
+  // unless the user chose to skip into demo mode.
+  const [skippedAuth, setSkippedAuth] = useState(false);
+  const showConnect = needsAuth && !live && !skippedAuth;
+
   const [name, setName] = useState("");
   const [addresses, setAddresses] = useState<SwiggyAddress[]>([]);
   // null = user hasn't picked; effective selection defaults to the first address.
@@ -87,14 +97,22 @@ export function Onboarding({
         </div>
 
         <h1 className={cn("font-display text-3xl font-semibold tracking-tight", gradientText)}>
-          Plan your month of meals
+          {showConnect ? "Connect your Swiggy" : "Plan your month of meals"}
         </h1>
         <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
-          Set a monthly food budget and your must-haves. I&apos;ll build a full
-          calendar of breakfast, lunch &amp; dinner within budget — and roll unused
-          money into next month as Swiggy Cash.
+          {showConnect
+            ? "Link Swiggy for real restaurants and orders — or skip to try it in demo mode."
+            : "Set a monthly food budget and your must-haves. I'll build a full calendar of breakfast, lunch & dinner within budget — and roll unused money into next month as Swiggy Cash."}
         </p>
 
+        {showConnect ? (
+          <div className="mt-7">
+            <ConnectSwiggy
+              onConnected={() => onConnected?.()}
+              onSkip={() => setSkippedAuth(true)}
+            />
+          </div>
+        ) : (
         <div className="mt-7 flex flex-col gap-4">
           <div>
             <label className="mb-1.5 block text-xs font-medium text-muted-foreground">
@@ -173,10 +191,13 @@ export function Onboarding({
 
           {!live && (
             <p className="text-center text-xs text-muted-foreground">
-              Running in demo mode — mock catalog, no real orders.
+              {skippedAuth
+                ? "Demo mode — mock catalog, no real orders."
+                : "Running in demo mode — mock catalog, no real orders."}
             </p>
           )}
         </div>
+        )}
       </motion.div>
     </div>
   );

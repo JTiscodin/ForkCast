@@ -199,8 +199,16 @@ def run():
         "SWIGGY_CLIENT_ID": client_id,
         "SWIGGY_MODE": "mcp",
     })
+    # also update the live process env so the server can switch to live WITHOUT
+    # a restart (the app calls _init_runtime() after this returns).
+    os.environ["SWIGGY_MCP_TOKEN"] = access
+    if refresh:
+        os.environ["SWIGGY_REFRESH_TOKEN"] = refresh
+    os.environ["SWIGGY_CLIENT_ID"] = client_id
+    os.environ["SWIGGY_MODE"] = "mcp"
     print("\n  Success. Token written to backend/.env, SWIGGY_MODE=mcp.")
     print("  Restart the app -> live Swiggy ordering.")
+    return access
 
 
 if __name__ == "__main__":

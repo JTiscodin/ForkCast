@@ -23,16 +23,21 @@ import { DishCard } from "@/components/dish/DishCard";
 import { DishDetailModal } from "@/components/dish/DishDetailModal";
 import { WalletBar } from "@/components/wallet/WalletBar";
 import { Onboarding } from "@/components/app/Onboarding";
+import { loadSession, saveSession } from "@/lib/session";
 import { AppHeader } from "@/components/app/AppHeader";
 
 const MONTH = "2026-07";
 
 export default function Home() {
-  // session
-  const [userId, setUserId] = useState<number | null>(null);
+  // session — lazily hydrated from localStorage on first render (SSR-safe: the
+  // loader guards window). Doing it in initializers (not an effect) avoids the
+  // React 19 "sync setState in effect" rule.
+  const [saved] = useState(() => loadSession());
+  const [userId, setUserId] = useState<number | null>(saved.userId);
   const [live, setLive] = useState(false);
-  const [address, setAddress] = useState<SwiggyAddress | null>(null);
-  const [ready, setReady] = useState(false); // onboarding complete
+  const [needsAuth, setNeedsAuth] = useState(false);
+  const [address, setAddress] = useState<SwiggyAddress | null>(saved.address);
+  const [ready, setReady] = useState<boolean>(Boolean(saved.userId)); // onboarding complete
 
   // plan + data
   const [plan, setPlan] = useState<PlanSummary | null>(null);
@@ -40,7 +45,7 @@ export default function Home() {
   const [wallet, setWallet] = useState<WalletSummary | null>(null);
   const [planLoading, setPlanLoading] = useState(false);
   const [approving, setApproving] = useState(false);
-  const [approved, setApproved] = useState(false);
+  const [approved, setApproved] = useState<boolean>(saved.approved);
 
   // dish modal
   const [activeSlot, setActiveSlot] = useState<MealSlot | null>(null);
@@ -51,12 +56,59 @@ export default function Home() {
 
   const [days, setDays] = useState(30);
 
-  // ---- boot: detect mode ----
+  // ---- boot: detect mode + restore any saved session ----
   useEffect(() => {
+    let cancelled = false;
     api
       .getMode()
-      .then((m) => setLive(m.live))
-      .catch(() => setLive(false));
+      .then((m) => {
+        if (cancelled) return;
+        setLive(m.live);
+        setNeedsAuth(Boolean(m.needs_auth));
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setLive(false);
+          setNeedsAuth(false);
+        }
+      });
+
+    // async-restore the saved plan + wallet (userId/address/ready were already
+    // hydrated synchronously via the useState initializers above)
+    if (saved.userId && saved.planId) {
+      api
+        .getPlan(saved.planId)
+        .then((full) => {
+          if (cancelled) return;
+          setSlots(full.slots);
+          setPlan({
+            plan_id: full.plan.id,
+            feasible: Boolean(full.plan.feasible),
+            total_cost: full.plan.total_cost,
+            budget: full.plan.budget,
+            leftover: Math.round((full.plan.budget - full.plan.total_cost) * 100) / 100,
+            constraint_status: {},
+            message: full.plan.message,
+          });
+        })
+        .catch(() => {/* plan gone — start fresh */});
+      api.wallet(saved.userId, saved.month).then((w) => !cancelled && setWallet(w)).catch(() => {});
+    }
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // re-check mode after an in-app Swiggy connect
+  const recheckMode = useCallback(async () => {
+    try {
+      const m = await api.getMode();
+      setLive(m.live);
+      setNeedsAuth(Boolean(m.needs_auth));
+    } catch {
+      /* ignore */
+    }
   }, []);
 
   const refreshWallet = useCallback(
@@ -83,6 +135,7 @@ export default function Home() {
         setUserId(u.user_id);
         setAddress(addr);
         setReady(true);
+        saveSession({ userId: u.user_id, name, address: addr, month: MONTH });
       } catch (e) {
         toast.error(e instanceof ApiError ? e.message : "Could not start session");
       }
@@ -113,6 +166,7 @@ export default function Home() {
         });
         setPlan(summary);
         await refreshPlan(summary.plan_id);
+        saveSession({ planId: summary.plan_id, approved: false, month: MONTH });
         if (!summary.feasible) {
           toast.warning("Plan is over budget — see the shortfall below.");
         } else {
@@ -135,6 +189,7 @@ export default function Home() {
       const res = await api.approvePlan(plan.plan_id);
       setWallet(res.wallet);
       setApproved(true);
+      saveSession({ approved: true });
       toast.success("Plan activated — wallet funded.");
     } catch (e) {
       toast.error(e instanceof ApiError ? e.message : "Approve failed");
@@ -217,7 +272,14 @@ export default function Home() {
   }, [firstPlannedSlot]);
 
   if (!ready) {
-    return <Onboarding live={live} onStart={handleStart} />;
+    return (
+    <Onboarding
+      live={live}
+      needsAuth={needsAuth}
+      onConnected={recheckMode}
+      onStart={handleStart}
+    />
+  );
   }
 
   return (

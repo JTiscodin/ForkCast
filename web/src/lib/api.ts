@@ -51,7 +51,18 @@ async function req<T>(
 export const api = {
   base: BASE,
 
-  getMode: () => req<{ mode: string; live: boolean }>("/mode"),
+  getMode: () =>
+    req<{ mode: string; live: boolean; needs_auth: boolean }>("/mode"),
+
+  // ---- Swiggy in-app OAuth login ----
+  authStart: () =>
+    req<{ status: string }>("/auth/swiggy/start", { method: "POST" }),
+  authStatus: () =>
+    req<{ status: "idle" | "running" | "connected" | "failed"; error: string | null; live: boolean }>(
+      "/auth/swiggy/status"
+    ),
+  authLogout: () =>
+    req<{ live: boolean }>("/auth/swiggy/logout", { method: "POST" }),
 
   createUser: (name: string, area?: string) =>
     req<{ user_id: number }>("/user", { method: "POST", body: { name, area } }),

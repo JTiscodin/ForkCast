@@ -29,37 +29,78 @@ from swap_service import alternatives
 from intake import parse_intake
 import gemini
 
-# ---- mode: 'mock' (demo) or 'mcp' (real Swiggy). Set SWIGGY_MODE=mcp + token. ----
-MODE = os.environ.get("SWIGGY_MODE", "mock").lower()
-ADDRESS_ID = os.environ.get("SWIGGY_ADDRESS_ID")  # optional; else get_addresses
+# ---- runtime state (mutable so we can switch mock -> live after in-app login) ----
+# 'mock' = demo, 'mcp' = real Swiggy. When SWIGGY_MODE=mcp but the token is
+# missing/invalid, we DON'T crash — we boot in mock and report needs_auth so the
+# frontend can offer a "Connect Swiggy" button.
+ADDRESS_ID = os.environ.get("SWIGGY_ADDRESS_ID")
 
-_mcp_client = None
-if MODE == "mcp":
-    from swiggy_mcp import SwiggyMCPClient
-    _mcp_client = SwiggyMCPClient()  # reads SWIGGY_MCP_TOKEN env
+STATE = {
+    "mode": os.environ.get("SWIGGY_MODE", "mock").lower(),
+    "client": None,
+    "fetcher": None,
+    "needs_auth": False,   # True when mcp desired but no valid token
+}
+
+
+def _build_client():
+    """Try to build a live Swiggy client. Returns client or None (never raises)."""
+    from swiggy_mcp import SwiggyMCPClient, SwiggyMCPError
+    try:
+        return SwiggyMCPClient()
+    except SwiggyMCPError as e:
+        print(f"[auth] no live Swiggy client: {e}")
+        return None
+
+
+def _init_runtime():
+    """(Re)build client + fetcher from current env/token. Safe to call anytime."""
+    _CATALOG_CACHE.clear()
+    if STATE["mode"] == "mcp":
+        client = _build_client()
+        if client is None:
+            # desired live, but no token -> degrade to mock + flag for the UI
+            STATE["needs_auth"] = True
+            STATE["client"] = None
+            STATE["fetcher"] = CatalogFetcher(mode="mock", address_id=ADDRESS_ID)
+        else:
+            STATE["needs_auth"] = False
+            STATE["client"] = client
+            STATE["fetcher"] = CatalogFetcher(mode="mcp", mcp_client=client,
+                                              address_id=ADDRESS_ID)
+    else:
+        STATE["needs_auth"] = False
+        STATE["client"] = None
+        STATE["fetcher"] = CatalogFetcher(mode="mock", address_id=ADDRESS_ID)
+
+
+_CATALOG_CACHE = {}    # cache_key -> [Dish]
 
 init_db()
+_init_runtime()
+
 app = FastAPI(title="Budget Meal Planner")
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"],
                    allow_headers=["*"])
 
-fetcher = CatalogFetcher(mode=MODE, mcp_client=_mcp_client, address_id=ADDRESS_ID)
 _APPETITE_CACHE = {}   # user_id -> AppetiteProfile (also persisted)
 
-# Catalog is fetched lazily (live MCP fetch is slow — ~15 queries). Cached after
-# first build so the server boots instantly and subsequent plans are fast.
-_CATALOG_CACHE = {}    # cache_key -> [Dish]
+
+def _live():
+    """True when a live Swiggy client is actually available."""
+    return STATE["mode"] == "mcp" and STATE["client"] is not None
 
 
 def get_catalog(veg_only=False):
     key = ("veg" if veg_only else "all")
     if key not in _CATALOG_CACHE:
-        _CATALOG_CACHE[key] = fetcher.fetch(veg_only=veg_only)
+        _CATALOG_CACHE[key] = STATE["fetcher"].fetch(veg_only=veg_only)
     return _CATALOG_CACHE[key]
 
 
 def _executor():
-    return OrderExecutor(mode=MODE, mcp_client=_mcp_client, address_id=ADDRESS_ID)
+    mode = "mcp" if _live() else "mock"
+    return OrderExecutor(mode=mode, mcp_client=STATE["client"], address_id=ADDRESS_ID)
 
 
 def svc():
@@ -118,23 +159,84 @@ def create_user(body: UserIn):
 
 @app.get("/mode")
 def get_mode():
-    return {"mode": MODE, "live": MODE == "mcp"}
+    return {
+        "mode": "mcp" if _live() else "mock",
+        "live": _live(),
+        "needs_auth": STATE["needs_auth"],  # mcp desired but no valid token yet
+    }
+
+
+# ---------- in-app Swiggy OAuth login ----------
+# The OAuth flow opens the system browser and waits for the localhost callback,
+# so it runs in a background thread; the frontend polls /auth/swiggy/status.
+_AUTH = {"status": "idle", "error": None}  # idle|running|connected|failed
+
+
+def _run_auth():
+    import swiggy_auth
+    _AUTH["status"] = "running"
+    _AUTH["error"] = None
+    try:
+        swiggy_auth.run()          # opens browser, catches callback, writes .env + env
+        STATE["mode"] = "mcp"
+        _init_runtime()            # rebuild client from the fresh token
+        if _live():
+            _AUTH["status"] = "connected"
+        else:
+            _AUTH["status"] = "failed"
+            _AUTH["error"] = "token saved but client did not initialize"
+    except Exception as e:  # noqa: BLE001
+        _AUTH["status"] = "failed"
+        _AUTH["error"] = f"{type(e).__name__}: {e}"
+        print(f"[auth] flow failed: {e}")
+
+
+@app.post("/auth/swiggy/start")
+def auth_start():
+    """Kick off the Swiggy OAuth flow. Opens a browser on THIS machine (the one
+    running the backend). Returns immediately; poll /auth/swiggy/status."""
+    if _AUTH["status"] == "running":
+        return {"status": "running"}
+    if _live():
+        return {"status": "connected"}
+    import threading
+    threading.Thread(target=_run_auth, daemon=True).start()
+    return {"status": "running"}
+
+
+@app.get("/auth/swiggy/status")
+def auth_status():
+    return {
+        "status": _AUTH["status"],       # idle|running|connected|failed
+        "error": _AUTH["error"],
+        "live": _live(),
+    }
+
+
+@app.post("/auth/swiggy/logout")
+def auth_logout():
+    """Drop the live client and fall back to mock (does not delete the .env token)."""
+    STATE["mode"] = "mock"
+    _init_runtime()
+    _AUTH["status"] = "idle"
+    _AUTH["error"] = None
+    return {"live": False}
 
 
 @app.get("/mcp/addresses")
 def mcp_addresses():
     """Live only: list saved Swiggy addresses to pick an addressId for ordering."""
-    if MODE != "mcp":
-        raise HTTPException(400, "not in mcp mode")
-    return _mcp_client.call("get_addresses", {})
+    if not _live():
+        raise HTTPException(400, "not connected to Swiggy")
+    return STATE["client"].call("get_addresses", {})
 
 
 @app.get("/mcp/tools")
 def mcp_tools():
     """Live only: introspect the real Swiggy MCP tool list."""
-    if MODE != "mcp":
-        raise HTTPException(400, "not in mcp mode")
-    return _mcp_client.list_tools()
+    if not _live():
+        raise HTTPException(400, "not connected to Swiggy")
+    return STATE["client"].list_tools()
 
 
 @app.post("/intake")
