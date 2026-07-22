@@ -22,10 +22,13 @@ from catalog import Dish, mock_catalog
 MEAL_TYPES = ("breakfast", "lunch", "dinner")
 
 # Query seeds per meal slot — drives the live search_menu fan-out to build a pool.
+# Kept small (3 per slot) because each live Swiggy query is a sequential network
+# round-trip; more seeds = slower first plan. Each query returns many dishes, so
+# 3 well-chosen seeds already yield a rich pool.
 SLOT_QUERIES = {
-    "breakfast": ["dosa", "idli", "poha", "paratha", "sandwich"],
-    "lunch": ["thali", "biryani", "paneer", "rice bowl", "meals"],
-    "dinner": ["roti", "curry", "fried rice", "chole", "paneer"],
+    "breakfast": ["dosa", "paratha", "poha"],
+    "lunch": ["thali", "paneer", "biryani"],
+    "dinner": ["roti", "curry", "paneer"],
 }
 
 
@@ -63,17 +66,33 @@ class CatalogFetcher:
         if not address_id:
             address_id = self._resolve_address()
         seen = {}
+        errors = 0
+        attempts = 0
         for meal_type, queries in SLOT_QUERIES.items():
             for q in queries:
-                resp = self.mcp.call("search_menu", {
-                    "addressId": address_id,
-                    "query": q,
-                    **({"vegFilter": 1} if veg_only else {}),
-                })
+                attempts += 1
+                # A single slow/failed Swiggy query must NOT abort the whole plan.
+                # Skip it and keep building the pool from the queries that work.
+                try:
+                    resp = self.mcp.call("search_menu", {
+                        "addressId": address_id,
+                        "query": q,
+                        **({"vegFilter": 1} if veg_only else {}),
+                    })
+                except Exception as e:  # noqa: BLE001 — resilience over precision here
+                    errors += 1
+                    print(f"[catalog] search_menu '{q}' failed: {type(e).__name__}: {e}")
+                    continue
                 for item in _iter_items(resp):
                     dish = self._map_item(item, meal_type)
                     if dish and dish.dish_id not in seen:
                         seen[dish.dish_id] = dish
+        if not seen:
+            raise RuntimeError(
+                f"Swiggy catalog fetch returned nothing "
+                f"({errors}/{attempts} queries failed). Check token/network.")
+        if errors:
+            print(f"[catalog] built {len(seen)} dishes; {errors}/{attempts} queries failed")
         return list(seen.values())
 
     def _resolve_address(self):

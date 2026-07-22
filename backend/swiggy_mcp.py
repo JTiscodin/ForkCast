@@ -41,13 +41,14 @@ class SwiggyMCPClient:
            MCP inspector / Claude / Postman (localhost redirect is whitelisted).
     """
 
-    def __init__(self, token=None, url=SWIGGY_MCP_URL):
+    def __init__(self, token=None, url=SWIGGY_MCP_URL, timeout=12):
         self.url = url
         self.token = token or os.environ.get("SWIGGY_MCP_TOKEN")
         if not self.token:
             raise SwiggyMCPError(
                 "No OAuth token. Link Swiggy account and set SWIGGY_MCP_TOKEN.")
         self._id = 0
+        self.timeout = timeout
 
     def _rpc(self, method, params):
         self._id += 1
@@ -62,13 +63,22 @@ class SwiggyMCPClient:
             },
             method="POST",
         )
-        try:
-            with urllib.request.urlopen(req, timeout=30) as resp:
-                raw = resp.read().decode()
-        except urllib.error.HTTPError as e:
-            body = e.read().decode(errors="replace")
-            raise SwiggyMCPError(f"HTTP {e.code}: {body}") from e
-        return _parse_mcp_response(raw)
+        # Shorter timeout + one retry: Swiggy occasionally stalls a request;
+        # a fresh connection usually succeeds, and we'd rather fail a single
+        # query fast than hang the whole catalog build.
+        last_err = None
+        for attempt in range(2):
+            try:
+                with urllib.request.urlopen(req, timeout=self.timeout) as resp:
+                    raw = resp.read().decode()
+                return _parse_mcp_response(raw)
+            except urllib.error.HTTPError as e:
+                body = e.read().decode(errors="replace")
+                raise SwiggyMCPError(f"HTTP {e.code}: {body}") from e
+            except (TimeoutError, OSError) as e:
+                last_err = e
+                continue
+        raise SwiggyMCPError(f"request failed after retry: {last_err}")
 
     def call(self, tool, arguments):
         """Standard MCP tools/call. Returns the tool result payload (dict)."""
