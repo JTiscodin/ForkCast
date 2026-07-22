@@ -28,6 +28,7 @@ from order_executor import OrderExecutor
 from swap_service import alternatives
 from intake import parse_intake
 import gemini
+import blueprint_chat
 
 # ---- runtime state (mutable so we can switch mock -> live after in-app login) ----
 # 'mock' = demo, 'mcp' = real Swiggy. When SWIGGY_MODE=mcp but the token is
@@ -145,7 +146,15 @@ class UserIn(BaseModel):
 class ChatIn(BaseModel):
     user_id: int
     message: str
-    session_state: dict = {}      # frontend echoes prior {extracted:{...}} back each turn
+    session_state: dict = {}      # legacy: {extracted:{...}} — still accepted
+    blueprint: dict = {}          # running blueprint echoed back each turn (compact context)
+    history: list = []            # optional recent [{role,text}] — only last few used
+
+
+class AdjustIn(BaseModel):
+    user_id: int
+    message: str
+    blueprint: dict = {}          # the current plan's blueprint to tweak
 
 
 # ---------- endpoints ----------
@@ -410,40 +419,40 @@ def _merge_extracted(prior, parsed):
 
 @app.post("/chat")
 def chat(body: ChatIn):
-    """Thin conversational orchestration. Extracts fields (reusing parse_intake),
-    merges across turns via session_state, and returns a structured next step.
-    The LLM only extracts + phrases replies — it never invents a plan."""
-    prior = (body.session_state or {}).get("extracted", {})
-    parsed = parse_intake(body.message)
-    extracted = _merge_extracted(prior, parsed)
+    """Conversational blueprint builder. One LLM call per turn: it extracts fields
+    into a compact blueprint, asks for the next missing/nice-to-have thing, and flags
+    when there's enough to generate a plan. The LLM never builds the plan itself.
 
-    have_budget = extracted.get("budget") is not None
-    have_appetite = extracted.get("appetite_level") is not None
-    missing = []
-    if not have_budget:
-        missing.append("budget")
-    if not have_appetite:
-        missing.append("appetite_level")
-
-    if have_budget and have_appetite:
-        action = "ready_to_plan"
-        reply = _chat_reply(action, extracted, missing)
-    else:
-        action = "need_more"
-        reply = _chat_reply(action, extracted, missing)
-
+    Token-frugal: the client echoes `blueprint` back each turn (the memory), so we
+    don't resend the whole transcript — only the state + last few messages.
+    Backwards-compatible: also accepts legacy session_state.extracted as the seed.
+    """
+    prev = body.blueprint or (body.session_state or {}).get("extracted", {})
+    bp, reply, ready = blueprint_chat.turn(prev, body.message, body.history)
+    pub = blueprint_chat.public_blueprint(bp)
     return {
         "reply": reply,
-        "action": action,
-        "extracted": {
-            "budget": extracted.get("budget"),
-            "constraints": extracted.get("constraints", []),
-            "veg_only": bool(extracted.get("veg_only", False)),
-            "appetite_level": extracted.get("appetite_level"),
-            "days": extracted.get("days", 30),
+        "ready": ready,                       # True -> show overview + Generate Plan
+        "action": "ready_to_plan" if ready else "need_more",
+        "blueprint": bp,                      # echo full state (incl _asked flags) back
+        "extracted": {                        # legacy shape for older callers
+            "budget": pub.get("budget"),
+            "constraints": pub.get("constraints", []),
+            "veg_only": bool(pub.get("veg_only", False)),
+            "appetite_level": pub.get("appetite_level"),
+            "days": pub.get("days", 30),
         },
-        "missing": missing,
     }
+
+
+@app.post("/chat/adjust")
+def chat_adjust(body: AdjustIn):
+    """Apply a natural-language tweak to an existing blueprint ('make it cheaper',
+    'less paneer', 'add south indian'). Returns the updated blueprint + a short
+    confirmation. The frontend then re-calls /plan to rebuild deterministically."""
+    bp, reply = blueprint_chat.adjust(body.blueprint, body.message)
+    return {"reply": reply, "blueprint": bp,
+            "public": blueprint_chat.public_blueprint(bp)}
 
 
 def _chat_reply(action, extracted, missing):

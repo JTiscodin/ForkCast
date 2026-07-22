@@ -7,18 +7,23 @@ import { Sparkles } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { gradients } from "@/lib/design";
 import { api } from "@/lib/api";
-import type { ChatSessionState, NotifyPayload } from "@/lib/types";
+import type { Blueprint, NotifyPayload } from "@/lib/types";
 
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { MessageBubble } from "./MessageBubble";
 import { QuickReplies } from "./QuickReplies";
 import { ChatComposer } from "./ChatComposer";
+import { OverviewCard } from "./OverviewCard";
 import type { ChatMessage, QuickReply } from "./types";
 
 export interface ChatPaneProps {
   userId: number;
-  /** Fired once the backend reports action === "ready_to_plan". */
-  onReadyToPlan: (extracted: ChatSessionState) => void;
+  /** Build a plan from the gathered blueprint (deterministic — no LLM). */
+  onGenerate: (blueprint: Blueprint) => Promise<void> | void;
+  /** True while a plan build is in flight (drives the Generate button spinner). */
+  generating?: boolean;
+  /** True once a plan already exists — enables conversational tweaks. */
+  hasPlan?: boolean;
   /** Wire the Yes/No/Later/Something-else meal-notification replies. */
   onRespondSlot?: (slotId: number, answer: string) => Promise<void>;
   /** Queue of meal prompts to surface as notification bubbles. */
@@ -55,7 +60,9 @@ const uid = (p: string) => `${p}-${Date.now()}-${_seq++}`;
  */
 export function ChatPane({
   userId,
-  onReadyToPlan,
+  onGenerate,
+  generating,
+  hasPlan,
   onRespondSlot,
   notifications,
   className,
@@ -77,11 +84,11 @@ export function ChatPane({
   ]);
   const [sending, setSending] = React.useState(false);
 
-  // Merged extraction across turns — passed back to the backend each call.
-  const extractedRef = React.useRef<ChatSessionState>({});
+  // Running blueprint across turns — echoed back to the backend each call so
+  // context stays compact (no full-transcript resend).
+  const blueprintRef = React.useRef<Blueprint | undefined>(undefined);
   // Track which notification slot_ids we've already surfaced.
   const seenSlotsRef = React.useRef<Set<number>>(new Set());
-  const readyFiredRef = React.useRef(false);
 
   // -- Auto-scroll to the newest message -----------------------------------
   const scrollRootRef = React.useRef<HTMLDivElement>(null);
@@ -147,30 +154,31 @@ export function ChatPane({
       ]);
 
       try {
-        const prior = extractedRef.current;
-        const res = await api.chat(
-          userId,
-          text,
-          Object.keys(prior).length ? prior : undefined
-        );
+        // Once a plan exists, further chat is a TWEAK: adjust the blueprint and
+        // rebuild deterministically. Before that, it's the gathering conversation.
+        if (hasPlan && blueprintRef.current) {
+          const res = await api.chatAdjust(userId, text, blueprintRef.current);
+          blueprintRef.current = res.blueprint;
+          setMessages((prev) =>
+            prev
+              .filter((m) => m.id !== pendingId)
+              .concat({ id: uid("reply"), role: "assistant", text: res.reply, kind: "text" })
+          );
+          await onGenerate(res.public); // rebuild with the adjusted blueprint
+          setSending(false);
+          return;
+        }
 
-        // Merge extraction forward for the next turn.
-        extractedRef.current = { ...extractedRef.current, ...res.extracted };
+        const res = await api.chat(userId, text, blueprintRef.current);
+        blueprintRef.current = res.blueprint;
 
         const replyMsgs: ChatMessage[] = [
-          {
-            id: uid("reply"),
-            role: "assistant",
-            text: res.reply,
-            kind: "text",
-          },
+          { id: uid("reply"), role: "assistant", text: res.reply, kind: "text" },
         ];
 
-        // Offer appetite chips when that's the missing field.
-        if (
-          res.action === "need_more" &&
-          res.missing?.includes("appetite_level")
-        ) {
+        // Offer appetite chips while appetite is still missing.
+        const bpAppetite = res.blueprint?.appetite_level;
+        if (!res.ready && res.blueprint?.budget != null && bpAppetite == null) {
           replyMsgs.push({
             id: uid("appetite"),
             role: "assistant",
@@ -180,25 +188,18 @@ export function ChatPane({
           });
         }
 
-        setMessages((prev) =>
-          prev
-            .filter((m) => m.id !== pendingId)
-            .concat(replyMsgs)
-        );
-
-        if (res.action === "ready_to_plan" && !readyFiredRef.current) {
-          readyFiredRef.current = true;
-          setMessages((prev) => [
-            ...prev,
-            {
-              id: uid("building"),
-              role: "system",
-              text: "Building your plan…",
-              kind: "text",
-            },
-          ]);
-          onReadyToPlan(extractedRef.current);
+        // When ready, drop the OverviewCard bubble with a Generate Plan button.
+        if (res.ready) {
+          replyMsgs.push({
+            id: uid("overview"),
+            role: "assistant",
+            text: "",
+            kind: "overview",
+            blueprint: res.blueprint,
+          });
         }
+
+        setMessages((prev) => prev.filter((m) => m.id !== pendingId).concat(replyMsgs));
       } catch {
         setMessages((prev) =>
           prev
@@ -214,7 +215,7 @@ export function ChatPane({
         setSending(false);
       }
     },
-    [sending, userId, onReadyToPlan]
+    [sending, userId, hasPlan, onGenerate]
   );
 
   // -- Quick-reply / notification pick -------------------------------------
@@ -242,6 +243,23 @@ export function ChatPane({
       void send(value);
     },
     [onRespondSlot, send]
+  );
+
+  // Inline edits on an overview card update both that bubble and the running ref.
+  const handleOverviewEdit = React.useCallback(
+    (msgId: string, patch: Partial<Blueprint>) => {
+      setMessages((prev) =>
+        prev.map((m) =>
+          m.id === msgId && m.blueprint
+            ? { ...m, blueprint: { ...m.blueprint, ...patch } }
+            : m
+        )
+      );
+      if (blueprintRef.current) {
+        blueprintRef.current = { ...blueprintRef.current, ...patch };
+      }
+    },
+    []
   );
 
   return (
@@ -273,6 +291,18 @@ export function ChatPane({
                     onPick={(v) => handlePick(v, m)}
                   />
                 </motion.div>
+              ) : m.kind === "overview" && m.blueprint ? (
+                <div key={m.id} className="pl-9">
+                  <OverviewCard
+                    blueprint={m.blueprint}
+                    generating={generating}
+                    onEdit={(patch) => handleOverviewEdit(m.id, patch)}
+                    onGenerate={() => {
+                      const bp = messages.find((x) => x.id === m.id)?.blueprint;
+                      if (bp) void onGenerate(bp);
+                    }}
+                  />
+                </div>
               ) : (
                 <MessageBubble key={m.id} message={m} />
               )

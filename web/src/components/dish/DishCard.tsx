@@ -4,7 +4,7 @@ import { motion } from "framer-motion";
 import { Star } from "lucide-react";
 
 import { cn } from "@/lib/utils";
-import { mealStyle, statusStyle, dietDot, focusRing } from "@/lib/design";
+import { mealStyle, statusStyle, dietBorder, focusRing } from "@/lib/design";
 import type { MealSlot } from "@/lib/types";
 import { inferVeg, formatINR, ratingColor } from "./dish-helpers";
 import { DishImage } from "./DishImage";
@@ -43,23 +43,29 @@ export function DishCard({ slot, onClick }: DishCardProps) {
       transition={{ type: "spring", stiffness: 400, damping: 26 }}
       className={cn(
         "group/dish relative flex w-full items-stretch gap-2 overflow-hidden rounded-xl border border-border bg-card p-1.5 text-left shadow-soft",
-        "transition-colors group-hover/slot:border-brand-500/50 hover:border-brand-500/50 hover:shadow-layered",
+        // Veg / non-veg signal: colored LEFT BORDER (replaces the old dot).
+        // Keep it stable on hover — only the non-left edges pick up the brand
+        // tint, and elevation carries the hover affordance.
+        dietBorder(veg),
+        "transition-[color,box-shadow,border-color] group-hover/slot:border-t-brand-500/50 group-hover/slot:border-r-brand-500/50 group-hover/slot:border-b-brand-500/50 hover:border-t-brand-500/50 hover:border-r-brand-500/50 hover:border-b-brand-500/50 hover:shadow-layered",
         interactive && focusRing,
         // status treatments
         slot.status === "confirmed" && "ring-1 ring-inset ring-success/40",
         slot.status === "rescheduled" && "ring-1 ring-inset ring-warning/30 bg-warning/[0.04]",
         isSkipped && "opacity-55 saturate-50"
       )}
+      title={veg ? "Veg" : "Non-veg"}
       aria-label={
         interactive
-          ? `${slot.dish_name}, ${meal.label}, ${formatINR(slot.price)}`
+          ? `${slot.dish_name}, ${veg ? "Veg" : "Non-veg"}, ${meal.label}, ${formatINR(slot.price)}`
           : undefined
       }
     >
-      {/* Meal-type accent stripe */}
+      {/* Meal-type accent stripe — inset so it never overlaps the diet
+          left-border (the veg/non-veg signal), sitting just inside it. */}
       <span
         aria-hidden
-        className={cn("absolute inset-y-0 left-0 w-1 rounded-l-xl", meal.bg)}
+        className={cn("absolute inset-y-0 left-0 w-0.5", meal.bg)}
       />
 
       {/* Image / fallback thumb */}
@@ -70,21 +76,6 @@ export function DishCard({ slot, onClick }: DishCardProps) {
           sizes="48px"
           fallbackClassName="text-[0.65rem]"
         />
-        {/* Veg / non-veg dot on the thumb corner */}
-        <span
-          className={cn(
-            "absolute bottom-0.5 left-0.5 flex size-3 items-center justify-center rounded-[3px] border bg-background/90",
-            veg ? dietDot.veg : dietDot.nonveg
-          )}
-          title={veg ? "Veg" : "Non-veg"}
-        >
-          <span
-            className={cn(
-              "size-1.5 rounded-full",
-              veg ? "bg-success" : "bg-danger"
-            )}
-          />
-        </span>
       </div>
 
       {/* Text block */}

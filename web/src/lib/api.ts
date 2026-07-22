@@ -8,9 +8,10 @@ import type {
   NotifyPayload,
   SwiggyAddress,
   ChatResponse,
-  ChatSessionState,
   Constraint,
   AppetiteLevel,
+  Blueprint,
+  AdjustResponse,
 } from "./types";
 
 const BASE =
@@ -73,12 +74,25 @@ export const api = {
   intake: (user_id: number, text: string) =>
     req<ParsedIntake>("/intake", { method: "POST", body: { user_id, text } }),
 
-  // Backend merges across turns via session_state.extracted — pass the prior
-  // turn's `extracted` back in each call.
-  chat: (user_id: number, message: string, prior?: ChatSessionState) =>
+  // Conversational blueprint builder. Echo the prior turn's `blueprint` back so
+  // the backend keeps context compact (no full-transcript resend). `history` is
+  // the last few messages, used only to nudge the LLM.
+  chat: (
+    user_id: number,
+    message: string,
+    blueprint?: Blueprint,
+    history?: { role: string; text: string }[]
+  ) =>
     req<ChatResponse>("/chat", {
       method: "POST",
-      body: { user_id, message, session_state: prior ? { extracted: prior } : undefined },
+      body: { user_id, message, blueprint: blueprint ?? {}, history: history ?? [] },
+    }),
+
+  // Apply a natural-language tweak to an existing blueprint ("make it cheaper").
+  chatAdjust: (user_id: number, message: string, blueprint: Blueprint) =>
+    req<AdjustResponse>("/chat/adjust", {
+      method: "POST",
+      body: { user_id, message, blueprint },
     }),
 
   setAppetite: (

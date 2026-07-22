@@ -110,9 +110,29 @@ export interface ChatSessionState {
   days?: number;
 }
 
+// The running "blueprint" the AI fills conversationally before a plan is built.
+export interface Blueprint {
+  budget: number | null;
+  appetite_level: AppetiteLevel | null;
+  veg_only: boolean;
+  constraints: Constraint[];
+  cuisines: string[];
+  meals: MealType[];
+  days: number;
+  // internal _asked_* flags may also be present; ignore on the client
+  [key: string]: unknown;
+}
+
 export interface ChatResponse {
   reply: string;
+  ready: boolean; // true -> show overview + Generate Plan
   action: ChatAction;
-  extracted: ChatSessionState;
-  missing: string[];
+  blueprint: Blueprint; // echo full state back next turn (compact memory)
+  extracted: ChatSessionState; // legacy convenience shape
+}
+
+export interface AdjustResponse {
+  reply: string;
+  blueprint: Blueprint;
+  public: Blueprint;
 }

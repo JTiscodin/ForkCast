@@ -6,7 +6,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { Sparkles, Star, ArrowLeftRight, Utensils } from "lucide-react";
 
 import { cn } from "@/lib/utils";
-import { surfaces, mealStyle, statusStyle, dietDot } from "@/lib/design";
+import { surfaces, mealStyle, statusStyle, dietBorder } from "@/lib/design";
 import { api } from "@/lib/api";
 import type { MealSlot, DishAlternative } from "@/lib/types";
 import {
@@ -28,26 +28,21 @@ export interface DishDetailModalProps {
   onSwap?: (alt: DishAlternative) => void;
 }
 
-/** Small green/red veg indicator square with label. */
+/**
+ * Veg / non-veg indicator — a small chip carrying the same colored LEFT BORDER
+ * used on dish cards, plus a text label. Consistent with `dietBorder`.
+ */
 function VegIndicator({ veg }: { veg: boolean }) {
   return (
-    <span className="inline-flex items-center gap-1.5 text-xs font-medium">
-      <span
-        className={cn(
-          "flex size-4 items-center justify-center rounded-[4px] border",
-          veg ? dietDot.veg : dietDot.nonveg
-        )}
-      >
-        <span
-          className={cn(
-            "size-2 rounded-full",
-            veg ? "bg-success" : "bg-danger"
-          )}
-        />
-      </span>
-      <span className={veg ? "text-success" : "text-danger"}>
-        {veg ? "Veg" : "Non-veg"}
-      </span>
+    <span
+      className={cn(
+        dietBorder(veg, "rounded-md bg-muted/50 pl-2 pr-2.5 py-0.5"),
+        "inline-flex items-center text-xs font-medium",
+        veg ? "text-diet-veg" : "text-diet-nonveg"
+      )}
+      title={veg ? "Veg" : "Non-veg"}
+    >
+      {veg ? "Veg" : "Non-veg"}
     </span>
   );
 }
@@ -137,26 +132,15 @@ function AltCard({
       transition={{ type: "spring", stiffness: 400, damping: 26 }}
       className={cn(
         "flex w-36 shrink-0 flex-col overflow-hidden rounded-xl border border-border bg-card text-left shadow-soft",
-        "transition-colors hover:border-brand-500/50 hover:shadow-layered"
+        // Veg / non-veg signal: colored LEFT BORDER (matches DishCard). Hover
+        // tints only the non-left edges so the diet cue stays stable.
+        dietBorder(alt.veg),
+        "transition-[box-shadow,border-color] hover:border-t-brand-500/50 hover:border-r-brand-500/50 hover:border-b-brand-500/50 hover:shadow-layered"
       )}
+      title={alt.veg ? "Veg" : "Non-veg"}
     >
       <div className="relative aspect-[4/3] w-full overflow-hidden">
         <DishImage src={alt.image_url} alt={alt.name} sizes="144px" rounded="rounded-none" />
-
-        <span
-          className={cn(
-            "absolute bottom-1 left-1 flex size-4 items-center justify-center rounded-[4px] border bg-background/90",
-            alt.veg ? dietDot.veg : dietDot.nonveg
-          )}
-          title={alt.veg ? "Veg" : "Non-veg"}
-        >
-          <span
-            className={cn(
-              "size-2 rounded-full",
-              alt.veg ? "bg-success" : "bg-danger"
-            )}
-          />
-        </span>
       </div>
       <div className="flex flex-1 flex-col gap-1 p-2">
         <span className="truncate text-xs font-medium text-foreground">

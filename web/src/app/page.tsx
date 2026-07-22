@@ -5,7 +5,7 @@ import { toast } from "sonner";
 
 import { api, ApiError } from "@/lib/api";
 import type {
-  ChatSessionState,
+  Blueprint,
   DishAlternative,
   MealSlot,
   NotifyPayload,
@@ -29,15 +29,15 @@ import { AppHeader } from "@/components/app/AppHeader";
 const MONTH = "2026-07";
 
 export default function Home() {
-  // session — lazily hydrated from localStorage on first render (SSR-safe: the
-  // loader guards window). Doing it in initializers (not an effect) avoids the
-  // React 19 "sync setState in effect" rule.
-  const [saved] = useState(() => loadSession());
-  const [userId, setUserId] = useState<number | null>(saved.userId);
+  // session — start EMPTY so the server-rendered HTML matches the first client
+  // render (localStorage isn't available on the server). We restore the saved
+  // session in the mount effect below, which flips `ready` on the client only,
+  // so there's no SSR/client hydration mismatch.
+  const [userId, setUserId] = useState<number | null>(null);
   const [live, setLive] = useState(false);
   const [needsAuth, setNeedsAuth] = useState(false);
-  const [address, setAddress] = useState<SwiggyAddress | null>(saved.address);
-  const [ready, setReady] = useState<boolean>(Boolean(saved.userId)); // onboarding complete
+  const [address, setAddress] = useState<SwiggyAddress | null>(null);
+  const [ready, setReady] = useState<boolean>(false); // onboarding complete
 
   // plan + data
   const [plan, setPlan] = useState<PlanSummary | null>(null);
@@ -45,7 +45,7 @@ export default function Home() {
   const [wallet, setWallet] = useState<WalletSummary | null>(null);
   const [planLoading, setPlanLoading] = useState(false);
   const [approving, setApproving] = useState(false);
-  const [approved, setApproved] = useState<boolean>(saved.approved);
+  const [approved, setApproved] = useState<boolean>(false);
 
   // dish modal
   const [activeSlot, setActiveSlot] = useState<MealSlot | null>(null);
@@ -56,9 +56,25 @@ export default function Home() {
 
   const [days, setDays] = useState(30);
 
-  // ---- boot: detect mode + restore any saved session ----
+  // ---- boot (client-only): restore session + detect mode ----
   useEffect(() => {
     let cancelled = false;
+    const saved = loadSession();
+
+    // restore the local session after mount, deferred a tick so we're not calling
+    // setState synchronously in the effect body (React 19 rule) — and so the first
+    // client render still matches the server (both show onboarding, no hydration
+    // mismatch), then this promotes to the app.
+    if (saved.userId) {
+      queueMicrotask(() => {
+        if (cancelled) return;
+        setUserId(saved.userId);
+        setAddress(saved.address);
+        setApproved(saved.approved);
+        setReady(true);
+      });
+    }
+
     api
       .getMode()
       .then((m) => {
@@ -73,8 +89,7 @@ export default function Home() {
         }
       });
 
-    // async-restore the saved plan + wallet (userId/address/ready were already
-    // hydrated synchronously via the useState initializers above)
+    // async-restore the saved plan + wallet
     if (saved.userId && saved.planId) {
       api
         .getPlan(saved.planId)
@@ -97,7 +112,6 @@ export default function Home() {
     return () => {
       cancelled = true;
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // re-check mode after an in-app Swiggy connect
@@ -143,32 +157,34 @@ export default function Home() {
     []
   );
 
-  // ---- chat says ready -> build plan ----
-  const handleReadyToPlan = useCallback(
-    async (extracted: ChatSessionState) => {
+  // ---- Generate Plan from the gathered blueprint (deterministic — no LLM) ----
+  // Also used for conversational tweaks: the chat adjusts the blueprint then calls
+  // this to rebuild the whole month.
+  const handleGenerate = useCallback(
+    async (bp: Blueprint) => {
       if (!userId) return;
-      const budget = extracted.budget ?? 10000;
-      const planDays = extracted.days ?? 30;
+      const budget = bp.budget ?? 10000;
+      const planDays = bp.days ?? 30;
       setDays(planDays);
       setPlanLoading(true);
       setApproved(false);
       try {
-        if (extracted.appetite_level) {
-          await api.setAppetite(userId, extracted.appetite_level);
+        if (bp.appetite_level) {
+          await api.setAppetite(userId, bp.appetite_level);
         }
         const summary = await api.makePlan({
           user_id: userId,
           month: MONTH,
           budget,
-          constraints: extracted.constraints ?? [],
-          veg_only: extracted.veg_only ?? false,
+          constraints: bp.constraints ?? [],
+          veg_only: bp.veg_only ?? false,
           days: planDays,
         });
         setPlan(summary);
         await refreshPlan(summary.plan_id);
         saveSession({ planId: summary.plan_id, approved: false, month: MONTH });
         if (!summary.feasible) {
-          toast.warning("Plan is over budget — see the shortfall below.");
+          toast.warning("Plan is over budget — tell me to make it cheaper, or adjust.");
         } else {
           toast.success("Month plan ready!");
         }
@@ -299,7 +315,9 @@ export default function Home() {
           {userId && (
             <ChatPane
               userId={userId}
-              onReadyToPlan={handleReadyToPlan}
+              onGenerate={handleGenerate}
+              generating={planLoading}
+              hasPlan={Boolean(plan)}
               onRespondSlot={handleRespondSlot}
               notifications={notifications}
               className="h-full"

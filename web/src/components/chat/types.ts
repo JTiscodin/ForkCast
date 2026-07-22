@@ -3,7 +3,13 @@
 
 export type ChatRole = "user" | "assistant" | "system";
 
-export type ChatMessageKind = "text" | "quick_replies" | "notification";
+export type ChatMessageKind =
+  | "text"
+  | "quick_replies"
+  | "notification"
+  | "overview"; // blueprint summary + Generate Plan button
+
+import type { Blueprint } from "@/lib/types";
 
 export interface QuickReply {
   label: string;
@@ -19,6 +25,8 @@ export interface ChatMessage {
   quickReplies?: QuickReply[];
   /** For notification bubbles — the meal slot this prompt is about. */
   slotId?: number;
+  /** For overview bubbles — the gathered blueprint to render + generate from. */
+  blueprint?: Blueprint;
   /** Assistant message awaiting a response — renders the typing indicator. */
   pending?: boolean;
 }

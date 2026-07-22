@@ -135,55 +135,70 @@ def test_why_returns_text_and_caches(monkeypatch=None):
 
 
 # ---------- TASK 3: /chat orchestration ----------
-def test_chat_ready_to_plan_when_budget_and_appetite():
-    old = os.environ.pop("GEMINI_API_KEY", None)  # deterministic reply, no network
+def test_chat_ready_when_budget_and_appetite():
+    old = os.environ.pop("GEMINI_API_KEY", None)  # deterministic (fallback) path
     try:
         import app as appmod
         body = appmod.ChatIn(user_id=1,
                              message="10k budget, at least 10 paneer meals, veg only, heavy eater")
         res = appmod.chat(body)
+        assert res["ready"] is True
         assert res["action"] == "ready_to_plan"
         assert res["extracted"]["budget"] == 10000
         assert res["extracted"]["appetite_level"] == "heavy"
         assert res["extracted"]["veg_only"] is True
-        assert res["missing"] == []
         assert res["reply"]
     finally:
         if old is not None:
             os.environ["GEMINI_API_KEY"] = old
 
 
-def test_chat_need_more_when_missing():
+def test_chat_not_ready_when_missing():
     old = os.environ.pop("GEMINI_API_KEY", None)
     try:
         import app as appmod
         body = appmod.ChatIn(user_id=1, message="I want a veg plan")
         res = appmod.chat(body)
+        assert res["ready"] is False
         assert res["action"] == "need_more"
-        assert "budget" in res["missing"]
-        assert "appetite_level" in res["missing"]
+        assert res["extracted"]["budget"] is None
         assert res["reply"]
     finally:
         if old is not None:
             os.environ["GEMINI_API_KEY"] = old
 
 
-def test_chat_merges_session_state_across_turns():
+def test_chat_merges_blueprint_across_turns():
     old = os.environ.pop("GEMINI_API_KEY", None)
     try:
         import app as appmod
-        # turn 1: only budget
+        # turn 1: only budget -> not ready, blueprint echoed back
         r1 = appmod.chat(appmod.ChatIn(user_id=1, message="my budget is 12000"))
-        assert r1["action"] == "need_more"
+        assert r1["ready"] is False
         assert r1["extracted"]["budget"] == 12000
-        # turn 2: appetite only, echo prior extracted back
+        # turn 2: appetite only, echo prior blueprint back for context
         r2 = appmod.chat(appmod.ChatIn(
             user_id=1, message="I'm a heavy eater",
-            session_state={"extracted": r1["extracted"]}))
+            blueprint=r1["blueprint"]))
         assert r2["extracted"]["budget"] == 12000  # merged from prior turn
         assert r2["extracted"]["appetite_level"] == "heavy"
-        assert r2["action"] == "ready_to_plan"
-        assert r2["missing"] == []
+        assert r2["ready"] is True
+    finally:
+        if old is not None:
+            os.environ["GEMINI_API_KEY"] = old
+
+
+def test_chat_adjust_changes_blueprint():
+    old = os.environ.pop("GEMINI_API_KEY", None)
+    try:
+        import app as appmod
+        r1 = appmod.chat(appmod.ChatIn(
+            user_id=1, message="15000 budget, heavy eater, veg"))
+        adj = appmod.chat_adjust(appmod.AdjustIn(
+            user_id=1, message="actually make it 9000 budget",
+            blueprint=r1["blueprint"]))
+        assert adj["public"]["budget"] == 9000
+        assert adj["reply"]
     finally:
         if old is not None:
             os.environ["GEMINI_API_KEY"] = old

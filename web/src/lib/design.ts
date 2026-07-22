@@ -182,3 +182,25 @@ export const dietDot = {
   veg: "text-success border-success",
   nonveg: "text-danger border-danger",
 } as const;
+
+/* -------------------------------------------------------------------------
+ * Diet indicator (veg / non-veg) as a colored LEFT BORDER on dish cards.
+ * Backed by the muted --diet-veg / --diet-nonveg tokens in globals.css
+ * (a desaturated forest-green / brick-red, tuned for both themes — NOT neon).
+ * This is the canonical veg/non-veg signal, replacing the old dot/tag.
+ * ------------------------------------------------------------------------- */
+export const dietBorderColor = {
+  veg: "border-diet-veg",
+  nonveg: "border-diet-nonveg",
+} as const;
+
+/**
+ * Left-border className carrying the veg/non-veg signal on a dish card.
+ * Returns a `border-l-4` plus the themed diet color; merge in extra classes.
+ *
+ *   <div className={dietBorder(veg)}>…</div>
+ *   <div className={dietBorder(veg, "rounded-xl")}>…</div>
+ */
+export function dietBorder(veg: boolean, ...extra: string[]): string {
+  return cn("border-l-4", veg ? dietBorderColor.veg : dietBorderColor.nonveg, ...extra);
+}

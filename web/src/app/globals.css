@@ -63,6 +63,10 @@
   --color-meal-dinner: var(--meal-dinner);
   --color-meal-snack: var(--meal-snack);
 
+  /* --- Diet indicator (veg / non-veg) — muted, tasteful, NOT neon --- */
+  --color-diet-veg: var(--diet-veg);
+  --color-diet-nonveg: var(--diet-nonveg);
+
   /* --- shadcn contract (mapped to brand palette below) --- */
   --color-sidebar-ring: var(--sidebar-ring);
   --color-sidebar-border: var(--sidebar-border);
@@ -183,6 +187,10 @@
   --meal-dinner: oklch(0.560 0.140 300);    /* dusk violet */
   --meal-snack: oklch(0.680 0.140 165);     /* teal */
 
+  /* Diet indicator — desaturated forest-green / brick-red (light theme) */
+  --diet-veg: oklch(0.520 0.095 148);       /* muted forest green */
+  --diet-nonveg: oklch(0.520 0.130 27);     /* muted brick red */
+
   /* shadcn contract */
   --card: oklch(1 0 0);
   --card-foreground: var(--foreground);
@@ -249,6 +257,10 @@
   --meal-dinner: oklch(0.680 0.150 300);
   --meal-snack: oklch(0.740 0.140 165);
 
+  /* Diet indicator — muted green / brick-red tuned for dark (NOT neon) */
+  --diet-veg: oklch(0.600 0.105 148);       /* desaturated forest green */
+  --diet-nonveg: oklch(0.590 0.145 27);     /* muted brick red */
+
   /* shadcn contract */
   --card: oklch(0.215 0.011 55);
   --card-foreground: var(--foreground);
@@ -311,6 +323,9 @@
     --meal-lunch: oklch(0.780 0.158 55);
     --meal-dinner: oklch(0.680 0.150 300);
     --meal-snack: oklch(0.740 0.140 165);
+
+    --diet-veg: oklch(0.600 0.105 148);
+    --diet-nonveg: oklch(0.590 0.145 27);
 
     --card: oklch(0.215 0.011 55);
     --card-foreground: oklch(0.965 0.006 70);
