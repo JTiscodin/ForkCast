@@ -21,6 +21,9 @@ export interface ParsedIntake {
   needs_appetite: boolean;
 }
 
+/** Role a dish plays in a meal — see backend/course.py. */
+export type Course = "bread" | "staple" | "curry" | "complete" | "side";
+
 export interface MealSlot {
   id: number;
   plan_id: number;
@@ -30,6 +33,7 @@ export interface MealSlot {
   dish_name: string;
   restaurant_id: string;
   restaurant_name?: string;
+  /** MAIN dish price only. For the real meal cost use slotTotal(). */
   price: number;
   rating?: number;
   variant: string;
@@ -37,6 +41,24 @@ export interface MealSlot {
   order_id?: string | null;
   image_url?: string;
   why_text?: string;
+  // --- meal composition: a curry carries a bread/rice accompaniment ---
+  course?: Course;
+  side_dish_id?: string;
+  side_dish_name?: string;
+  side_qty?: number;
+  /** qty x unit price, already multiplied. */
+  side_price?: number;
+  side_restaurant_name?: string;
+  side_image_url?: string;
+}
+
+/**
+ * Full cost of a meal — main dish plus its accompaniment. `price` alone
+ * undercounts every paired curry, so all money shown to the user goes
+ * through this.
+ */
+export function slotTotal(s: MealSlot): number {
+  return (s.price ?? 0) + (s.side_price ?? 0);
 }
 
 export interface ConstraintStatus {
@@ -51,6 +73,41 @@ export interface PlanSummary {
   leftover: number;
   constraint_status: ConstraintStatus;
   message: string;
+}
+
+/** One concrete way to bring a plan inside budget (POST /plan/feasibility). */
+export interface FeasibilityOption {
+  /** "budget" = raise the budget; "config" = change meals and/or appetite. */
+  kind: "budget" | "config";
+  label: string;
+  detail: string;
+  /** What this configuration would cost for the month. */
+  total: number;
+  fits: boolean;
+  changes: {
+    budget?: number;
+    meals?: MealType[];
+    appetite_level?: AppetiteLevel;
+  };
+}
+
+export interface FeasibilityReport {
+  feasible: boolean;
+  budget: number;
+  /** Cheapest achievable total for what the user actually asked for. */
+  floor: number;
+  shortfall: number;
+  current: {
+    appetite: AppetiteLevel;
+    meals: MealType[];
+    meals_label: string;
+    slots: number;
+    floor: number;
+    per_meal: number;
+  };
+  options: FeasibilityOption[];
+  /** One plain-language sentence explaining the situation. */
+  headline: string;
 }
 
 export interface PlanFull {
@@ -115,6 +172,8 @@ export interface Blueprint {
   budget: number | null;
   appetite_level: AppetiteLevel | null;
   veg_only: boolean;
+  /** Steers the catalog search toward protein-rich dishes. */
+  high_protein?: boolean;
   constraints: Constraint[];
   cuisines: string[];
   meals: MealType[];

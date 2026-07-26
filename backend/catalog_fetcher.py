@@ -17,9 +17,26 @@ Real-schema notes (mcp.swiggy.com/builders/docs/reference/food):
 
 The optimizer never imports this module's transport detail. It just eats a Dish list.
 """
+import os
+
 from catalog import Dish, mock_catalog
+from course import course_of, classify_unknown
 
 MEAL_TYPES = ("breakfast", "lunch", "dinner")
+
+# Ask Gemini to classify dish names the keyword+fuzzy rules couldn't read.
+# One call per unseen dish_id, cached for the process lifetime — so it costs a
+# few dozen calls when a new catalog is first fetched, then nothing. Off by
+# default so a missing GEMINI_API_KEY never changes planning behaviour; the
+# rules alone already handle the overwhelming majority of names.
+COURSE_LLM_FALLBACK = os.environ.get("COURSE_LLM_FALLBACK", "0") == "1"
+
+# Use get_restaurant_menu descriptions to settle dishes the name alone can't
+# classify. Costs a few extra MCP calls (~0.7s each), bounded by the two limits
+# below, so it stays well inside a normal plan build.
+DESCRIPTION_ENRICH = os.environ.get("DESCRIPTION_ENRICH", "1") == "1"
+DESCRIPTION_MAX_RESTAURANTS = int(os.environ.get("DESCRIPTION_MAX_RESTAURANTS", "3"))
+DESCRIPTION_PAGES = int(os.environ.get("DESCRIPTION_PAGES", "1"))
 
 # Query seeds per meal slot — drives the live search_menu fan-out to build a pool.
 # Kept small (3 per slot) because each live Swiggy query is a sequential network
@@ -28,8 +45,36 @@ MEAL_TYPES = ("breakfast", "lunch", "dinner")
 SLOT_QUERIES = {
     "breakfast": ["dosa", "paratha", "poha"],
     "lunch": ["thali", "paneer", "biryani"],
-    "dinner": ["roti", "curry", "paneer"],
+    # "roti" as a dinner seed pulled in bare ₹10 breads that the optimizer then
+    # planned as whole dinners. Seed with real dinner dishes instead; breads are
+    # fetched separately below, purely as pairing stock.
+    "dinner": ["dal", "curry", "paneer"],
 }
+
+# Non-veg seeds, added on top of the above when the user has NOT asked for
+# veg-only. Every seed in SLOT_QUERIES names a vegetarian dish (dosa, paneer,
+# dal, ...), so a catalog built from those alone was 100% vegetarian - and a
+# user asking for a high-protein non-veg plan got 30 days of poha and dal,
+# because the optimizer can only choose from what was fetched. Diet preference
+# has to steer the SEARCH, not just filter the results.
+NONVEG_QUERIES = {
+    "breakfast": ["egg", "omelette"],
+    "lunch": ["chicken", "chicken biryani", "fish"],
+    "dinner": ["chicken curry", "mutton", "egg curry"],
+}
+
+# High-protein seeds, layered in when the user mentions protein. Kept separate
+# so a plain non-veg request doesn't drag in protein-bowl noise.
+PROTEIN_QUERIES = {
+    "veg": ["paneer tikka", "soya chaap", "rajma", "chole"],
+    "nonveg": ["grilled chicken", "chicken tikka", "egg bhurji"],
+}
+
+# Accompaniment stock — breads and rice fetched so curries have something to be
+# paired WITH. These are never planned as a meal on their own (course.py rules);
+# they only ever attach to a curry. Kept separate from SLOT_QUERIES so the meal
+# seeds stay focused on things that can actually headline a meal.
+ACCOMPANIMENT_QUERIES = ["roti", "naan", "rice"]
 
 
 class CatalogFetcher:
@@ -42,9 +87,10 @@ class CatalogFetcher:
         self.address_id = address_id
 
     def fetch(self, area=None, cuisines=None, veg_only=False, max_price=None,
-              address_id=None):
+              address_id=None, high_protein=False):
         addr = address_id or self.address_id
-        dishes = self._mock_fetch() if self.mode == "mock" else self._mcp_fetch(addr, veg_only)
+        dishes = (self._mock_fetch() if self.mode == "mock"
+                  else self._mcp_fetch(addr, veg_only, high_protein))
         if cuisines:
             cset = {c.lower() for c in cuisines}
             dishes = [d for d in dishes if d.cuisine.lower() in cset]
@@ -58,17 +104,33 @@ class CatalogFetcher:
         return mock_catalog()
 
     # ---- live Swiggy MCP path ----
-    def _mcp_fetch(self, address_id, veg_only):
+    def _mcp_fetch(self, address_id, veg_only, high_protein=False):
         """Fan out query-driven search_menu across meal-type seeds, merge to Dish pool.
 
         search_menu requires an addressId; resolve it from get_addresses if not given.
+
+        The seed set depends on DIET: the base seeds are all vegetarian dishes,
+        so a non-veg user needs chicken/egg/fish seeds added or the pool they
+        get to choose from contains no non-veg food at all.
         """
         if not address_id:
             address_id = self._resolve_address()
         seen = {}
         errors = 0
         attempts = 0
-        for meal_type, queries in SLOT_QUERIES.items():
+
+        # Build the seed set for this user's diet before fetching anything.
+        seeds = {m: list(q) for m, q in SLOT_QUERIES.items()}
+        if not veg_only:
+            for m, extra in NONVEG_QUERIES.items():
+                seeds.setdefault(m, []).extend(extra)
+        if high_protein:
+            bucket = PROTEIN_QUERIES["veg" if veg_only else "nonveg"]
+            # Spread protein seeds across lunch and dinner, where they belong.
+            seeds.setdefault("lunch", []).extend(bucket[:2])
+            seeds.setdefault("dinner", []).extend(bucket[2:] or bucket[:1])
+
+        for meal_type, queries in seeds.items():
             for q in queries:
                 attempts += 1
                 # A single slow/failed Swiggy query must NOT abort the whole plan.
@@ -87,6 +149,37 @@ class CatalogFetcher:
                     dish = self._map_item(item, meal_type)
                     if dish and dish.dish_id not in seen:
                         seen[dish.dish_id] = dish
+
+        # Accompaniment pass: breads/rice for pairing with curries. Tagged
+        # meal_type "dinner" only as a placeholder — the optimizer selects
+        # accompaniments by COURSE, never by meal_type, so this doesn't make
+        # them eligible as dinners.
+        for q in ACCOMPANIMENT_QUERIES:
+            attempts += 1
+            try:
+                resp = self.mcp.call("search_menu", {
+                    "addressId": address_id,
+                    "query": q,
+                    **({"vegFilter": 1} if veg_only else {}),
+                })
+            except Exception as e:  # noqa: BLE001 — same resilience as above
+                errors += 1
+                print(f"[catalog] accompaniment '{q}' failed: {type(e).__name__}: {e}")
+                continue
+            for item in _iter_items(resp):
+                dish = self._map_item(item, "dinner")
+                if dish and dish.dish_id not in seen:
+                    seen[dish.dish_id] = dish
+
+        # Description pass: search_menu returns no description, but
+        # get_restaurant_menu does (100% coverage observed) and it is often far
+        # more legible than a branded name - "Raj Kachori" arrives as "Crispy
+        # Kachori Filled with Potatoes, Moong Dal, Yogurt". We only fetch menus
+        # for dishes the NAME could not classify confidently, so this costs a
+        # couple of extra calls rather than a full menu crawl per restaurant.
+        if DESCRIPTION_ENRICH:
+            self._enrich_uncertain(seen, address_id)
+
         if not seen:
             raise RuntimeError(
                 f"Swiggy catalog fetch returned nothing "
@@ -94,6 +187,65 @@ class CatalogFetcher:
         if errors:
             print(f"[catalog] built {len(seen)} dishes; {errors}/{attempts} queries failed")
         return list(seen.values())
+
+    def _enrich_uncertain(self, seen, address_id):
+        """Re-classify low-confidence dishes using their menu description.
+
+        Only restaurants that actually own an uncertain dish are fetched, and
+        only the first page or two of each - a full menu is ~15 pages, which is
+        far too slow to do for every restaurant on every plan.
+        """
+        from dataclasses import replace
+        from course import classify, classify_with_description
+
+        uncertain = {}
+        for dish in seen.values():
+            if classify(dish.name).confidence in ("default", "keyword"):
+                uncertain.setdefault(dish.restaurant_id, []).append(dish)
+        if not uncertain:
+            return
+
+        # Bound the work: the busiest few restaurants cover most of the pool.
+        targets = sorted(uncertain.items(), key=lambda kv: -len(kv[1]))
+        targets = targets[:DESCRIPTION_MAX_RESTAURANTS]
+
+        changed = 0
+        for rid, dishes in targets:
+            descs = self._fetch_descriptions(rid, address_id)
+            if not descs:
+                continue
+            for dish in dishes:
+                desc = descs.get(dish.name.strip().lower())
+                if not desc:
+                    continue
+                info = classify_with_description(dish.name, desc)
+                if info.course != dish.course:
+                    seen[dish.dish_id] = replace(dish, course=info.course)
+                    changed += 1
+        if changed:
+            print(f"[catalog] descriptions re-classified {changed} dish(es)")
+
+    def _fetch_descriptions(self, restaurant_id, address_id):
+        """{lowercased dish name: description} for one restaurant, first pages."""
+        out = {}
+        for page in range(1, DESCRIPTION_PAGES + 1):
+            try:
+                resp = self.mcp.call("get_restaurant_menu", {
+                    "restaurantId": restaurant_id,
+                    "addressId": address_id,
+                    "page": page,
+                })
+            except Exception as e:  # noqa: BLE001 - enrichment is best-effort
+                print(f"[catalog] menu fetch {restaurant_id} p{page} failed: {e}")
+                break
+            for cat in (resp.get("categories") or []):
+                for item in (cat.get("items") or []):
+                    desc = item.get("description")
+                    if desc:
+                        out[str(item.get("name", "")).strip().lower()] = desc
+            if not resp.get("hasMore"):
+                break
+        return out
 
     def _resolve_address(self):
         resp = self.mcp.call("get_addresses", {})
@@ -130,6 +282,18 @@ class CatalogFetcher:
             mt = meal_type
             if _looks_breakfast(name):
                 mt = "breakfast"
+            # Course decides whether this can BE a meal or only accompany one.
+            # Without it a ₹10 "Tawa Roti" surfaced by the dinner seed scored
+            # better than any real dish and filled the plan with bare bread.
+            #
+            # classify_unknown falls back to one cached Gemini call for names
+            # the rules genuinely can't read — branded strings like "Samosa
+            # Party Bucket - Mini Dal Kachori" are exactly what keyword rules
+            # are bad at. Cached by dish_id, so it is a handful of calls when a
+            # catalog is first seen and zero thereafter.
+            dish_course = classify_unknown(
+                str(item.get("menu_item_id") or item.get("id") or name),
+                name, use_llm=COURSE_LLM_FALLBACK)
             return Dish(
                 dish_id=str(item.get("menu_item_id") or item.get("id")
                             or item.get("itemId") or f"{rid}:{name}"),
@@ -144,6 +308,7 @@ class CatalogFetcher:
                 veg=veg,
                 variants=variants,
                 image_url=image_url,
+                course=dish_course,
             )
         except (ValueError, TypeError):
             return None
@@ -173,14 +338,27 @@ def _looks_breakfast(name):
     return any(k in n for k in _BREAKFAST_KW)
 
 
+_MEAT_NAME_KW = ("chicken", "mutton", "murg", "lamb", "keema", "kheema", "fish",
+                 "prawn", "shrimp", "crab", "egg", "anda", "omelette", "bacon",
+                 "ham", "meat", "beef", "pork", "kodi", "tangdi", "seekh")
+
+
 def _is_veg(item):
-    if "is_veg" in item:
-        return bool(item["is_veg"])
-    if "isVeg" in item:
-        return bool(item["isVeg"])
-    if "vegClassifier" in item:
+    """Whether a menu item is vegetarian.
+
+    Swiggy sends isVeg=True for vegetarian items and **omits it (None) for
+    non-veg** — it is not a true boolean. Defaulting a missing value to True
+    marked every chicken dish vegetarian, so a user asking for a non-veg plan
+    got a 100% vegetarian catalog and the veg% stat read 92% on a plan full of
+    chicken searches. When the flag is absent, fall back to the dish name.
+    """
+    for key in ("is_veg", "isVeg"):
+        if item.get(key) is not None:
+            return bool(item[key])
+    if item.get("vegClassifier") is not None:
         return str(item["vegClassifier"]).upper() == "VEG"
-    return True
+    name = str(item.get("name", "")).lower()
+    return not any(kw in name for kw in _MEAT_NAME_KW)
 
 
 # ---- heuristics for mapping raw menu -> optimizer fields ----

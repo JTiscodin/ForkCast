@@ -1,12 +1,14 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 
 import { api, ApiError } from "@/lib/api";
 import type {
   Blueprint,
   DishAlternative,
+  FeasibilityOption,
+  FeasibilityReport,
   MealSlot,
   NotifyPayload,
   PlanSummary,
@@ -17,9 +19,9 @@ import { cn } from "@/lib/utils";
 import { gradients, surfaces } from "@/lib/design";
 
 import { ChatPane } from "@/components/chat/ChatPane";
-import { WeekCalendar } from "@/components/calendar/WeekCalendar";
+import { DayListCalendar } from "@/components/calendar/DayListCalendar";
 import { PlanSummaryStrip } from "@/components/calendar/PlanSummaryStrip";
-import { DishCard } from "@/components/dish/DishCard";
+import { FeasibilityPanel } from "@/components/calendar/FeasibilityPanel";
 import { DishDetailModal } from "@/components/dish/DishDetailModal";
 import { WalletBar } from "@/components/wallet/WalletBar";
 import { Onboarding } from "@/components/app/Onboarding";
@@ -46,6 +48,13 @@ export default function Home() {
   const [planLoading, setPlanLoading] = useState(false);
   const [approving, setApproving] = useState(false);
   const [approved, setApproved] = useState<boolean>(false);
+
+  // Why an over-budget plan doesn't fit, and what would. Fetched alongside the
+  // plan so the explanation is ready the moment the numbers land.
+  const [feasibility, setFeasibility] = useState<FeasibilityReport | null>(null);
+  // The blueprint the current plan was built from — needed to re-plan when the
+  // user applies one of the suggested fixes.
+  const lastBlueprintRef = useRef<Blueprint | null>(null);
 
   // dish modal
   const [activeSlot, setActiveSlot] = useState<MealSlot | null>(null);
@@ -179,12 +188,38 @@ export default function Home() {
           constraints: bp.constraints ?? [],
           veg_only: bp.veg_only ?? false,
           days: planDays,
+          // The chat has always gathered which meals the user wants; this is
+          // the last link in the chain — without it the backend planned (and
+          // budgeted for) all three regardless of what they asked for.
+          meals: bp.meals?.length ? bp.meals : undefined,
+          high_protein: bp.high_protein ?? false,
         });
         setPlan(summary);
+        lastBlueprintRef.current = bp;
         await refreshPlan(summary.plan_id);
         saveSession({ planId: summary.plan_id, approved: false, month: MONTH });
+
+        // Explain the budget in concrete terms. Never let this break planning —
+        // a failed probe just means no panel, not a failed plan.
+        try {
+          setFeasibility(
+            await api.planFeasibility({
+              user_id: userId,
+              month: MONTH,
+              budget,
+              constraints: bp.constraints ?? [],
+              veg_only: bp.veg_only ?? false,
+              days: planDays,
+              meals: bp.meals?.length ? bp.meals : undefined,
+              high_protein: bp.high_protein ?? false,
+            }),
+          );
+        } catch {
+          setFeasibility(null);
+        }
+
         if (!summary.feasible) {
-          toast.warning("Plan is over budget — tell me to make it cheaper, or adjust.");
+          toast.warning("Over budget — see the options below the summary.");
         } else {
           toast.success("Month plan ready!");
         }
@@ -195,6 +230,24 @@ export default function Home() {
       }
     },
     [userId, refreshPlan]
+  );
+
+  // ---- apply a suggested fix from the feasibility panel ----
+  // Each option carries the exact settings that make it fit, so applying one is
+  // just a re-plan with those fields merged over the blueprint.
+  const handleApplyFix = useCallback(
+    (option: FeasibilityOption) => {
+      const bp = lastBlueprintRef.current;
+      if (!bp) return;
+      const { budget, meals, appetite_level } = option.changes;
+      void handleGenerate({
+        ...bp,
+        ...(budget != null ? { budget } : {}),
+        ...(meals ? { meals } : {}),
+        ...(appetite_level ? { appetite_level } : {}),
+      });
+    },
+    [handleGenerate]
   );
 
   // ---- approve ----
@@ -343,6 +396,15 @@ export default function Home() {
                 {/* at-a-glance overview so the grid isn't the first overwhelming thing */}
                 <PlanSummaryStrip plan={plan} slots={slots} />
 
+                {/* Explains an over-budget plan in real numbers and offers
+                    concrete, one-click fixes. Collapses to a single line when
+                    the plan already fits. */}
+                <FeasibilityPanel
+                  report={feasibility}
+                  onApply={handleApplyFix}
+                  applying={planLoading}
+                />
+
                 <section className="flex flex-col gap-4">
                   <div className="flex items-center justify-between gap-3">
                     <div>
@@ -366,12 +428,11 @@ export default function Home() {
                     )}
                   </div>
 
-                  <WeekCalendar
+                  <DayListCalendar
                     slots={slots}
                     days={days}
                     loading={planLoading}
                     onSlotClick={openDish}
-                    renderSlot={(slot) => <DishCard slot={slot} />}
                   />
                 </section>
               </>

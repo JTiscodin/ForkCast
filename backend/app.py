@@ -29,6 +29,7 @@ from swap_service import alternatives
 from intake import parse_intake
 import gemini
 import blueprint_chat
+import feasibility
 
 # ---- runtime state (mutable so we can switch mock -> live after in-app login) ----
 # 'mock' = demo, 'mcp' = real Swiggy. When SWIGGY_MODE=mcp but the token is
@@ -92,10 +93,17 @@ def _live():
     return STATE["mode"] == "mcp" and STATE["client"] is not None
 
 
-def get_catalog(veg_only=False):
-    key = ("veg" if veg_only else "all")
+def get_catalog(veg_only=False, high_protein=False):
+    """Catalog for a given diet. Cached per (diet, protein) combination.
+
+    The cache key MUST include high_protein: the seed queries differ, so a
+    non-veg high-protein pool is a genuinely different set of dishes, not a
+    filtered view of the veg one.
+    """
+    key = ("veg" if veg_only else "all") + ("+protein" if high_protein else "")
     if key not in _CATALOG_CACHE:
-        _CATALOG_CACHE[key] = STATE["fetcher"].fetch(veg_only=veg_only)
+        _CATALOG_CACHE[key] = STATE["fetcher"].fetch(
+            veg_only=veg_only, high_protein=high_protein)
     return _CATALOG_CACHE[key]
 
 
@@ -130,6 +138,15 @@ class PlanIn(BaseModel):
     constraints: list = []       # [{"dish_tag","min_count"}]
     veg_only: bool = False
     days: int = 30
+    # Which meal slots to plan. Comes straight from the blueprint's `meals`
+    # field — the chat gathered it all along, but /plan used to ignore it and
+    # always build all three, so "breakfast and lunch only" still produced (and
+    # budgeted for) 30 dinners.
+    meals: list = ["breakfast", "lunch", "dinner"]
+    # Steers the catalog search toward protein-rich dishes (see
+    # catalog_fetcher.PROTEIN_QUERIES). Filtering can't add dishes that were
+    # never fetched, so this has to reach the search, not just the optimizer.
+    high_protein: bool = False
 
 
 class RespondIn(BaseModel):
@@ -273,9 +290,14 @@ def set_appetite(body: AppetiteIn):
 @app.post("/plan")
 def make_plan(body: PlanIn):
     prof = _APPETITE_CACHE.get(body.user_id) or build_profile(body.user_id, "moderate")
-    constraints = [Constraint(c["dish_tag"], c["min_count"]) for c in body.constraints]
-    result = optimize(get_catalog(body.veg_only), prof, body.budget, days=body.days,
-                      constraints=constraints, veg_only=body.veg_only)
+    # Normalize at the boundary: constraints can arrive as bare strings from an
+    # LLM-authored blueprint, and indexing those as dicts crashed /plan with a
+    # 500. Never trust the shape of model-generated input.
+    constraints = [Constraint(c["dish_tag"], c["min_count"])
+                   for c in blueprint_chat._normalize_constraints(body.constraints)]
+    result = optimize(get_catalog(body.veg_only, body.high_protein), prof,
+                      body.budget, days=body.days, constraints=constraints,
+                      veg_only=body.veg_only, meals=body.meals)
     conn, _, plan_svc = svc()
     plan_id = plan_svc.save_plan(body.user_id, body.month, result)
     conn.close()
@@ -288,6 +310,30 @@ def make_plan(body: PlanIn):
         "constraint_status": result.constraint_status,
         "message": result.message,
     }
+
+
+@app.post("/plan/feasibility")
+def plan_feasibility(body: PlanIn):
+    """Why a budget doesn't fit, and what specifically would make it fit.
+
+    Probes the deterministic optimizer across the levers the user controls
+    (budget / meals / appetite) and returns concrete numbers, so the UI can say
+    "Rs 10,000 won't cover 90 meals here, the cheapest dishes near you are about
+    Rs 197 each" instead of generic advice.
+    """
+    cached = _APPETITE_CACHE.get(body.user_id)
+    level = cached.appetite_level if cached else "moderate"
+    return feasibility.analyse(
+        catalog=get_catalog(body.veg_only, body.high_protein),
+        profile_builder=build_profile,
+        user_id=body.user_id,
+        appetite_level=level,
+        budget=body.budget,
+        days=body.days,
+        constraints=body.constraints,
+        meals=body.meals,
+        veg_only=body.veg_only,
+    )
 
 
 @app.get("/plan/{plan_id}")
@@ -461,7 +507,9 @@ def _chat_reply(action, extracted, missing):
     appetite = extracted.get("appetite_level")
     cons = extracted.get("constraints", [])
     veg = extracted.get("veg_only")
-    cons_txt = ", ".join(f"{c['min_count']} {c['dish_tag']}" for c in cons) or "no specific"
+    cons_txt = ", ".join(
+        f"{c['min_count']} {c['dish_tag']}"
+        for c in blueprint_chat._normalize_constraints(cons)) or "no specific"
 
     if gemini.has_key():
         system = ("You are a friendly budget meal-planning assistant. Reply in ONE or two "

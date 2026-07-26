@@ -8,7 +8,7 @@ import { Sparkles, Star, ArrowLeftRight, Utensils } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { surfaces, mealStyle, statusStyle, dietBorder } from "@/lib/design";
 import { api } from "@/lib/api";
-import type { MealSlot, DishAlternative } from "@/lib/types";
+import { slotTotal, type MealSlot, type DishAlternative } from "@/lib/types";
 import {
   Dialog,
   DialogContent,
@@ -411,6 +411,34 @@ function DishDetailBody({
               <VegIndicator veg={veg} />
             </span>
           </div>
+
+          {/* Accompaniment — the bread/rice that completes a curry. Shown here
+              too so the modal's figure matches what the wallet is charged. */}
+          {slot.side_dish_name && (
+            <div className="rounded-xl border border-dashed border-border/70 bg-muted/30 px-3 py-2">
+              <div className="flex items-center justify-between gap-2">
+                <span className="truncate text-sm text-foreground">
+                  + {slot.side_dish_name}
+                  {(slot.side_qty ?? 0) > 1 && (
+                    <span className="ml-1 text-muted-foreground">
+                      ×{slot.side_qty}
+                    </span>
+                  )}
+                </span>
+                <span className="shrink-0 font-mono text-sm text-muted-foreground">
+                  {formatINR(slot.side_price ?? 0)}
+                </span>
+              </div>
+              <div className="mt-1.5 flex items-center justify-between border-t border-border/60 pt-1.5">
+                <span className="text-[0.65rem] font-medium uppercase tracking-wide text-muted-foreground">
+                  Meal total
+                </span>
+                <span className="font-mono text-base font-bold text-accent-brand">
+                  {formatINR(slotTotal(slot))}
+                </span>
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Why this dish? */}

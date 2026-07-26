@@ -4,7 +4,7 @@ In demo, mock. In prototype, Catalog Fetcher fills these from Swiggy MCP
 (search_restaurants, search_menu). Optimizer only sees Dish objects — it never
 knows or cares whether they came from mock or live MCP. That decoupling is the point.
 """
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 
 
 @dataclass(frozen=True)
@@ -21,6 +21,9 @@ class Dish:
     veg: bool
     variants: dict          # {"regular": price, "large": price} optional sizes
     image_url: str = ""     # Swiggy CDN imageUrl (real fetch); "" for mocks
+    course: str = "complete"  # bread|staple|curry|complete|side — see course.py.
+                              # Decides whether this dish can stand as a meal on
+                              # its own, needs a bread/rice, or is only a side.
 
 
 def variant_price(dish: Dish, multiplier: float) -> tuple:
@@ -45,7 +48,13 @@ def variant_price(dish: Dish, multiplier: float) -> tuple:
 
 # ---- mock catalog: realistic Indian dishes across meal slots + price bands ----
 def mock_catalog():
-    d = Dish
+    """Mock pool. Courses are classified from the names by course.classify, the
+    same path the live Swiggy fetch uses — so mock and live behave identically
+    and the pairing logic is exercised by tests."""
+    from course import course_of
+    def d(*a, **kw):
+        dish = Dish(*a, **kw)
+        return replace(dish, course=course_of(dish.name))
     img = "https://media-assets.swiggy.com/swiggy/image/upload/mock/{}.jpg".format
     return [
         # breakfast
@@ -68,4 +77,15 @@ def mock_catalog():
         d("d4", "Chicken Curry Roti", "r5", "Paradise", "dinner", 240, 4.4, "north_indian", ("chicken","nonveg"), False, {"regular":240,"large":320}, img("chicken_curry_roti")),
         d("d5", "Chole Bhature", "r3", "Punjabi Rasoi", "dinner", 140, 4.3, "north_indian", ("chole","veg"), True, {"regular":140}, img("chole_bhature")),
         d("d6", "Curd Rice", "r1", "Sri Udupi", "dinner", 100, 4.0, "south_indian", ("rice","veg","light"), True, {"regular":100}, img("curd_rice")),
+        # curries (need a bread/rice) + the breads and staples that pair with
+        # them — these exercise the composition path in optimizer.py.
+        d("c1", "Paneer Butter Masala", "r3", "Punjabi Rasoi", "dinner", 210, 4.6, "north_indian", ("paneer","veg"), True, {"regular":210,"large":280}, img("pbm")),
+        d("c2", "Dal Tadka", "r2", "Local Tiffin", "dinner", 120, 4.2, "north_indian", ("dal","veg"), True, {"regular":120}, img("dal_tadka")),
+        d("c3", "Kadai Paneer", "r3", "Punjabi Rasoi", "lunch", 230, 4.5, "north_indian", ("paneer","veg"), True, {"regular":230}, img("kadai_paneer")),
+        d("c4", "Butter Chicken", "r5", "Paradise", "dinner", 280, 4.6, "north_indian", ("chicken","nonveg"), False, {"regular":280,"large":380}, img("butter_chicken")),
+        d("br1", "Tawa Roti", "r3", "Punjabi Rasoi", "dinner", 12, 4.1, "north_indian", ("roti","veg"), True, {"regular":12}, img("tawa_roti")),
+        d("br2", "Butter Naan", "r3", "Punjabi Rasoi", "dinner", 45, 4.4, "north_indian", ("naan","veg"), True, {"regular":45}, img("butter_naan")),
+        d("br3", "Tandoori Roti", "r5", "Paradise", "lunch", 18, 4.2, "north_indian", ("roti","veg"), True, {"regular":18}, img("tandoori_roti")),
+        d("st1", "Jeera Rice", "r3", "Punjabi Rasoi", "dinner", 90, 4.3, "north_indian", ("rice","veg"), True, {"regular":90}, img("jeera_rice")),
+        d("st2", "Steamed Rice", "r2", "Local Tiffin", "lunch", 60, 4.0, "north_indian", ("rice","veg"), True, {"regular":60}, img("steamed_rice")),
     ]

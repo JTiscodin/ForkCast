@@ -12,6 +12,8 @@ import type {
   AppetiteLevel,
   Blueprint,
   AdjustResponse,
+  MealType,
+  FeasibilityReport,
 } from "./types";
 
 const BASE =
@@ -113,7 +115,31 @@ export const api = {
     constraints?: Constraint[];
     veg_only?: boolean;
     days?: number;
+    /** Which slots to plan. Omit for all three. */
+    meals?: MealType[];
+    /** Fetch protein-rich dishes — changes the search, not just a filter. */
+    high_protein?: boolean;
   }) => req<PlanSummary>("/plan", { method: "POST", body: input }),
+
+  /**
+   * Why a budget doesn't fit and what specifically would fix it. Probes the
+   * deterministic optimizer across budget / meals / appetite, so the UI can
+   * give real numbers instead of generic "raise your budget" advice.
+   */
+  planFeasibility: (input: {
+    user_id: number;
+    month: string;
+    budget: number;
+    constraints?: Constraint[];
+    veg_only?: boolean;
+    days?: number;
+    meals?: MealType[];
+    high_protein?: boolean;
+  }) =>
+    req<FeasibilityReport>("/plan/feasibility", {
+      method: "POST",
+      body: input,
+    }),
 
   getPlan: (plan_id: number) => req<PlanFull>(`/plan/${plan_id}`),
 

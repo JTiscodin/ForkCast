@@ -75,7 +75,17 @@ CREATE TABLE IF NOT EXISTS meal_slots (
     variant         TEXT,
     status          TEXT NOT NULL DEFAULT 'planned',  -- planned|confirmed|skipped|rescheduled
     order_id        TEXT,
-    why_text        TEXT                          -- cached "why this dish?" sentence
+    why_text        TEXT,                         -- cached "why this dish?" sentence
+    -- Meal composition (see course.py). A curry is not a meal alone, so it
+    -- carries a bread/rice accompaniment. `price` above stays the MAIN dish;
+    -- total_price = price + side_price is what the meal actually costs.
+    course              TEXT DEFAULT 'complete',  -- bread|staple|curry|complete|side
+    side_dish_id        TEXT,
+    side_dish_name      TEXT,
+    side_qty            INTEGER DEFAULT 0,
+    side_price          REAL DEFAULT 0,
+    side_restaurant_name TEXT,
+    side_image_url      TEXT
 );
 
 CREATE INDEX IF NOT EXISTS idx_slot_plan ON meal_slots(plan_id);
@@ -103,6 +113,14 @@ _MIGRATIONS = [
     ("meal_slots", "restaurant_name", "TEXT"),
     ("meal_slots", "image_url", "TEXT"),
     ("meal_slots", "why_text", "TEXT"),
+    # meal composition — curry + bread/rice pairing
+    ("meal_slots", "course", "TEXT DEFAULT 'complete'"),
+    ("meal_slots", "side_dish_id", "TEXT"),
+    ("meal_slots", "side_dish_name", "TEXT"),
+    ("meal_slots", "side_qty", "INTEGER DEFAULT 0"),
+    ("meal_slots", "side_price", "REAL DEFAULT 0"),
+    ("meal_slots", "side_restaurant_name", "TEXT"),
+    ("meal_slots", "side_image_url", "TEXT"),
 ]
 
 

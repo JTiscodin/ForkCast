@@ -226,6 +226,17 @@ export function OverviewCard({
           ) : (
             <span className="text-sm text-muted-foreground">Veg &amp; Non-veg</span>
           )}
+
+          {/* High-protein changes which dishes are SEARCHED for, so surface it
+              here — the user needs to see we understood the request. */}
+          {blueprint.high_protein && (
+            <Badge
+              className="ml-2 border-brand-500/30 bg-accent text-accent-brand"
+              variant="outline"
+            >
+              High protein
+            </Badge>
+          )}
         </Row>
 
         {/* Must-have dishes */}

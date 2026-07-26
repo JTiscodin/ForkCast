@@ -1,4 +1,4 @@
-import type { MealSlot, MealType } from "@/lib/types";
+import { slotTotal, type MealSlot, type MealType } from "@/lib/types";
 
 /** Canonical render order for meal types within a day. */
 export const MEAL_ORDER: MealType[] = ["breakfast", "lunch", "dinner"];
@@ -42,9 +42,12 @@ export function groupByDay(slots: MealSlot[], days: number): DayGroup[] {
   return buckets;
 }
 
-/** Sum of the prices of the given slots. */
+/**
+ * Sum of the full cost of the given slots — accompaniments included, so a
+ * day's total matches what the wallet will actually be charged.
+ */
 export function dayTotal(slots: MealSlot[]): number {
-  return slots.reduce((sum, s) => sum + (s.price ?? 0), 0);
+  return slots.reduce((sum, s) => sum + slotTotal(s), 0);
 }
 
 /** Format a number as Indian Rupees, no decimals (e.g. 1250 → "₹1,250"). */

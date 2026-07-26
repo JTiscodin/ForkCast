@@ -8,8 +8,6 @@ import {
   Leaf,
   Star,
   Store,
-  CheckCircle2,
-  AlertTriangle,
 } from "lucide-react";
 
 import { cn } from "@/lib/utils";
@@ -51,30 +49,43 @@ function StatTile({
         show: { opacity: 1, y: 0 },
       }}
       className={cn(
-        "flex min-w-[10.5rem] flex-1 flex-col gap-2 rounded-2xl p-4",
+        // Tiles share a fixed height so the row has one clean baseline even
+        // when only one of them carries a progress bar underneath.
+        "flex min-h-28 min-w-44 flex-1 flex-col gap-2 rounded-2xl p-4",
         "glass-panel shadow-soft",
       )}
     >
       <div className="flex items-center gap-2">
         <span
           className={cn(
-            "inline-flex size-7 items-center justify-center rounded-lg bg-surface-elevated",
+            "inline-flex size-7 shrink-0 items-center justify-center rounded-lg bg-surface-elevated",
             accent ?? "text-accent-brand",
           )}
         >
           {icon}
         </span>
-        <span className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+        <span className="truncate text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
           {label}
         </span>
       </div>
-      <div className="flex items-baseline gap-1.5">
-        <span className="font-mono text-2xl font-semibold text-foreground">
+
+      {/* Value + sub. A long figure like "₹18,159" plus "of ₹10,000" could not
+          fit on one line, so the sub-label wrapped underneath and pushed the
+          progress bar out of the tile. The sub now sits on its own line with
+          the value clamped to a size that always fits. */}
+      <div className="flex min-w-0 flex-col">
+        <span className="truncate font-mono text-xl font-semibold leading-tight text-foreground">
           {value}
         </span>
-        {sub && <span className="text-xs text-muted-foreground">{sub}</span>}
+        {sub && (
+          <span className="truncate text-[11px] leading-tight text-muted-foreground">
+            {sub}
+          </span>
+        )}
       </div>
-      {children}
+
+      {/* Bar (when present) pinned to the bottom so all tiles align. */}
+      {children && <div className="mt-auto pt-1">{children}</div>}
     </motion.div>
   );
 }
@@ -96,16 +107,6 @@ export function PlanSummaryStrip({
   const pct = budget > 0 ? Math.min(100, Math.round((spent / budget) * 100)) : 0;
   const feasible = plan?.feasible ?? spent <= budget;
 
-  // A short form of the plan's message for the warning chip.
-  const shortMessage = useMemo(() => {
-    const msg = plan?.message?.trim();
-    if (!msg) return "Over budget";
-    const firstSentence = msg.split(/[.\n]/)[0].trim();
-    return firstSentence.length > 48
-      ? `${firstSentence.slice(0, 45)}…`
-      : firstSentence;
-  }, [plan?.message]);
-
   return (
     <motion.div
       variants={{
@@ -124,9 +125,17 @@ export function PlanSummaryStrip({
         icon={<Wallet className="size-4" />}
         label="Planned"
         value={formatINR(spent)}
-        sub={budget > 0 ? `of ${formatINR(budget)}` : undefined}
+        sub={
+          budget > 0
+            ? feasible
+              ? `of ${formatINR(budget)}`
+              : // Say how far over, not just what the budget was — a bar capped
+                // at 100% makes 181% look identical to exactly-full.
+                `of ${formatINR(budget)} · ${Math.round((spent / budget) * 100)}%`
+            : undefined
+        }
       >
-        <div className="mt-1 h-1.5 w-full overflow-hidden rounded-full bg-muted">
+        <div className="h-1.5 w-full overflow-hidden rounded-full bg-muted">
           <motion.div
             className={cn(
               "h-full rounded-full",
@@ -172,38 +181,10 @@ export function PlanSummaryStrip({
         sub="distinct"
       />
 
-      {/* Feasibility chip */}
-      <motion.div
-        variants={{
-          hidden: { opacity: 0, y: 14 },
-          show: { opacity: 1, y: 0 },
-        }}
-        className={cn(
-          "flex min-w-[10.5rem] flex-1 flex-col justify-center gap-2 rounded-2xl p-4 shadow-soft",
-          feasible
-            ? "bg-success/12 ring-1 ring-inset ring-success/25"
-            : "bg-warning/12 ring-1 ring-inset ring-warning/25",
-        )}
-      >
-        <span className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
-          Feasibility
-        </span>
-        <div className="flex items-center gap-2">
-          {feasible ? (
-            <CheckCircle2 className="size-5 shrink-0 text-success" />
-          ) : (
-            <AlertTriangle className="size-5 shrink-0 text-warning" />
-          )}
-          <span
-            className={cn(
-              "text-sm font-semibold leading-tight",
-              feasible ? "text-success" : "text-warning",
-            )}
-          >
-            {feasible ? "Fits budget" : shortMessage}
-          </span>
-        </div>
-      </motion.div>
+      {/* No feasibility tile here — it duplicated the WalletBar chip AND the
+          FeasibilityPanel below, and its truncated message ("Plan needs Rs
+          8159") stated the problem without the explanation or the fix. The
+          FeasibilityPanel now owns that story in full. */}
     </motion.div>
   );
 }

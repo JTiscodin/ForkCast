@@ -33,14 +33,21 @@ class PlanService:
         rows = [
             (plan_id, s.day, s.meal_type, s.dish_id, s.dish_name, s.restaurant_id,
              getattr(s, "restaurant_name", ""), getattr(s, "image_url", ""),
-             s.price, s.rating, s.variant, "planned")
+             s.price, s.rating, s.variant, "planned",
+             getattr(s, "course", "complete"),
+             getattr(s, "side_dish_id", ""), getattr(s, "side_dish_name", ""),
+             getattr(s, "side_qty", 0), getattr(s, "side_price", 0.0),
+             getattr(s, "side_restaurant_name", ""),
+             getattr(s, "side_image_url", ""))
             for s in plan_result.slots
         ]
         self.conn.executemany(
             "INSERT INTO meal_slots "
             "(plan_id, day, meal_type, dish_id, dish_name, restaurant_id, "
-            "restaurant_name, image_url, price, rating, variant, status) "
-            "VALUES (?,?,?,?,?,?,?,?,?,?,?,?)", rows,
+            "restaurant_name, image_url, price, rating, variant, status, "
+            "course, side_dish_id, side_dish_name, side_qty, side_price, "
+            "side_restaurant_name, side_image_url) "
+            "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)", rows,
         )
         self.conn.commit()
         return plan_id
@@ -70,16 +77,35 @@ class PlanService:
         return self.wallet.get_summary(p["user_id"], p["month"])
 
     # ---- notification state machine ----
+    @staticmethod
+    def _slot_total(s):
+        """Full cost of a slot — main dish plus any bread/rice accompaniment.
+
+        `price` holds the main dish alone, so anything that moves money (wallet
+        debits, order totals, the notification prompt) must use this instead or
+        it silently undercharges every paired curry.
+        """
+        try:
+            side = float(s["side_price"] or 0)
+        except (KeyError, IndexError, TypeError):
+            side = 0.0
+        return round(float(s["price"]) + side, 2)
+
     def notify(self, slot_id):
         """Simulate T-30 notification. Returns the prompt payload for UI."""
         s = self._slot(slot_id)
         self.conn.execute(
             "INSERT INTO notifications (meal_slot_id) VALUES (?)", (slot_id,))
         self.conn.commit()
+        dish = s["dish_name"]
+        if s["side_dish_name"]:
+            dish += f" with {s['side_dish_name']}"
+            if (s["side_qty"] or 0) > 1:
+                dish += f" x{s['side_qty']}"
         return {
             "slot_id": slot_id,
             "prompt": f"Should I get your {s['meal_type']} — "
-                      f"{s['dish_name']}, ₹{s['price']}?",
+                      f"{dish}, Rs {self._slot_total(s)}?",
             "options": ["yes", "no", "later", "other"],
         }
 
@@ -91,9 +117,11 @@ class PlanService:
         user_id, month = p["user_id"], p["month"]
 
         if answer == "yes":
+            # Charge the whole meal — curry + its bread/rice — not just the main.
+            cost = self._slot_total(s)
             order = self.executor.place(s["dish_id"], s["restaurant_id"],
-                                        s["price"], s["variant"])
-            self.wallet.debit(user_id, month, s["price"], meal_slot_id=slot_id,
+                                        cost, s["variant"])
+            self.wallet.debit(user_id, month, cost, meal_slot_id=slot_id,
                               note=f"{s['dish_name']}")
             self._set_slot(slot_id, status="confirmed", order_id=order["order_id"])
             self._resolve_notif(slot_id, "yes")
@@ -105,7 +133,8 @@ class PlanService:
             # already sitting in the balance. Only refund if the order was already
             # placed (undo a confirmed order).
             if s["status"] == "confirmed":
-                self.wallet.credit(user_id, month, s["price"], meal_slot_id=slot_id,
+                self.wallet.credit(user_id, month, self._slot_total(s),
+                                   meal_slot_id=slot_id,
                                    note=f"cancelled {s['dish_name']}")
             self._set_slot(slot_id, status="skipped")
             self._resolve_notif(slot_id, "no")

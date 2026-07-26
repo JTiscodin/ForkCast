@@ -168,40 +168,54 @@ export function WalletBar({
   const shortfall = plan && plan.leftover < 0 ? Math.abs(plan.leftover) : 0;
   const constraints = plan ? Object.entries(plan.constraint_status ?? {}) : [];
 
+  // The chip is a fixed-height inline element, so it gets a SHORT status only.
+  // Stuffing the optimizer's full sentence in here is what made this bar wrap to
+  // three lines and knock the whole row out of alignment; the full explanation
+  // now lives in the FeasibilityPanel below the stat tiles, which has room.
+  const statusText = infeasible
+    ? shortfall > 0
+      ? `Over by ${formatINR(shortfall)}`
+      : "Over budget"
+    : "Fits budget";
+
   return (
     <motion.div
       initial={{ opacity: 0, y: -8 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.3, ease: "easeOut" }}
       className={cn(
-        "glass-panel flex min-h-[64px] flex-wrap items-center gap-x-5 gap-y-3 rounded-2xl px-5 py-3 shadow-soft backdrop-blur-md sm:flex-nowrap sm:px-6",
+        // items-center + nowrap on desktop keeps every cluster on one baseline.
+        // The chip no longer carries a full sentence, so nothing forces a wrap.
+        "glass-panel flex min-h-16 flex-wrap items-center gap-x-5 gap-y-3 rounded-2xl px-5 py-3 shadow-soft backdrop-blur-md sm:flex-nowrap sm:px-6",
         infeasible && !approved && "ring-1 ring-warning/25",
         className
       )}
     >
       {/* LEFT — wallet cluster (or pre-approval plan preview) */}
       <div className="flex min-w-0 shrink-0 items-center gap-3">
-        <div className="flex size-9 shrink-0 items-center justify-center rounded-xl border border-brand-500/25 bg-accent text-accent-brand">
+        <div className="flex size-9 shrink-0 items-center justify-center self-center rounded-xl border border-brand-500/25 bg-accent text-accent-brand">
           <Wallet className="size-4.5" aria-hidden />
         </div>
 
         {wallet ? (
-          <div className="flex items-center gap-4">
-            <div className="flex flex-col leading-tight">
-              <span className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
-                Balance
-              </span>
-              <span className="font-mono text-base font-semibold tabular-nums leading-tight text-gradient-brand">
-                {formatINR(wallet.balance)}
-              </span>
-            </div>
+          // items-baseline so Balance (larger) and Spent (smaller) sit on the
+          // same text baseline instead of being centred against each other,
+          // which is what made this cluster look tilted.
+          <div className="flex items-baseline gap-4">
+            <Figure
+              label="Balance"
+              value={formatINR(wallet.balance)}
+              emphasis
+            />
 
-            <div className="hidden items-center gap-4 sm:flex">
+            <div className="hidden items-baseline gap-4 sm:flex">
               <Figure label="Spent" value={formatINR(wallet.total_spent)} />
-              <SpendBar
-                spent={wallet.total_spent}
-                budget={wallet.budget_allocated}
-              />
+              <div className="self-center">
+                <SpendBar
+                  spent={wallet.total_spent}
+                  budget={wallet.budget_allocated}
+                />
+              </div>
             </div>
 
             {wallet.rolled_in > 0 && (
@@ -213,7 +227,7 @@ export function WalletBar({
           </div>
         ) : (
           plan && (
-            <div className="flex items-center gap-4">
+            <div className="flex items-baseline gap-4">
               <Figure
                 label="Budget"
                 value={formatINR(plan.budget)}
@@ -237,24 +251,26 @@ export function WalletBar({
         <>
           <Separator
             orientation="vertical"
-            className="hidden !h-8 shrink-0 !bg-border/60 sm:block"
+            className="hidden h-8! shrink-0 bg-border/60! sm:block"
           />
 
           <div className="flex min-w-0 flex-1 flex-wrap items-center gap-1.5">
-            {infeasible ? (
-              <span className="inline-flex items-center gap-1.5 rounded-full border border-warning/30 bg-warning/12 px-2.5 py-0.5 text-xs font-medium text-warning">
+            <span
+              className={cn(
+                "inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full border px-2.5 py-0.5 text-xs font-medium",
+                infeasible
+                  ? "border-warning/30 bg-warning/12 text-warning"
+                  : "border-success/25 bg-success/12 text-success",
+              )}
+              title={plan.message?.trim() || undefined}
+            >
+              {infeasible ? (
                 <AlertTriangle className="size-3.5" aria-hidden />
-                {plan.message?.trim() ||
-                  (shortfall > 0
-                    ? `Over by ${formatINR(shortfall)}`
-                    : "Over budget")}
-              </span>
-            ) : (
-              <span className="inline-flex items-center gap-1.5 rounded-full border border-success/25 bg-success/12 px-2.5 py-0.5 text-xs font-medium text-success">
+              ) : (
                 <CircleCheckBig className="size-3.5" aria-hidden />
-                Fits budget
-              </span>
-            )}
+              )}
+              {statusText}
+            </span>
 
             {constraints.map(([tag, s]) => (
               <ConstraintChip
