@@ -1,23 +1,33 @@
 "use client";
 
+import * as React from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import {
-  AlertTriangle,
   ArrowRight,
-  Check,
-  CircleCheckBig,
+  CircleCheck,
+  IndianRupee,
   LoaderCircle,
-  PiggyBank,
+  TriangleAlert,
   Wallet,
 } from "lucide-react";
 
 import { cn } from "@/lib/utils";
-import { focusRing } from "@/lib/design";
+import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { Skeleton } from "@/components/ui/skeleton";
+import {
+  LottiePlayer,
+  usePrefersReducedMotion,
+} from "@/components/ui/LottiePlayer";
 import type { PlanSummary, WalletSummary } from "@/lib/types";
 
+import { ConstraintChip } from "./ConstraintChip";
 import { formatINR, pct } from "./wallet-helpers";
+
+/* The approve CTA keeps its spring entrance/hover/tap beats, but base styling
+   (flat brand-500, focus ring, h-11 via size="lg") comes from the shared
+   Button component so both approve states occupy the same box. */
+const MotionButton = motion.create(Button);
 
 export interface WalletBarProps {
   /** The wallet summary for the active cycle, or null when none exists yet. */
@@ -46,22 +56,20 @@ function Figure({
 }: {
   label: string;
   value: string;
-  tone?: "default" | "success" | "warning";
+  tone?: "default" | "success" | "danger";
   emphasis?: boolean;
 }) {
   return (
     <div className="flex min-w-0 flex-col leading-tight">
-      <span className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
+      <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
         {label}
       </span>
       <span
         className={cn(
-          "font-mono tabular-nums leading-tight",
-          emphasis ? "text-base font-semibold" : "text-sm font-medium",
+          "tabular-nums leading-tight text-foreground",
+          emphasis ? "text-base font-extrabold" : "text-sm font-medium",
           tone === "success" && "text-success",
-          tone === "warning" && "text-warning",
-          tone === "default" && !emphasis && "text-foreground",
-          tone === "default" && emphasis && "text-gradient-brand"
+          tone === "danger" && "text-danger"
         )}
       >
         {value}
@@ -86,46 +94,13 @@ function SpendBar({ spent, budget }: { spent: number; budget: number }) {
       <motion.div
         className={cn(
           "h-full rounded-full",
-          over ? "bg-warning" : "bg-gradient-brand"
+          over ? "bg-danger" : "bg-brand-500"
         )}
         initial={false}
         animate={{ width: `${filled}%` }}
         transition={{ type: "spring", stiffness: 90, damping: 20, mass: 0.8 }}
       />
     </div>
-  );
-}
-
-/** A single constraint chip: "paneer 45/10 ✓" or "paneer 6/10 ✗". */
-function ConstraintChip({
-  tag,
-  got,
-  needed,
-}: {
-  tag: string;
-  got: number;
-  needed: number;
-}) {
-  const met = got >= needed;
-  return (
-    <span
-      className={cn(
-        "inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-xs font-medium",
-        met
-          ? "border-success/25 bg-success/12 text-success"
-          : "border-danger/25 bg-danger/12 text-danger"
-      )}
-    >
-      <span className="capitalize">{tag}</span>
-      <span className="font-mono tabular-nums opacity-90">
-        {got}/{needed}
-      </span>
-      {met ? (
-        <Check className="size-3" aria-hidden />
-      ) : (
-        <AlertTriangle className="size-3" aria-hidden />
-      )}
-    </span>
   );
 }
 
@@ -143,20 +118,56 @@ export function WalletBar({
   loading,
   className,
 }: WalletBarProps) {
+  // Rollover reveal: purely presentational — when the cash/leftover figure
+  // INCREASES across renders (skip-meal refresh, re-approve, re-plan), play a
+  // short coin drop ONCE near the savings number. Mirrors ApproveBar's
+  // celebrating pattern: previous-vs-next compared in refs inside an effect.
+  // Two independent series (wallet balance / plan leftover) so an async load
+  // order on page refresh can never masquerade as an increase. A first
+  // sighting only sets the baseline — loading a wallet is not "earning" one.
+  const reducedMotion = usePrefersReducedMotion();
+  const [celebrating, setCelebrating] = React.useState(false);
+  const prevBalanceRef = React.useRef<number | null>(null);
+  const prevLeftoverRef = React.useRef<number | null>(null);
+
+  React.useEffect(() => {
+    if (reducedMotion) return;
+    let increased = false;
+
+    const balance = wallet?.balance;
+    if (typeof balance === "number") {
+      const prev = prevBalanceRef.current;
+      if (prev != null && balance > prev) increased = true;
+      prevBalanceRef.current = balance;
+    }
+
+    const leftover = plan?.leftover;
+    if (typeof leftover === "number") {
+      const prev = prevLeftoverRef.current;
+      if (prev != null && leftover > prev) increased = true;
+      prevLeftoverRef.current = leftover;
+    }
+
+    if (!increased) return;
+    setCelebrating(true);
+    const t = window.setTimeout(() => setCelebrating(false), 1600);
+    return () => window.clearTimeout(t);
+  }, [wallet, plan, reducedMotion]);
+
   if (loading) {
     return (
       <div
         className={cn(
-          "glass-panel flex items-center gap-4 rounded-2xl px-5 py-3.5 shadow-soft backdrop-blur-md",
+          "flex items-center gap-4 rounded-lg border border-border bg-card px-5 py-3.5 text-card-foreground shadow-soft",
           className
         )}
       >
-        <Skeleton className="size-9 rounded-xl" />
+        <Skeleton className="size-9 rounded-md" />
         <div className="space-y-1.5">
           <Skeleton className="h-3 w-16" />
           <Skeleton className="h-4 w-24" />
         </div>
-        <Skeleton className="ml-auto h-10 w-36 rounded-xl" />
+        <Skeleton className="ml-auto h-11 w-36 rounded-lg" />
       </div>
     );
   }
@@ -186,15 +197,26 @@ export function WalletBar({
       className={cn(
         // items-center + nowrap on desktop keeps every cluster on one baseline.
         // The chip no longer carries a full sentence, so nothing forces a wrap.
-        "glass-panel flex min-h-16 flex-wrap items-center gap-x-5 gap-y-3 rounded-2xl px-5 py-3 shadow-soft backdrop-blur-md sm:flex-nowrap sm:px-6",
-        infeasible && !approved && "ring-1 ring-warning/25",
+        "flex min-h-16 flex-wrap items-center gap-x-5 gap-y-3 rounded-lg border border-border bg-card px-5 py-3 text-card-foreground shadow-soft sm:flex-nowrap sm:px-6",
+        infeasible && !approved && "ring-1 ring-danger/30",
         className
       )}
     >
       {/* LEFT — wallet cluster (or pre-approval plan preview) */}
-      <div className="flex min-w-0 shrink-0 items-center gap-3">
-        <div className="flex size-9 shrink-0 items-center justify-center self-center rounded-xl border border-brand-500/25 bg-accent text-accent-brand">
-          <Wallet className="size-4.5" aria-hidden />
+      <div className="relative flex min-w-0 shrink-0 items-center gap-3">
+        {/* Coin-drop reveal — plays once when cash/leftover increases.
+            Overlay only: no pointer events, no layout shift. */}
+        {celebrating && (
+          <div aria-hidden className="pointer-events-none absolute -top-2 right-2 z-[1]">
+            <LottiePlayer
+              path="/animations/coin-drop.json"
+              loop={false}
+              className="h-12 w-12"
+            />
+          </div>
+        )}
+        <div className="flex size-9 shrink-0 items-center justify-center self-center rounded-lg border border-border bg-muted text-muted-foreground">
+          <Wallet className="size-5" strokeWidth={2.4} aria-hidden />
         </div>
 
         {wallet ? (
@@ -219,8 +241,8 @@ export function WalletBar({
             </div>
 
             {wallet.rolled_in > 0 && (
-              <span className="inline-flex shrink-0 items-center gap-1.5 rounded-full border border-brand-500/25 bg-amber-400/10 px-2.5 py-0.5 font-mono text-xs font-semibold tabular-nums text-amber-400">
-                <PiggyBank className="size-3.5" aria-hidden />
+              <span className="inline-flex shrink-0 items-center gap-1.5 rounded-full border border-success/25 bg-success/10 px-2.5 py-0.5 text-sm font-bold tabular-nums text-success">
+                <IndianRupee className="size-4" strokeWidth={2.4} aria-hidden />
                 {formatINR(wallet.rolled_in)}
               </span>
             )}
@@ -239,7 +261,7 @@ export function WalletBar({
               <Figure
                 label={plan.leftover < 0 ? "Over" : "Leftover"}
                 value={formatINR(Math.abs(plan.leftover))}
-                tone={plan.leftover < 0 ? "warning" : "success"}
+                tone={plan.leftover < 0 ? "danger" : "success"}
               />
             </div>
           )
@@ -259,15 +281,15 @@ export function WalletBar({
               className={cn(
                 "inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full border px-2.5 py-0.5 text-xs font-medium",
                 infeasible
-                  ? "border-warning/30 bg-warning/12 text-warning"
-                  : "border-success/25 bg-success/12 text-success",
+                  ? "border-danger/25 bg-danger/10 text-danger"
+                  : "border-success/25 bg-success/10 text-success",
               )}
               title={plan.message?.trim() || undefined}
             >
               {infeasible ? (
-                <AlertTriangle className="size-3.5" aria-hidden />
+                <TriangleAlert className="size-4" strokeWidth={2.4} aria-hidden />
               ) : (
-                <CircleCheckBig className="size-3.5" aria-hidden />
+                <CircleCheck className="size-4" strokeWidth={2.4} aria-hidden />
               )}
               {statusText}
             </span>
@@ -295,18 +317,22 @@ export function WalletBar({
                 animate={{ scale: 1, opacity: 1 }}
                 exit={{ scale: 0.9, opacity: 0 }}
                 transition={{ type: "spring", stiffness: 300, damping: 22 }}
-                className="inline-flex h-10 items-center gap-2 rounded-xl border border-success/25 bg-success/12 px-4 text-sm font-medium text-success"
+                className="inline-flex h-11 items-center gap-2 rounded-lg border border-success/25 bg-success/10 px-4 text-sm font-medium text-success"
               >
-                <CircleCheckBig className="size-4.5" aria-hidden />
+                <CircleCheck className="size-4" strokeWidth={2.4} aria-hidden />
                 Plan active
-                <Check className="size-4" aria-hidden />
               </motion.div>
             ) : (
-              <motion.button
+              <MotionButton
                 key="cta"
-                type="button"
                 onClick={onApprove}
-                disabled={approving}
+                disabled={approving || infeasible}
+                size="lg"
+                title={
+                  infeasible
+                    ? "Over budget. Apply a suggested fix below first."
+                    : undefined
+                }
                 whileHover={approving ? undefined : { scale: 1.02 }}
                 whileTap={approving ? undefined : { scale: 0.98 }}
                 initial={{ scale: 0.95, opacity: 0 }}
@@ -314,34 +340,32 @@ export function WalletBar({
                 exit={{ scale: 0.95, opacity: 0 }}
                 transition={{ type: "spring", stiffness: 300, damping: 22 }}
                 className={cn(
-                  "group inline-flex h-10 items-center justify-center gap-2 rounded-xl px-5",
-                  "text-sm font-semibold text-white shadow-glow",
-                  "bg-gradient-brand",
-                  "transition-opacity disabled:cursor-not-allowed disabled:opacity-70",
+                  "group px-5",
                   infeasible &&
-                    "ring-2 ring-warning/40 ring-offset-2 ring-offset-background",
-                  focusRing
+                    "ring-2 ring-danger/40 ring-offset-2 ring-offset-background"
                 )}
                 aria-busy={approving || undefined}
               >
                 {approving ? (
                   <>
                     <LoaderCircle
-                      className="size-4.5 animate-spin"
+                      className="size-4 animate-spin"
+                      strokeWidth={2.4}
                       aria-hidden
                     />
                     Activating…
                   </>
                 ) : (
                   <>
-                    {infeasible ? "Approve anyway" : "Approve & activate"}
+                    {infeasible ? "Fix budget to approve" : "Approve & activate"}
                     <ArrowRight
-                      className="size-4.5 transition-transform group-hover:translate-x-0.5"
+                      className="size-4 transition-transform group-hover:translate-x-0.5"
+                      strokeWidth={2.4}
                       aria-hidden
                     />
                   </>
                 )}
-              </motion.button>
+              </MotionButton>
             )}
           </AnimatePresence>
         </div>

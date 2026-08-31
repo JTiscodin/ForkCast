@@ -5,11 +5,12 @@ import { AnimatePresence, motion } from "framer-motion";
 import { Sparkles } from "lucide-react";
 
 import { cn } from "@/lib/utils";
-import { gradients } from "@/lib/design";
 import { api } from "@/lib/api";
+import { prefersReducedMotion } from "@/lib/motion";
 import type { Blueprint, NotifyPayload } from "@/lib/types";
 
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { LottiePlayer } from "@/components/ui/LottiePlayer";
 import { MessageBubble } from "./MessageBubble";
 import { QuickReplies } from "./QuickReplies";
 import { ChatComposer } from "./ChatComposer";
@@ -71,7 +72,7 @@ export function ChatPane({
     {
       id: uid("greet"),
       role: "assistant",
-      text: "Hey! I'm your meal planner. Tell me your monthly budget and what you're craving — veg or non-veg, any must-have dishes, how big your appetite runs — and I'll build a plan that fits.",
+      text: "Hey! I'm your meal planner. Tell me your monthly budget and what you're craving: veg or non-veg, any must-have dishes, how big your appetite runs. I'll build a plan that fits.",
       kind: "text",
     },
     {
@@ -99,7 +100,10 @@ export function ChatPane({
       '[data-slot="scroll-area-viewport"]'
     );
     if (viewport) {
-      viewport.scrollTo({ top: viewport.scrollHeight, behavior: "smooth" });
+      // Programmatic scrolling bypasses the CSS scroll-behavior reduced-motion
+      // rule, so branch on the media query here too.
+      const behavior = prefersReducedMotion() ? "auto" : "smooth";
+      viewport.scrollTo({ top: viewport.scrollHeight, behavior });
     }
   }, []);
 
@@ -108,6 +112,13 @@ export function ChatPane({
     const raf = requestAnimationFrame(scrollToBottom);
     return () => cancelAnimationFrame(raf);
   }, [messages, scrollToBottom]);
+
+  // Presentational: keep the cooking banner in view once it appears.
+  React.useEffect(() => {
+    if (!generating) return;
+    const raf = requestAnimationFrame(scrollToBottom);
+    return () => cancelAnimationFrame(raf);
+  }, [generating, scrollToBottom]);
 
   // -- Surface incoming meal notifications ---------------------------------
   React.useEffect(() => {
@@ -207,7 +218,7 @@ export function ChatPane({
             .concat({
               id: uid("error"),
               role: "assistant",
-              text: "Sorry — something went wrong reaching the planner. Mind trying that again?",
+              text: "Sorry, something went wrong reaching the planner. Mind trying that again?",
               kind: "text",
             })
         );
@@ -265,7 +276,7 @@ export function ChatPane({
   return (
     <div
       className={cn(
-        "flex h-full min-h-0 flex-col overflow-hidden bg-surface/40",
+        "flex h-full min-h-0 flex-col overflow-hidden border-r border-border bg-surface",
         className
       )}
     >
@@ -308,6 +319,32 @@ export function ChatPane({
               )
             )}
           </AnimatePresence>
+
+          {/* Plan-build moment: slim cooking banner while `generating`. */}
+          <AnimatePresence>
+            {generating && (
+              <motion.div
+                initial={{ opacity: 0, y: 8 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0 }}
+                className="pl-9"
+              >
+                <div
+                  role="status"
+                  aria-live="polite"
+                  className="flex items-center gap-3 rounded-xl border border-border bg-brand-50 px-4 py-2.5"
+                >
+                  <LottiePlayer
+                    path="/animations/cooking-pot.json"
+                    className="h-20 w-20 shrink-0"
+                  />
+                  <p className="min-w-0 text-sm leading-[1.4] text-muted-foreground">
+                    Building your month…
+                  </p>
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
           </div>
         </ScrollArea>
       </div>
@@ -319,21 +356,18 @@ export function ChatPane({
 
 function ChatHeader() {
   return (
-    <div className="flex items-center gap-2.5 border-b border-border bg-surface/60 px-4 py-3 backdrop-blur">
+    <div className="flex items-center gap-2.5 border-b border-border bg-card px-4 py-3">
       <div
-        className={cn(
-          "flex size-8 items-center justify-center rounded-xl text-primary-foreground shadow-glow",
-          gradients.brand
-        )}
+        className="flex size-8 shrink-0 items-center justify-center rounded-full bg-brand-500 text-white"
         aria-hidden
       >
-        <Sparkles className="size-4" />
+        <Sparkles className="size-4" strokeWidth={2.4} />
       </div>
       <div className="min-w-0">
-        <p className="font-display text-sm font-semibold leading-tight">
+        <h2 className="font-heading text-sm font-extrabold leading-[1.4] tracking-[-0.02em] text-foreground">
           Meal Planner
-        </p>
-        <p className="truncate text-xs text-muted-foreground">
+        </h2>
+        <p className="truncate text-sm leading-[1.4] text-muted-foreground">
           Let&apos;s build your month
         </p>
       </div>

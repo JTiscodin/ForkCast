@@ -1,19 +1,27 @@
 "use client";
 
+import * as React from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import {
-  AlertTriangle,
   ArrowRight,
   Check,
-  CircleCheckBig,
+  CircleCheck,
   LoaderCircle,
+  TriangleAlert,
 } from "lucide-react";
 
 import { cn } from "@/lib/utils";
-import { focusRing } from "@/lib/design";
 import type { PlanSummary } from "@/lib/types";
+import { Button } from "@/components/ui/button";
+import { LottiePlayer, usePrefersReducedMotion } from "@/components/ui/LottiePlayer";
 
+import { ConstraintChip } from "./ConstraintChip";
 import { formatINR } from "./wallet-helpers";
+
+/* The approve CTA keeps its spring entrance/hover/tap beats, but base styling
+   (flat brand-500, focus ring, h-11 via size="lg") comes from the shared
+   Button component so it matches WalletBar's CTA height. */
+const MotionButton = motion.create(Button);
 
 export interface ApproveBarProps {
   /** The generated plan summary, or null (bar renders nothing). */
@@ -27,39 +35,6 @@ export interface ApproveBarProps {
   className?: string;
 }
 
-/** A single constraint chip: "paneer 45/10 ✓" or "paneer 6/10 ✗". */
-function ConstraintChip({
-  tag,
-  got,
-  needed,
-}: {
-  tag: string;
-  got: number;
-  needed: number;
-}) {
-  const met = got >= needed;
-  return (
-    <span
-      className={cn(
-        "inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-xs font-medium",
-        met
-          ? "border-success/25 bg-success/12 text-success"
-          : "border-warning/30 bg-warning/12 text-warning"
-      )}
-    >
-      <span className="capitalize">{tag}</span>
-      <span className="font-mono tabular-nums opacity-90">
-        {got}/{needed}
-      </span>
-      {met ? (
-        <Check className="size-3" aria-hidden />
-      ) : (
-        <AlertTriangle className="size-3" aria-hidden />
-      )}
-    </span>
-  );
-}
-
 export function ApproveBar({
   plan,
   approving,
@@ -67,6 +42,20 @@ export function ApproveBar({
   onApprove,
   className,
 }: ApproveBarProps) {
+  // Celebratory burst: purely presentational — plays once (~1.6s) when the
+  // plan transitions to approved, as an overlay that never blocks clicks.
+  const reducedMotion = usePrefersReducedMotion();
+  const [celebrating, setCelebrating] = React.useState(false);
+  const wasApprovedRef = React.useRef(false);
+  React.useEffect(() => {
+    const becameApproved = Boolean(approved) && !wasApprovedRef.current;
+    wasApprovedRef.current = Boolean(approved);
+    if (!becameApproved || reducedMotion) return;
+    setCelebrating(true);
+    const t = window.setTimeout(() => setCelebrating(false), 1600);
+    return () => window.clearTimeout(t);
+  }, [approved, reducedMotion]);
+
   if (!plan) return null;
 
   const shortfall = plan.leftover < 0 ? Math.abs(plan.leftover) : 0;
@@ -80,38 +69,51 @@ export function ApproveBar({
         className
       )}
     >
+      {/* Success confetti — overlay only: no pointer events, no layout shift. */}
+      {celebrating && (
+        <div
+          aria-hidden
+          className="pointer-events-none absolute inset-x-0 top-0 z-[1] flex justify-center"
+        >
+          <LottiePlayer
+            path="/animations/confetti-burst.json"
+            loop={false}
+            className="h-36 w-36 -translate-y-1/3"
+          />
+        </div>
+      )}
       <motion.div
         initial={{ y: 24, opacity: 0 }}
         animate={{ y: 0, opacity: 1 }}
         transition={{ type: "spring", stiffness: 260, damping: 26 }}
         className={cn(
-          "glass-panel mx-auto flex max-w-4xl flex-col gap-4 rounded-2xl p-4 shadow-layered sm:flex-row sm:items-center sm:gap-6",
-          infeasible && !approved && "ring-1 ring-warning/30"
+          "mx-auto flex max-w-4xl flex-col gap-4 rounded-lg border border-border bg-card p-4 text-card-foreground shadow-soft sm:flex-row sm:items-center sm:gap-6",
+          infeasible && !approved && "ring-1 ring-danger/30"
         )}
       >
         {/* Left: numbers + feasibility */}
         <div className="min-w-0 flex-1 space-y-2.5">
           <div className="flex flex-wrap items-baseline gap-x-4 gap-y-1">
             <div className="flex items-baseline gap-1.5">
-              <span className="text-xs uppercase tracking-wide text-muted-foreground">
+              <span className="text-sm uppercase tracking-wide text-muted-foreground">
                 Total
               </span>
-              <span className="font-mono text-lg font-semibold tabular-nums text-foreground">
+              <span className="text-lg font-bold leading-[1.4] tabular-nums text-foreground">
                 {formatINR(plan.total_cost)}
               </span>
-              <span className="text-xs text-muted-foreground">
+              <span className="text-sm text-muted-foreground">
                 / {formatINR(plan.budget)}
               </span>
             </div>
 
             <div className="flex items-baseline gap-1.5">
-              <span className="text-xs uppercase tracking-wide text-muted-foreground">
+              <span className="text-sm uppercase tracking-wide text-muted-foreground">
                 {plan.leftover < 0 ? "Over by" : "Leftover"}
               </span>
               <span
                 className={cn(
-                  "font-mono text-sm font-semibold tabular-nums",
-                  plan.leftover < 0 ? "text-warning" : "text-success"
+                  "text-sm font-bold leading-[1.4] tabular-nums",
+                  plan.leftover < 0 ? "text-danger" : "text-success"
                 )}
               >
                 {formatINR(Math.abs(plan.leftover))}
@@ -120,16 +122,16 @@ export function ApproveBar({
 
             {/* Feasibility chip */}
             {infeasible ? (
-              <span className="inline-flex items-center gap-1.5 rounded-full border border-warning/30 bg-warning/12 px-2.5 py-0.5 text-xs font-medium text-warning">
-                <AlertTriangle className="size-3.5" aria-hidden />
+              <span className="inline-flex items-center gap-1.5 rounded-full border border-danger/25 bg-danger/10 px-2.5 py-0.5 text-sm font-medium text-danger">
+                <TriangleAlert className="size-4" strokeWidth={2.4} aria-hidden />
                 {plan.message?.trim() ||
                   (shortfall > 0
                     ? `Over by ${formatINR(shortfall)}`
                     : "Over budget")}
               </span>
             ) : (
-              <span className="inline-flex items-center gap-1.5 rounded-full border border-success/25 bg-success/12 px-2.5 py-0.5 text-xs font-medium text-success">
-                <CircleCheckBig className="size-3.5" aria-hidden />
+              <span className="inline-flex items-center gap-1.5 rounded-full border border-success/25 bg-success/10 px-2.5 py-0.5 text-sm font-medium text-success">
+                <CircleCheck className="size-4" strokeWidth={2.4} aria-hidden />
                 Fits your budget
               </span>
             )}
@@ -160,18 +162,18 @@ export function ApproveBar({
                 animate={{ scale: 1, opacity: 1 }}
                 exit={{ scale: 0.9, opacity: 0 }}
                 transition={{ type: "spring", stiffness: 300, damping: 22 }}
-                className="inline-flex h-11 items-center gap-2 rounded-xl border border-success/25 bg-success/12 px-5 font-medium text-success"
+                className="inline-flex h-11 items-center gap-2 rounded-lg border border-success/25 bg-success/10 px-5 text-sm font-medium text-success"
               >
-                <CircleCheckBig className="size-4.5" aria-hidden />
+                <CircleCheck className="size-5" strokeWidth={2.4} aria-hidden />
                 Plan active
-                <Check className="size-4" aria-hidden />
+                <Check className="size-4" strokeWidth={2.4} aria-hidden />
               </motion.div>
             ) : (
-              <motion.button
+              <MotionButton
                 key="cta"
-                type="button"
                 onClick={onApprove}
                 disabled={approving}
+                size="lg"
                 whileHover={approving ? undefined : { scale: 1.02 }}
                 whileTap={approving ? undefined : { scale: 0.98 }}
                 initial={{ scale: 0.95, opacity: 0 }}
@@ -179,31 +181,28 @@ export function ApproveBar({
                 exit={{ scale: 0.95, opacity: 0 }}
                 transition={{ type: "spring", stiffness: 300, damping: 22 }}
                 className={cn(
-                  "group inline-flex h-11 w-full items-center justify-center gap-2 rounded-xl px-6",
-                  "text-sm font-semibold text-white shadow-glow",
-                  "bg-gradient-brand",
-                  "transition-opacity disabled:cursor-not-allowed disabled:opacity-70",
-                  infeasible && "ring-2 ring-warning/40 ring-offset-2 ring-offset-background",
-                  focusRing,
+                  "group w-full px-6",
+                  infeasible && "ring-2 ring-danger/40 ring-offset-2 ring-offset-background",
                   "sm:w-auto"
                 )}
                 aria-busy={approving || undefined}
               >
                 {approving ? (
                   <>
-                    <LoaderCircle className="size-4.5 animate-spin" aria-hidden />
+                    <LoaderCircle className="size-5 animate-spin" strokeWidth={2.4} aria-hidden />
                     Activating…
                   </>
                 ) : (
                   <>
                     {infeasible ? "Approve anyway" : "Approve & activate"}
                     <ArrowRight
-                      className="size-4.5 transition-transform group-hover:translate-x-0.5"
+                      strokeWidth={2.4}
+                      className="size-4 transition-transform group-hover:translate-x-0.5"
                       aria-hidden
                     />
                   </>
                 )}
-              </motion.button>
+              </MotionButton>
             )}
           </AnimatePresence>
         </div>

@@ -17,7 +17,9 @@ from pathlib import Path
 
 ROOT = Path(__file__).parent
 BACKEND = ROOT / "backend"
-FRONTEND = ROOT / "frontend"
+# Legacy CDN frontend lives in frontend/index.html; the real Next.js app is web/.
+# Prefer web/ when it exists so `python start.py` doesn't serve the wrong UI.
+FRONTEND = (ROOT / "web") if (ROOT / "web").exists() else (ROOT / "frontend")
 API_PORT = 8000
 WEB_PORT = 5500
 

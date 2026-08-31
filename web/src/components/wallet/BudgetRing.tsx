@@ -1,6 +1,5 @@
 "use client";
 
-import { useId } from "react";
 import { motion } from "framer-motion";
 
 import { cn } from "@/lib/utils";
@@ -18,11 +17,11 @@ export interface BudgetRingProps {
 
 /**
  * Animated circular progress ring (SVG + framer-motion) showing spent vs budget.
- * The arc is filled with the brand orange -> amber gradient; the center shows the
- * remaining balance in a big mono gradient number with a "left" label underneath.
+ * The arc is a solid brand-orange stroke (danger-red once over budget); the
+ * center shows the remaining balance as a big extrabold charcoal figure with a
+ * "left" label underneath.
  */
 export function BudgetRing({ spent, budget, size = 176, className }: BudgetRingProps) {
-  const gradId = useId();
   const stroke = Math.max(10, Math.round(size * 0.075));
   const radius = (size - stroke) / 2;
   const circumference = 2 * Math.PI * radius;
@@ -48,15 +47,7 @@ export function BudgetRing({ spent, budget, size = 176, className }: BudgetRingP
         viewBox={`0 0 ${size} ${size}`}
         className="-rotate-90"
       >
-        <defs>
-          <linearGradient id={gradId} x1="0%" y1="0%" x2="100%" y2="100%">
-            <stop offset="0%" stopColor="var(--brand-500)" />
-            <stop offset="55%" stopColor="var(--brand-400)" />
-            <stop offset="100%" stopColor="var(--amber-400)" />
-          </linearGradient>
-        </defs>
-
-        {/* Track */}
+        {/* Track — flat Swiggy hairline gray */}
         <circle
           cx={size / 2}
           cy={size / 2}
@@ -64,23 +55,22 @@ export function BudgetRing({ spent, budget, size = 176, className }: BudgetRingP
           fill="none"
           stroke="var(--border)"
           strokeWidth={stroke}
-          className="opacity-70"
         />
 
-        {/* Progress arc */}
+        {/* Progress arc — solid brand orange, danger red when over */}
         <motion.circle
           cx={size / 2}
           cy={size / 2}
           r={radius}
           fill="none"
-          stroke={`url(#${gradId})`}
+          stroke={over ? "var(--danger)" : "var(--brand-500)"}
           strokeWidth={stroke}
           strokeLinecap="round"
           strokeDasharray={circumference}
           initial={false}
           animate={{ strokeDashoffset: dashOffset }}
           transition={{ type: "spring", stiffness: 90, damping: 20, mass: 0.8 }}
-          style={{ filter: "drop-shadow(0 0 6px var(--brand-500-a30))" }}
+          style={{ filter: "none" }}
         />
       </svg>
 
@@ -88,17 +78,22 @@ export function BudgetRing({ spent, budget, size = 176, className }: BudgetRingP
       <div className="absolute inset-0 flex flex-col items-center justify-center gap-0.5 px-4 text-center">
         <span
           className={cn(
-            "font-mono font-semibold tracking-tight text-gradient-brand tabular-nums leading-none",
-            over && "text-gradient-brand"
+            "font-display font-extrabold tracking-[-0.02em] tabular-nums leading-none text-foreground",
+            over && "text-danger"
           )}
           style={{ fontSize: Math.max(18, size * 0.16) }}
         >
           {formatINR(Math.abs(balance))}
         </span>
-        <span className="text-[11px] font-medium uppercase tracking-widest text-muted-foreground">
+        <span
+          className={cn(
+            "text-xs font-bold uppercase tracking-wide",
+            over ? "text-danger" : "text-muted-foreground"
+          )}
+        >
           {over ? "over" : "left"}
         </span>
-        <span className="mt-1 font-mono text-[10px] tabular-nums text-muted-foreground/80">
+        <span className="mt-1 text-xs font-medium tabular-nums text-muted-foreground">
           {Math.round(spentPct)}% spent
         </span>
       </div>

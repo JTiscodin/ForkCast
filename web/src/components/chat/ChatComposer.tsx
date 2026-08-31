@@ -1,10 +1,10 @@
 "use client";
 
 import * as React from "react";
-import { Send } from "lucide-react";
+import { SendHorizontal } from "lucide-react";
 
 import { cn } from "@/lib/utils";
-import { gradients, focusRing } from "@/lib/design";
+import { focusRing } from "@/lib/design";
 import { Input } from "@/components/ui/input";
 
 export interface ChatComposerProps {
@@ -15,7 +15,7 @@ export interface ChatComposerProps {
 }
 
 /**
- * Bottom-pinned input bar. Text field + brand-gradient send button.
+ * Bottom-pinned input bar. Quiet rounded input + flat solid-orange send button.
  * Enter sends; the button and field disable while a turn is in flight.
  */
 export function ChatComposer({
@@ -45,7 +45,7 @@ export function ChatComposer({
   return (
     <div
       className={cn(
-        "flex items-center gap-2 border-t border-border bg-surface/60 px-3 py-3 backdrop-blur",
+        "flex items-center gap-2 border-t border-border bg-card px-3 py-3",
         className
       )}
     >
@@ -58,7 +58,7 @@ export function ChatComposer({
         onChange={(e) => setValue(e.target.value)}
         onKeyDown={handleKeyDown}
         aria-label="Message"
-        className="h-10 flex-1 rounded-xl text-sm"
+        className="h-10 flex-1 rounded-full bg-card px-4 text-sm leading-[1.4]"
       />
       <button
         type="button"
@@ -66,14 +66,13 @@ export function ChatComposer({
         disabled={!canSend}
         aria-label="Send message"
         className={cn(
-          "flex size-10 shrink-0 items-center justify-center rounded-xl text-primary-foreground transition-all",
-          "shadow-soft hover:shadow-glow active:translate-y-px",
-          "disabled:pointer-events-none disabled:opacity-40",
-          gradients.brand,
+          "flex size-10 shrink-0 items-center justify-center rounded-full bg-brand-500 text-white",
+          "transition-[background-color,transform] duration-150 ease-out hover:bg-brand-600 active:translate-y-px",
+          "disabled:pointer-events-none disabled:opacity-50",
           focusRing
         )}
       >
-        <Send className="size-4" />
+        <SendHorizontal className="size-5" strokeWidth={2.4} />
       </button>
     </div>
   );

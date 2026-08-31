@@ -23,10 +23,10 @@ export const MEAL_LABELS: Record<MealType, string> = {
 
 /**
  * Format a number as Indian Rupees, e.g. 12500 -> "₹12,500".
- * Uses the Indian digit-grouping locale. Nullish -> "—".
+ * Uses the Indian digit-grouping locale. Nullish -> "N/A".
  */
 export function formatINR(n: number | null | undefined): string {
-  if (n == null || Number.isNaN(n)) return "—";
+  if (n == null || Number.isNaN(n)) return "N/A";
   return `₹${new Intl.NumberFormat("en-IN", {
     maximumFractionDigits: 0,
   }).format(n)}`;

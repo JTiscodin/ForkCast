@@ -20,7 +20,7 @@ The optimizer never imports this module's transport detail. It just eats a Dish 
 import os
 
 from catalog import Dish, mock_catalog
-from course import course_of, classify_unknown
+from course import course_of, classify_unknown, kind_unknown
 
 MEAL_TYPES = ("breakfast", "lunch", "dinner")
 
@@ -38,17 +38,32 @@ DESCRIPTION_ENRICH = os.environ.get("DESCRIPTION_ENRICH", "1") == "1"
 DESCRIPTION_MAX_RESTAURANTS = int(os.environ.get("DESCRIPTION_MAX_RESTAURANTS", "3"))
 DESCRIPTION_PAGES = int(os.environ.get("DESCRIPTION_PAGES", "1"))
 
+# How many search_menu pages to pull per meal-seed query. The first page alone
+# left the optimizer staring at ~5 dishes per meal and recycling them across
+# 30 days; a second page (following the response's nextOffset) roughly doubles
+# the pool for one extra ~0.7s round-trip per query.
+SEARCH_PAGES = int(os.environ.get("SEARCH_PAGES", "2"))
+
 # Query seeds per meal slot — drives the live search_menu fan-out to build a pool.
-# Kept small (3 per slot) because each live Swiggy query is a sequential network
-# round-trip; more seeds = slower first plan. Each query returns many dishes, so
-# 3 well-chosen seeds already yield a rich pool.
+# The pool used to be too small to plan a month without repeats: 3 seeds per slot,
+# one page each, left the optimizer ~5 dishes per meal. More seeds plus a second
+# page (SEARCH_PAGES) widen the pool enough that the optimizer can rotate a whole
+# month of meals without cycling. The cost is linear: every extra seed or page is
+# one sequential ~0.7s network round-trip to Swiggy, so a bigger pool means a
+# slower first plan build.
+#
+# NOTE on desserts: no seed names a sweet on purpose. Sweets arrive as
+# COLLATERAL of the broad seeds ("thali"/"combo" menus are the highest-density
+# sources of dessert items). They are not deleted from the pool — the
+# optimizer's dish_kind hard filter neutralizes them for meal slots, and they
+# remain available for snack-slot use.
 SLOT_QUERIES = {
-    "breakfast": ["dosa", "paratha", "poha"],
-    "lunch": ["thali", "paneer", "biryani"],
+    "breakfast": ["dosa", "paratha", "poha", "idli", "upma", "sandwich"],
+    "lunch": ["thali", "paneer", "biryani", "rajma chawal", "chole"],
     # "roti" as a dinner seed pulled in bare ₹10 breads that the optimizer then
     # planned as whole dinners. Seed with real dinner dishes instead; breads are
     # fetched separately below, purely as pairing stock.
-    "dinner": ["dal", "curry", "paneer"],
+    "dinner": ["dal", "curry", "paneer", "kadai", "combo"],
 }
 
 # Non-veg seeds, added on top of the above when the user has NOT asked for
@@ -58,9 +73,9 @@ SLOT_QUERIES = {
 # because the optimizer can only choose from what was fetched. Diet preference
 # has to steer the SEARCH, not just filter the results.
 NONVEG_QUERIES = {
-    "breakfast": ["egg", "omelette"],
-    "lunch": ["chicken", "chicken biryani", "fish"],
-    "dinner": ["chicken curry", "mutton", "egg curry"],
+    "breakfast": ["egg", "omelette", "egg roll"],
+    "lunch": ["chicken", "chicken biryani", "fish", "mutton biryani"],
+    "dinner": ["chicken curry", "mutton", "egg curry", "fish curry"],
 }
 
 # High-protein seeds, layered in when the user mentions protein. Kept separate
@@ -133,19 +148,13 @@ class CatalogFetcher:
         for meal_type, queries in seeds.items():
             for q in queries:
                 attempts += 1
-                # A single slow/failed Swiggy query must NOT abort the whole plan.
-                # Skip it and keep building the pool from the queries that work.
-                try:
-                    resp = self.mcp.call("search_menu", {
-                        "addressId": address_id,
-                        "query": q,
-                        **({"vegFilter": 1} if veg_only else {}),
-                    })
-                except Exception as e:  # noqa: BLE001 — resilience over precision here
+                items = self._search(address_id, q, veg_only, pages=SEARCH_PAGES)
+                if not items:
+                    # Every page of this query failed — count it, then keep
+                    # building the pool from the queries that work.
                     errors += 1
-                    print(f"[catalog] search_menu '{q}' failed: {type(e).__name__}: {e}")
                     continue
-                for item in _iter_items(resp):
+                for item in items:
                     dish = self._map_item(item, meal_type)
                     if dish and dish.dish_id not in seen:
                         seen[dish.dish_id] = dish
@@ -153,20 +162,14 @@ class CatalogFetcher:
         # Accompaniment pass: breads/rice for pairing with curries. Tagged
         # meal_type "dinner" only as a placeholder — the optimizer selects
         # accompaniments by COURSE, never by meal_type, so this doesn't make
-        # them eligible as dinners.
+        # them eligible as dinners. One page is plenty of bread stock.
         for q in ACCOMPANIMENT_QUERIES:
             attempts += 1
-            try:
-                resp = self.mcp.call("search_menu", {
-                    "addressId": address_id,
-                    "query": q,
-                    **({"vegFilter": 1} if veg_only else {}),
-                })
-            except Exception as e:  # noqa: BLE001 — same resilience as above
+            items = self._search(address_id, q, veg_only, pages=1)
+            if not items:
                 errors += 1
-                print(f"[catalog] accompaniment '{q}' failed: {type(e).__name__}: {e}")
                 continue
-            for item in _iter_items(resp):
+            for item in items:
                 dish = self._map_item(item, "dinner")
                 if dish and dish.dish_id not in seen:
                     seen[dish.dish_id] = dish
@@ -188,6 +191,34 @@ class CatalogFetcher:
             print(f"[catalog] built {len(seen)} dishes; {errors}/{attempts} queries failed")
         return list(seen.values())
 
+    def _search(self, address_id, query, veg_only, pages):
+        """Run one search_menu query, following nextOffset for up to `pages` calls.
+
+        Returns the merged list of raw items. A single slow/failed Swiggy call
+        must NOT abort the whole plan: each page is wrapped in its own
+        try/except, so a failed page keeps whatever items earlier pages already
+        collected and simply stops paginating.
+        """
+        items = []
+        offset = None
+        for _ in range(max(1, pages)):
+            args = {"addressId": address_id, "query": query}
+            if veg_only:
+                args["vegFilter"] = 1
+            if offset is not None:
+                args["offset"] = offset
+            try:
+                resp = self.mcp.call("search_menu", args)
+            except Exception as e:  # noqa: BLE001 — resilience over precision here
+                print(f"[catalog] search_menu '{query}' failed: {type(e).__name__}: {e}")
+                break
+            items.extend(_iter_items(resp))
+            next_offset = resp.get("nextOffset") if isinstance(resp, dict) else None
+            if next_offset is None or next_offset == offset:
+                break
+            offset = next_offset
+        return items
+
     def _enrich_uncertain(self, seen, address_id):
         """Re-classify low-confidence dishes using their menu description.
 
@@ -200,6 +231,13 @@ class CatalogFetcher:
 
         uncertain = {}
         for dish in seen.values():
+            # Gate on COURSE confidence only. A dish whose name-pass KIND is
+            # uncertain but whose course is confident (form/keyword) could in
+            # principle also get a description look — but that would widen the
+            # set of restaurants fetched and grow MCP cost, so the gate stays
+            # as-is by design. Kind-only uncertainty is cheap to live with:
+            # the worst case is a sweet treated as a meal-kind dish, which the
+            # course=side gate already blocks from meal slots in most cases.
             if classify(dish.name).confidence in ("default", "keyword"):
                 uncertain.setdefault(dish.restaurant_id, []).append(dish)
         if not uncertain:
@@ -220,7 +258,17 @@ class CatalogFetcher:
                     continue
                 info = classify_with_description(dish.name, desc)
                 if info.course != dish.course:
-                    seen[dish.dish_id] = replace(dish, course=info.course)
+                    # Take the refined KIND along with the course — the two
+                    # axes are resolved together, so they move together.
+                    seen[dish.dish_id] = replace(
+                        dish, course=info.course, dish_kind=info.dish_kind)
+                    changed += 1
+                elif info.dish_kind != dish.dish_kind:
+                    # Course unchanged but the description settled the kind
+                    # (e.g. a default-COMPLETE dessert whose blurb says
+                    # "sweet"). Kind-only refinement still matters: it is what
+                    # keeps sweets out of meal slots downstream.
+                    seen[dish.dish_id] = replace(dish, dish_kind=info.dish_kind)
                     changed += 1
         if changed:
             print(f"[catalog] descriptions re-classified {changed} dish(es)")
@@ -291,9 +339,13 @@ class CatalogFetcher:
             # Party Bucket - Mini Dal Kachori" are exactly what keyword rules
             # are bad at. Cached by dish_id, so it is a handful of calls when a
             # catalog is first seen and zero thereafter.
+            dish_id = str(item.get("menu_item_id") or item.get("id") or name)
             dish_course = classify_unknown(
-                str(item.get("menu_item_id") or item.get("id") or name),
-                name, use_llm=COURSE_LLM_FALLBACK)
+                dish_id, name, use_llm=COURSE_LLM_FALLBACK)
+            # The KIND axis rides the same cache entry — one Gemini call
+            # resolves both, so this is a pure lookup, never a second call.
+            dish_kind = kind_unknown(
+                dish_id, name, use_llm=COURSE_LLM_FALLBACK)
             return Dish(
                 dish_id=str(item.get("menu_item_id") or item.get("id")
                             or item.get("itemId") or f"{rid}:{name}"),
@@ -309,6 +361,7 @@ class CatalogFetcher:
                 variants=variants,
                 image_url=image_url,
                 course=dish_course,
+                dish_kind=dish_kind,
             )
         except (ValueError, TypeError):
             return None

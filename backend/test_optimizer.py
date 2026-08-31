@@ -1,7 +1,23 @@
 """Unit tests for optimizer. Mock catalog, no MCP, no LLM."""
-from catalog import mock_catalog
+from dataclasses import replace
+
+from catalog import Dish, mock_catalog
 from appetite import build_profile
 from optimizer import optimize, Constraint, MEAL_TYPES
+import course
+
+
+def _d(dish_id, name, restaurant_id="r1", restaurant_name="Rest", meal_type="lunch",
+       price=100, rating=4.0, veg=True):
+    """Helper that mirrors live fetch: course AND dish_kind from name rules."""
+    dish = Dish(
+        dish_id=dish_id, name=name, restaurant_id=restaurant_id,
+        restaurant_name=restaurant_name, meal_type=meal_type, price=float(price),
+        rating=rating, cuisine="north_indian", tags=("veg",) if veg else ("nonveg",),
+        veg=veg, variants={"regular": float(price)},
+    )
+    return replace(dish, course=course.course_of(dish.name),
+                   dish_kind=course.dish_kind_of(dish.name))
 
 
 def test_fills_all_slots():

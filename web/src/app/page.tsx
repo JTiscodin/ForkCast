@@ -1,6 +1,10 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import gsap from "gsap";
+import { useGSAP } from "@gsap/react";
+import { MotionConfig } from "framer-motion";
+import { ArrowRight } from "lucide-react";
 import { toast } from "sonner";
 
 import { api, ApiError } from "@/lib/api";
@@ -16,7 +20,9 @@ import type {
   WalletSummary,
 } from "@/lib/types";
 import { cn } from "@/lib/utils";
-import { gradients, surfaces } from "@/lib/design";
+import { focusRing } from "@/lib/design";
+import type { MealType } from "@/lib/design";
+import { DUR, EASE, fadeUp, prefersReducedMotion } from "@/lib/motion";
 
 import { ChatPane } from "@/components/chat/ChatPane";
 import { DayListCalendar } from "@/components/calendar/DayListCalendar";
@@ -25,10 +31,16 @@ import { FeasibilityPanel } from "@/components/calendar/FeasibilityPanel";
 import { DishDetailModal } from "@/components/dish/DishDetailModal";
 import { WalletBar } from "@/components/wallet/WalletBar";
 import { Onboarding } from "@/components/app/Onboarding";
-import { loadSession, saveSession } from "@/lib/session";
+import { clearSession, loadSession, saveSession } from "@/lib/session";
 import { AppHeader } from "@/components/app/AppHeader";
+import { Button } from "@/components/ui/button";
+import { PlateIllustration } from "@/components/ui/illustrations";
 
-const MONTH = "2026-07";
+// Plan for the CURRENT month — this was hardcoded to "2026-07", so once July
+// passed the app silently planned (and budgeted the wallet) for a past month.
+const MONTH = new Date().toISOString().slice(0, 7);
+
+gsap.registerPlugin(useGSAP);
 
 export default function Home() {
   // session — start EMPTY so the server-rendered HTML matches the first client
@@ -59,11 +71,17 @@ export default function Home() {
   // dish modal
   const [activeSlot, setActiveSlot] = useState<MealSlot | null>(null);
   const [modalOpen, setModalOpen] = useState(false);
+  // Slot whose swap request is in flight — drives the inline Lottie beat.
+  const [swappingId, setSwappingId] = useState<number | null>(null);
 
   // meal notifications surfaced into chat
   const [notifications, setNotifications] = useState<NotifyPayload[]>([]);
 
   const [days, setDays] = useState(30);
+
+  // Calendar view filter — "all" shows every meal; otherwise just that meal.
+  // Purely a VIEW filter: the summary strip keeps showing whole-plan numbers.
+  const [mealFilter, setMealFilter] = useState<"all" | MealType>("all");
 
   // ---- boot (client-only): restore session + detect mode ----
   useEffect(() => {
@@ -82,6 +100,12 @@ export default function Home() {
         setApproved(saved.approved);
         setReady(true);
       });
+      // Re-sync the saved address pick to the backend — it doesn't persist
+      // across backend restarts, and without this a reload would silently
+      // fall back to the first saved Swiggy address for searches/orders.
+      if (saved.address?.id) {
+        api.setAddress(saved.address.id).catch(() => {});
+      }
     }
 
     api
@@ -159,6 +183,13 @@ export default function Home() {
         setAddress(addr);
         setReady(true);
         saveSession({ userId: u.user_id, name, address: addr, month: MONTH });
+        // Tell the backend which addressId to search and order against —
+        // without this, live mode silently falls back to the FIRST saved
+        // Swiggy address regardless of the pick. Best-effort: on failure
+        // the backend's fallback still works.
+        if (addr?.id) {
+          api.setAddress(addr.id).catch(() => {});
+        }
       } catch (e) {
         toast.error(e instanceof ApiError ? e.message : "Could not start session");
       }
@@ -219,12 +250,26 @@ export default function Home() {
         }
 
         if (!summary.feasible) {
-          toast.warning("Over budget — see the options below the summary.");
+          toast.warning("Over budget. See the options below the summary.");
         } else {
           toast.success("Month plan ready!");
         }
       } catch (e) {
-        toast.error(e instanceof ApiError ? e.message : "Plan build failed");
+        if (e instanceof ApiError && e.status === 404) {
+          // Stale session: the saved user no longer exists server-side (DB was
+          // reset). Clear the local session and restart onboarding — one click
+          // and the user is back, no manual cache-clearing needed.
+          clearSession();
+          toast.error("Session expired. Starting fresh: pick your name again.");
+          setPlan(null);
+          setSlots([]);
+          setUserId(null);
+          setReady(false);
+        } else {
+          const msg = e instanceof ApiError ? `Plan build failed (${e.status}): ${e.message}` : "Plan build failed";
+          console.error("[plan] makePlan failed:", e);
+          toast.error(msg);
+        }
       } finally {
         setPlanLoading(false);
       }
@@ -259,7 +304,7 @@ export default function Home() {
       setWallet(res.wallet);
       setApproved(true);
       saveSession({ approved: true });
-      toast.success("Plan activated — wallet funded.");
+      toast.success("Plan activated. Wallet funded.");
     } catch (e) {
       toast.error(e instanceof ApiError ? e.message : "Approve failed");
     } finally {
@@ -277,26 +322,20 @@ export default function Home() {
   const handleSwap = useCallback(
     async (alt: DishAlternative) => {
       if (!activeSlot) return;
-      // optimistic: reflect swap locally (backend swap-on-order happens at meal time)
-      setSlots((prev) =>
-        prev.map((s) =>
-          s.id === activeSlot.id
-            ? {
-                ...s,
-                dish_id: alt.dish_id,
-                dish_name: alt.name,
-                restaurant_id: alt.restaurant_id,
-                restaurant_name: alt.restaurant_name,
-                price: alt.price,
-                rating: alt.rating,
-                image_url: alt.image_url,
-                why_text: undefined,
-              }
-            : s
-        )
-      );
-      setModalOpen(false);
-      toast.success(`Swapped to ${alt.name}`);
+      setSwappingId(activeSlot.id);
+      try {
+        // Persist server-side first — a client-only swap used to vanish on
+        // refresh. The backend returns the updated slot, so we render exactly
+        // what's stored (side pairing cleared, why_text reset).
+        const { slot } = await api.swapSlot(activeSlot.id, alt);
+        setSlots((prev) => prev.map((s) => (s.id === slot.id ? slot : s)));
+        setModalOpen(false);
+        toast.success(`Swapped to ${alt.name}`);
+      } catch (e) {
+        toast.error(e instanceof ApiError ? e.message : "Swap failed");
+      } finally {
+        setSwappingId(null);
+      }
     },
     [activeSlot]
   );
@@ -313,7 +352,7 @@ export default function Home() {
         if (plan) await refreshPlan(plan.plan_id);
         const result = (res as { result?: string }).result;
         if (result === "ordered") toast.success("Order placed on Swiggy!");
-        else if (result === "skipped") toast("Meal skipped — money kept as Swiggy Cash.");
+        else if (result === "skipped") toast("Meal skipped. Money kept as Swiggy Cash.");
         else if (result === "rescheduled") toast("Meal rescheduled.");
       } catch (e) {
         toast.error(e instanceof ApiError ? e.message : "Could not respond");
@@ -326,6 +365,20 @@ export default function Home() {
     () => slots.find((s) => s.status === "planned"),
     [slots]
   );
+
+  // slots surviving the rail filter, + per-meal counts for the chip badges
+  const visibleSlots = useMemo(
+    () =>
+      mealFilter === "all"
+        ? slots
+        : slots.filter((s) => s.meal_type === mealFilter),
+    [slots, mealFilter]
+  );
+  const mealCounts = useMemo(() => {
+    const c: Partial<Record<MealType, number>> = {};
+    for (const s of slots) c[s.meal_type] = (c[s.meal_type] ?? 0) + 1;
+    return c;
+  }, [slots]);
 
   const simulateNextMeal = useCallback(async () => {
     if (!firstPlannedSlot) {
@@ -340,31 +393,55 @@ export default function Home() {
     }
   }, [firstPlannedSlot]);
 
+  // ---- GSAP motion layer (client-only; hooks stay above any early return) ----
+  const artifactRef = useRef<HTMLDivElement>(null);
+  const hasArtifact = Boolean(plan || planLoading);
+
+  // One-time entrance when the plan artifact first renders: summary strip →
+  // feasibility panel → calendar section, staggered 80ms. A plain timeline
+  // keyed on arrival — deliberately no ScrollTrigger and no listeners on the
+  // inner scrolling div. The [data-plan-step] nodes are thin wrappers around
+  // PlanSummaryStrip/FeasibilityPanel so we never double-drive the framer
+  // entrances those components animate on their own roots.
+  useGSAP(
+    () => {
+      if (!artifactRef.current || !hasArtifact || prefersReducedMotion()) return;
+      gsap.from("[data-plan-step]", {
+        opacity: 0,
+        y: 18,
+        duration: DUR.base,
+        stagger: 0.08,
+        ease: EASE.soft,
+      });
+    },
+    { scope: artifactRef, dependencies: [hasArtifact] }
+  );
+
   if (!ready) {
     return (
-    <Onboarding
-      live={live}
-      needsAuth={needsAuth}
-      onConnected={recheckMode}
-      onStart={handleStart}
-    />
-  );
+      // MotionConfig reducedMotion="user" makes every framer-motion animation
+      // in the tree (bubble springs, chip pops, entrances) honor the OS
+      // prefers-reduced-motion setting, matching the GSAP/Lottie guards.
+      <MotionConfig reducedMotion="user">
+        <Onboarding
+          live={live}
+          needsAuth={needsAuth}
+          onConnected={recheckMode}
+          onStart={handleStart}
+        />
+      </MotionConfig>
+    );
   }
 
   return (
+    <MotionConfig reducedMotion="user">
     <div className="relative flex h-dvh flex-col overflow-hidden bg-background">
-      {/* ambient background glow */}
-      <div
-        className={cn(
-          "pointer-events-none absolute inset-0 -z-10 opacity-60",
-          gradients.mesh
-        )}
-      />
       <AppHeader live={live} address={address} />
 
       <div className="grid min-h-0 flex-1 grid-cols-1 gap-0 lg:grid-cols-[minmax(360px,420px)_1fr]">
-        {/* LEFT — chat */}
-        <div className="min-h-0 border-r border-border/60 bg-surface/40 backdrop-blur-sm">
+        {/* LEFT — chat. ChatPane draws its own hairline divider, so the
+            wrapper carries no border (the old 3px orange stripe doubled up). */}
+        <div className="min-h-0 bg-surface">
           {userId && (
             <ChatPane
               userId={userId}
@@ -380,7 +457,10 @@ export default function Home() {
 
         {/* RIGHT — artifact */}
         <div className="min-h-0 overflow-y-auto">
-          <div className="mx-auto flex w-full max-w-5xl flex-col gap-6 px-5 py-6 lg:px-8">
+          <div
+            ref={artifactRef}
+            className="mx-auto flex w-full max-w-5xl flex-col gap-6 px-5 py-6 lg:px-8"
+          >
             {plan || planLoading ? (
               <>
                 {/* compact wallet + approve, sticky at top of the plan pane */}
@@ -393,46 +473,58 @@ export default function Home() {
                   className="sticky top-3 z-30"
                 />
 
-                {/* at-a-glance overview so the grid isn't the first overwhelming thing */}
-                <PlanSummaryStrip plan={plan} slots={slots} />
+                {/* at-a-glance overview so the grid isn't the first overwhelming thing.
+                    Thin wrapper = GSAP entrance target (see useGSAP above); the strip's
+                    own framer stagger runs untouched inside it. */}
+                <div data-plan-step>
+                  <PlanSummaryStrip plan={plan} slots={slots} />
+                </div>
 
                 {/* Explains an over-budget plan in real numbers and offers
                     concrete, one-click fixes. Collapses to a single line when
-                    the plan already fits. */}
-                <FeasibilityPanel
-                  report={feasibility}
-                  onApply={handleApplyFix}
-                  applying={planLoading}
-                />
+                    the plan already fits. Wrapper only renders with a report so
+                    no phantom flex gap appears when the panel is hidden. */}
+                {feasibility && (
+                  <div data-plan-step>
+                    <FeasibilityPanel
+                      report={feasibility}
+                      onApply={handleApplyFix}
+                      applying={planLoading}
+                    />
+                  </div>
+                )}
 
-                <section className="flex flex-col gap-4">
-                  <div className="flex items-center justify-between gap-3">
-                    <div>
-                      <h2 className="font-display text-xl font-semibold tracking-tight">
+                <section data-plan-step className="flex flex-col gap-4">
+                  <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2">
+                    <div className="min-w-0">
+                      <h2 className="font-heading text-xl font-extrabold tracking-[-0.02em]">
                         Your Month Plan
                       </h2>
-                      <p className="text-sm text-muted-foreground">
-                        One week at a time — tap any dish for details, swap, or the AI pick reason.
+                      <p className="text-sm leading-[1.4] text-muted-foreground">
+                        One week at a time. Tap any dish for details, swap, or the AI pick reason.
                       </p>
                     </div>
                     {plan && approved && firstPlannedSlot && (
-                      <button
-                        onClick={simulateNextMeal}
-                        className={cn(
-                          "shrink-0 rounded-full px-4 py-1.5 text-sm font-medium text-white shadow-soft transition hover:shadow-glow",
-                          gradients.brand
-                        )}
-                      >
-                        Simulate next meal →
-                      </button>
+                      <Button onClick={simulateNextMeal} className="shrink-0">
+                        Simulate next meal
+                        <ArrowRight className="size-4" strokeWidth={2.4} aria-hidden />
+                      </Button>
                     )}
                   </div>
 
+                  {/* Swiggy-style category rail — filter the plan by meal */}
+                  <MealFilterRail
+                    value={mealFilter}
+                    onChange={setMealFilter}
+                    counts={mealCounts}
+                  />
+
                   <DayListCalendar
-                    slots={slots}
+                    slots={visibleSlots}
                     days={days}
                     loading={planLoading}
                     onSlotClick={openDish}
+                    swappingSlotId={swappingId}
                   />
                 </section>
               </>
@@ -448,32 +540,148 @@ export default function Home() {
         open={modalOpen}
         onOpenChange={setModalOpen}
         onSwap={handleSwap}
+        swapping={swappingId === activeSlot?.id}
+        vegOnly={lastBlueprintRef.current?.veg_only ?? false}
       />
+    </div>
+    </MotionConfig>
+  );
+}
+
+/* Swiggy category-rail pattern: horizontally scrollable pill chips, active =
+   solid orange, resting = white card with a soft hover tint. Counts give the
+   rail real utility (how many of each meal the plan holds). */
+const FILTERS: { value: "all" | MealType; label: string }[] = [
+  { value: "all", label: "All meals" },
+  { value: "breakfast", label: "Breakfast" },
+  { value: "lunch", label: "Lunch" },
+  { value: "dinner", label: "Dinner" },
+];
+
+function MealFilterRail({
+  value,
+  onChange,
+  counts,
+}: {
+  value: "all" | MealType;
+  onChange: (v: "all" | MealType) => void;
+  counts: Partial<Record<MealType, number>>;
+}) {
+  const rootRef = useRef<HTMLDivElement>(null);
+  const appearedRef = useRef(false);
+
+  // Re-runs when the active filter changes: the first run pops every chip in
+  // (staggered scale/fade); later runs only emphasize the newly-active chip.
+  useGSAP(
+    () => {
+      if (prefersReducedMotion()) return;
+
+      if (!appearedRef.current) {
+        appearedRef.current = true;
+        gsap.from("[data-filter-chip]", {
+          opacity: 0,
+          scale: 0.85,
+          duration: DUR.quick,
+          stagger: 0.05,
+          ease: EASE.pop,
+        });
+        return;
+      }
+
+      const active = rootRef.current?.querySelector<HTMLElement>(
+        "[aria-pressed='true']"
+      );
+      if (!active) return;
+      gsap
+        .timeline()
+        .to(active, { scale: 1.04, duration: 0.12, ease: EASE.out })
+        .to(active, {
+          scale: 1,
+          duration: 0.18,
+          ease: EASE.out,
+          clearProps: "transform",
+        });
+    },
+    { scope: rootRef, dependencies: [value] }
+  );
+
+  return (
+    <div
+      ref={rootRef}
+      className="flex items-center gap-2 overflow-x-auto pb-1"
+      aria-label="Filter plan by meal"
+    >
+      {FILTERS.map((f) => {
+        const active = f.value === value;
+        const n = counts[f.value as MealType];
+        return (
+          <button
+            key={f.value}
+            type="button"
+            data-filter-chip
+            aria-pressed={active}
+            onClick={() => onChange(f.value)}
+            className={cn(
+              // Both states carry a 1px border so switching filters never
+              // shifts the chip's box size.
+              "shrink-0 rounded-full border px-4 py-1.5 text-sm font-semibold transition-colors",
+              focusRing,
+              active
+                ? "border-brand-500 bg-brand-500 text-primary-foreground"
+                : "border-border bg-card text-foreground hover:border-brand-300 hover:bg-brand-50"
+            )}
+          >
+            {f.label}
+            {n != null && n > 0 && (
+              <span
+                className={cn(
+                  "ml-1.5 text-xs",
+                  active ? "text-primary-foreground/75" : "text-muted-foreground"
+                )}
+              >
+                {n}
+              </span>
+            )}
+          </button>
+        );
+      })}
     </div>
   );
 }
 
 function EmptyArtifact() {
+  const rootRef = useRef<HTMLDivElement>(null);
+
+  // Idle life for the empty state: perpetual gentle float (±6px) plus a very
+  // slow rotate wobble (±2°). The two periods differ so the drift feels
+  // organic rather than metronomic. Copy fades up once.
+  useGSAP(
+    () => {
+      if (prefersReducedMotion()) return;
+
+      const plate = rootRef.current?.querySelector(".empty-plate");
+      if (plate) {
+        gsap.to(plate, { y: -6, duration: 1.8, ease: EASE.loop, repeat: -1, yoyo: true });
+        gsap.to(plate, { rotation: 2, duration: 3.4, ease: EASE.loop, repeat: -1, yoyo: true });
+      }
+
+      fadeUp("[data-empty-copy]", { y: 12, stagger: 0.08 });
+    },
+    { scope: rootRef }
+  );
+
   return (
     <div
-      className={cn(
-        "flex min-h-[60vh] flex-col items-center justify-center rounded-3xl border border-border/60 p-10 text-center",
-        surfaces.glass
-      )}
+      ref={rootRef}
+      className="flex min-h-[60vh] flex-col items-center justify-center rounded-lg border border-border bg-card p-10 text-center"
     >
-      <div
-        className={cn(
-          "mb-5 flex size-16 items-center justify-center rounded-2xl text-3xl shadow-glow",
-          gradients.brand
-        )}
-      >
-        🍱
-      </div>
-      <h2 className="font-display text-2xl font-semibold tracking-tight">
+      {/* original food-doodle illustration — Swiggy-style friendly empty state */}
+      <PlateIllustration className="empty-plate mb-6 h-44 w-44" />
+      <h2 data-empty-copy className="font-heading text-2xl font-bold tracking-[-0.02em]">
         Tell me your food budget
       </h2>
-      <p className="mt-2 max-w-md text-muted-foreground">
-        Chat on the left — your budget, must-have dishes, and appetite. I&apos;ll
+      <p data-empty-copy className="mt-2 max-w-md text-sm leading-[1.4] text-muted-foreground">
+        Chat on the left: your budget, must-have dishes, and appetite. I&apos;ll
         build a full month of breakfast, lunch &amp; dinner within budget, right here.
       </p>
     </div>

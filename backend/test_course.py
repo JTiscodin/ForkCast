@@ -7,10 +7,25 @@ Covers the three bugs these modules were added to fix:
      (100/price) made cheap bread outscore every real dish.
   3. A curry was planned alone, with no bread or rice to eat it with.
 """
-from catalog import mock_catalog
+from dataclasses import replace
+
+from catalog import Dish, mock_catalog
 from appetite import build_profile
 from optimizer import optimize, Constraint
 import course
+
+
+def _d(dish_id, name, restaurant_id="r1", restaurant_name="Rest", meal_type="lunch",
+       price=100, rating=4.0, veg=True):
+    """Helper that mirrors live fetch: course AND dish_kind from name rules."""
+    dish = Dish(
+        dish_id=dish_id, name=name, restaurant_id=restaurant_id,
+        restaurant_name=restaurant_name, meal_type=meal_type, price=float(price),
+        rating=rating, cuisine="north_indian", tags=("veg",) if veg else ("nonveg",),
+        veg=veg, variants={"regular": float(price)},
+    )
+    return replace(dish, course=course.course_of(dish.name),
+                   dish_kind=course.dish_kind_of(dish.name))
 
 
 def _run(name, fn):
@@ -221,7 +236,8 @@ def test_total_price_includes_side():
     paired = [s for s in r.slots if s.side_dish_name]
     assert paired, "no paired slots to check"
     for s in paired:
-        assert abs(s.total_price - (s.price + s.side_price)) < 0.01
+        expect = s.price + s.side_price + getattr(s, "side2_price", 0)
+        assert abs(s.total_price - expect) < 0.01
         assert s.total_price > s.price, "total must exceed the main dish alone"
 
 
@@ -264,6 +280,140 @@ def test_infeasible_budget_reported_not_hidden():
     r = optimize(CAT, PROF, 500, days=30, meals=["breakfast", "lunch"])
     assert not r.feasible
     assert "more than budget" in r.message
+
+
+# ---- dish_kind golden lists (sweets/snacks/beverages never a meal) --------
+SWEET_NAMES = ["Gulab Jamun", "Rasgulla", "Jalebi", "Kheer", "Payasam",
+               "Rasmalai", "Kulfi", "Phirni", "Ice Cream Sundae", "Brownie",
+               "Gulab Jamun [Regular]"]
+# true snacks only — Momos is a COMPLETE meal (course complete, kind meal) so it
+# is deliberately excluded from the snack golden list (see test_momos_is_meal_not_snack).
+SNACK_NAMES = ["Samosa", "Pakora", "Chaat", "Vada", "Bhel", "Pani Puri",
+               "Kachori", "Tikki", "Cutlet"]
+BEVERAGE_NAMES = ["Pepsi", "Coke", "Mango Shake", "Lassi", "Chai",
+                  "Cold Drink Nachos + Coke Combo"]
+
+
+def test_gulab_jamun_is_sweet_not_meal():
+    assert course.dish_kind_of("Gulab Jamun") == course.KIND_SWEET
+    assert course.dish_kind_of("Gulab Jamun [Regular]") == course.KIND_SWEET
+
+
+def test_gulab_jamun_is_sweet_not_curry_trap():
+    """Gulab Jamun must be a sweet side, not mistaken for a curry or meal."""
+    for n in ["Gulab Jamun", "Gulab Jamun [Regular]", "Rasmalai", "Rasgulla"]:
+        ci = course.classify(n)
+        assert ci.course == course.SIDE, f"{n} course -> {ci.course}"
+        assert ci.dish_kind == course.KIND_SWEET, f"{n} kind -> {ci.dish_kind}"
+        assert ci.course != course.CURRY, f"{n} misclassified as curry"
+
+
+def test_sweets_never_meal_kind():
+    # also cover the extended sweet family (barfi etc) that live catalog surfaced
+    sweets = SWEET_NAMES + ["Barfi", "Laddoo", "Peda", "Halwa", "Sandesh"]
+    for n in sweets:
+        k = course.dish_kind_of(n)
+        assert k != course.KIND_MEAL, f"{n} should not be meal, got {k}"
+        # typically sweet; allow snack variance but must not be meal — strict sweet for core list
+        if n in SWEET_NAMES:
+            assert k == course.KIND_SWEET, f"{n} expected sweet, got {k}"
+
+
+def test_snacks_never_meal_kind():
+    # Momos excluded — it is a complete meal, not a snack
+    snacks = SNACK_NAMES + ["Nachos", "Spring Roll", "French Fries"]
+    for n in snacks:
+        k = course.dish_kind_of(n)
+        assert k != course.KIND_MEAL, f"{n} should not be meal, got {k}"
+        # snack list should be snack (or at least not meal/sweet)
+        assert k == course.KIND_SNACK or k in (course.KIND_SNACK, course.KIND_SWEET), f"{n} kind {k}"
+    # explicitly verify Momos is NOT a snack
+    assert course.dish_kind_of("Momos") == course.KIND_MEAL
+    assert course.course_of("Momos") == course.COMPLETE
+
+
+def test_beverages_never_meal_kind():
+    bevs = ["Pepsi", "Coke", "Mango Shake", "Lassi", "Chai", "Coffee",
+            "Mojito", "Jaljeera", "Nimbu Pani", "Thandai"]
+    for n in bevs:
+        k = course.dish_kind_of(n)
+        assert k != course.KIND_MEAL, f"{n} should not be meal, got {k}"
+        assert k == course.KIND_BEVERAGE, f"{n} expected beverage, got {k}"
+    # the promo combo that mixes snack+drink must still not be a meal (snack, not beverage)
+    for n in ["Cold Drink Nachos + Coke Combo"]:
+        ci = course.classify(n)
+        assert ci.dish_kind != course.KIND_MEAL, f"{n} should not be meal"
+        assert ci.course == course.SIDE, f"{n} course -> {ci.course}"
+
+
+def test_beverage_names_golden():
+    """BEVERAGE_NAMES from spec: all must be non-meal; pure drinks are beverage."""
+    for n in BEVERAGE_NAMES:
+        k = course.dish_kind_of(n)
+        assert k != course.KIND_MEAL, f"{n} kind {k} should not be meal"
+        if "Nachos" in n or "Combo" in n:
+            # drink+snack promo is snack per drink-combo demotion, but still not a meal
+            assert k in (course.KIND_SNACK, course.KIND_BEVERAGE), f"{n} -> {k}"
+        else:
+            assert k == course.KIND_BEVERAGE, f"{n} expected beverage, got {k}"
+
+
+def test_thali_combo_is_complete_meal():
+    for n in ["Paneer Thali", "Chicken Thali", "Veg Thali", "Combo Meal",
+              "Momo Platter", "Burger Combo", "Thali [Mini]"]:
+        ci = course.classify(n)
+        assert ci.course == course.COMPLETE, f"{n} -> {ci.course}"
+        assert ci.dish_kind == course.KIND_MEAL, f"{n} kind -> {ci.dish_kind}"
+
+
+def test_thali_combo_plus_is_complete_meal_kind():
+    """Spec golden: thali/combo/burger etc are complete meals, not snacks."""
+    for n in ["Paneer Thali", "Chicken Thali", "Veg Thali", "Combo Meal",
+              "Momo Platter", "Burger Combo", "Thali [Mini]"]:
+        ci = course.classify(n)
+        assert ci.course == course.COMPLETE, f"{n} course -> {ci.course}"
+        assert ci.dish_kind == course.KIND_MEAL, f"{n} kind -> {ci.dish_kind}"
+        assert ci.course not in course.NEVER_STANDALONE
+
+
+def test_dessert_platter_is_not_meal():
+    for n in ["Dessert Platter", "Sweet Platter", "Snack Platter"]:
+        ci = course.classify(n)
+        assert ci.course == course.SIDE, f"{n} course -> {ci.course}"
+        assert ci.dish_kind != course.KIND_MEAL, f"{n} kind -> {ci.dish_kind}"
+        assert ci.dish_kind in (course.KIND_SWEET, course.KIND_SNACK), f"{n} -> {ci.dish_kind}"
+    # Drinks Platter also not a meal
+    ci = course.classify("Drinks Platter")
+    assert ci.course == course.SIDE and ci.dish_kind != course.KIND_MEAL
+
+
+def test_description_settles_kind_for_unknown():
+    # A default-COMPLETE mystery name with a sweet description → sweet kind
+    ci = course.classify_with_description("Zzz Mystery Platter", "creamy dessert served hot with rabri")
+    assert ci.dish_kind == course.KIND_SWEET, f"expected sweet, got {ci}"
+    assert ci.confidence == "description"
+
+
+def test_description_settles_unknown_names_kind():
+    """Analog for kind: unknown name whose blurb says dessert -> sweet."""
+    name = "Zzz Mystery Item 99"
+    base = course.classify(name)
+    assert base.course == course.COMPLETE
+    assert base.dish_kind == course.KIND_MEAL
+    ci = course.classify_with_description(name, "sweet dessert with sugar syrup and milk fudge, garnished with pistachios")
+    assert ci.dish_kind == course.KIND_SWEET, f"expected sweet, got {ci.dish_kind}"
+    assert ci.confidence == "description"
+    # form match must still win over description
+    ci2 = course.classify_with_description("Paneer Momos", "sweet dessert with sugar syrup")
+    assert ci2.dish_kind == course.KIND_MEAL and ci2.confidence == "form"
+
+
+def test_momos_is_meal_not_snack():
+    # regression: momos is a proper meal, not a snack side
+    assert course.dish_kind_of("Momos") == course.KIND_MEAL
+    assert course.course_of("Momos") == course.COMPLETE
+    assert course.dish_kind_of("Veg Momos Platter") == course.KIND_MEAL
+    assert course.dish_kind_of("Momo Platter") == course.KIND_MEAL
 
 
 if __name__ == "__main__":

@@ -9,45 +9,27 @@ import { cn } from "@/lib/utils";
  *
  * Usage:
  *   import { cn } from "@/lib/utils"
- *   import { surfaces, gradients, gradientText } from "@/lib/design"
+ *   import { surfaces } from "@/lib/design"
  *   <div className={cn(surfaces.card, "p-6")}>…</div>
+ *
+ * Swiggy look: FLAT solid-orange CTAs on white cards — no gradients, no
+ * pop-art shadows. The old `gradients`/`gradientText` helpers are gone;
+ * reach for `bg-brand-500` directly instead.
  */
-
-/* -------------------------------------------------------------------------
- * Gradient class-name strings (back the @utility helpers in globals.css)
- * ------------------------------------------------------------------------- */
-export const gradients = {
-  /** Orange → amber. Primary CTAs, brand marks, active accents. */
-  brand: "bg-gradient-brand",
-  /** Subtle top-down surface elevation. Cards, panels, headers. */
-  surface: "bg-gradient-surface",
-  /** Radial accent glow from the top. Behind hero / featured content. */
-  glow: "bg-gradient-glow",
-  /** Multi-stop hero mesh. Full-bleed hero backgrounds only. */
-  mesh: "bg-gradient-mesh",
-} as const;
-
-export type GradientName = keyof typeof gradients;
-
-/** Orange→amber gradient clipped to text. Reserve for one hero headline. */
-export const gradientText = "text-gradient-brand";
 
 /* -------------------------------------------------------------------------
  * Reusable surface / panel className tokens (cn-friendly)
  * ------------------------------------------------------------------------- */
 export const surfaces = {
   /** Standard content card. */
-  card: "bg-card text-card-foreground border border-border rounded-xl shadow-soft",
+  card: "bg-card text-card-foreground border border-border rounded-md shadow-soft",
   /** Elevated / floating card (popovers, featured tiles). */
   cardElevated:
-    "bg-surface-elevated text-card-foreground border border-border rounded-2xl shadow-layered",
+    "bg-surface-elevated text-card-foreground border border-border rounded-md shadow-layered",
   /** Frosted glass panel — sticky navbars, overlays, floating toolbars. */
-  glass: "glass-panel rounded-2xl text-foreground",
+  glass: "glass-panel rounded-md text-foreground shadow-soft",
   /** Inset well for muted / secondary regions. */
-  well: "bg-muted/60 border border-border rounded-xl",
-  /** Brand-tinted attention panel (tips, AI suggestions). */
-  brandPanel:
-    "bg-accent text-accent-foreground border border-brand-500/25 rounded-xl",
+  well: "bg-muted/60 border border-border rounded-md",
 } as const;
 
 /** Focus ring recipe — apply on interactive custom elements. */
@@ -162,11 +144,6 @@ export const planStatus: Record<PlanStatus, StatusStyle> = {
  * Small typed helpers
  * ------------------------------------------------------------------------- */
 
-/** Compose a gradient utility with extra classes. */
-export function gradient(name: GradientName, ...extra: string[]): string {
-  return cn(gradients[name], ...extra);
-}
-
 /** Get meal-type styling, optionally merging one of its facets with classes. */
 export function mealStyle(type: MealType): MealTypeStyle {
   return mealTypes[type];
@@ -199,7 +176,7 @@ export const dietBorderColor = {
  * Returns a `border-l-4` plus the themed diet color; merge in extra classes.
  *
  *   <div className={dietBorder(veg)}>…</div>
- *   <div className={dietBorder(veg, "rounded-xl")}>…</div>
+ *   <div className={dietBorder(veg, "rounded-md")}>…</div>
  */
 export function dietBorder(veg: boolean, ...extra: string[]): string {
   return cn("border-l-4", veg ? dietBorderColor.veg : dietBorderColor.nonveg, ...extra);

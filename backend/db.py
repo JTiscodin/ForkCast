@@ -85,7 +85,14 @@ CREATE TABLE IF NOT EXISTS meal_slots (
     side_qty            INTEGER DEFAULT 0,
     side_price          REAL DEFAULT 0,
     side_restaurant_name TEXT,
-    side_image_url      TEXT
+    side_image_url      TEXT,
+    dish_kind TEXT DEFAULT 'meal',
+    side2_dish_id TEXT,
+    side2_dish_name TEXT,
+    side2_qty INTEGER DEFAULT 0,
+    side2_price REAL DEFAULT 0,
+    side2_restaurant_name TEXT,
+    side2_image_url TEXT
 );
 
 CREATE INDEX IF NOT EXISTS idx_slot_plan ON meal_slots(plan_id);
@@ -101,9 +108,28 @@ CREATE TABLE IF NOT EXISTS notifications (
 
 
 def get_conn(db_path=DB_PATH):
-    conn = sqlite3.connect(db_path)
+    # timeout=30: FastAPI runs endpoints in a thread pool and every request
+    # opens its own connection; without a busy timeout, one request's write
+    # transaction made concurrent requests fail with "database is locked".
+    conn = sqlite3.connect(db_path, timeout=30)
     conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA foreign_keys = ON")
+    # busy_timeout is the SQLite-level retry (distinct from Python's timeout);
+    # synchronous=NORMAL is safe with WAL and faster.
+    try:
+        conn.execute("PRAGMA busy_timeout=30000")
+    except Exception:
+        pass
+    try:
+        conn.execute("PRAGMA synchronous=NORMAL")
+    except Exception:
+        pass
+    # WAL lets readers and a writer proceed concurrently instead of blocking.
+    if str(db_path) != ":memory:":
+        try:
+            conn.execute("PRAGMA journal_mode=WAL")
+        except Exception:
+            pass
     return conn
 
 
@@ -121,6 +147,13 @@ _MIGRATIONS = [
     ("meal_slots", "side_price", "REAL DEFAULT 0"),
     ("meal_slots", "side_restaurant_name", "TEXT"),
     ("meal_slots", "side_image_url", "TEXT"),
+    ("meal_slots", "dish_kind", "TEXT DEFAULT 'meal'"),
+    ("meal_slots", "side2_dish_id", "TEXT"),
+    ("meal_slots", "side2_dish_name", "TEXT"),
+    ("meal_slots", "side2_qty", "INTEGER DEFAULT 0"),
+    ("meal_slots", "side2_price", "REAL DEFAULT 0"),
+    ("meal_slots", "side2_restaurant_name", "TEXT"),
+    ("meal_slots", "side2_image_url", "TEXT"),
 ]
 
 

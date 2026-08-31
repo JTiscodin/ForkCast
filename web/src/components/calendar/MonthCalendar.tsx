@@ -38,9 +38,9 @@ function CalendarSkeleton({ days }: { days: number }) {
       {Array.from({ length: days }).map((_, i) => (
         <div
           key={i}
-          className="flex flex-col overflow-hidden rounded-xl bg-card ring-1 ring-foreground/10 shadow-soft"
+          className="flex flex-col overflow-hidden rounded-lg border border-border bg-card shadow-soft"
         >
-          <div className="bg-gradient-surface px-3 pb-2 pt-2.5">
+          <div className="border-b border-border px-3 pb-2 pt-2.5">
             <div className="flex items-center justify-between">
               <Skeleton className="h-4 w-10" />
               <Skeleton className="h-3 w-8" />
@@ -90,10 +90,10 @@ export function MonthCalendar({
       {/* Summary strip */}
       <div className="mb-4 flex flex-wrap items-center gap-x-6 gap-y-2">
         <div className="flex items-baseline gap-2">
-          <span className="font-display text-xl font-semibold text-foreground">
+          <span className="font-heading text-xl font-extrabold tracking-[-0.02em] text-foreground">
             {days}-Day Plan
           </span>
-          <span className="text-xs text-muted-foreground">
+          <span className="text-sm text-muted-foreground">
             {plannedDays} day{plannedDays === 1 ? "" : "s"} planned
           </span>
         </div>
@@ -105,17 +105,17 @@ export function MonthCalendar({
               return (
                 <span
                   key={m}
-                  className="inline-flex items-center gap-1.5 text-[11px] text-muted-foreground"
+                  className="inline-flex items-center gap-1.5 text-sm text-muted-foreground"
                 >
-                  <span className={cn("size-2 rounded-full", meal.bg)} />
+                  <span className={cn("size-2 rounded-full opacity-60", meal.bg)} />
                   {meal.label}
                 </span>
               );
             })}
           </div>
           <div className="flex items-baseline gap-1.5">
-            <span className="text-xs text-muted-foreground">Total</span>
-            <span className="font-mono text-base font-semibold text-accent-brand">
+            <span className="text-sm text-muted-foreground">Total</span>
+            <span className="text-base font-bold tabular-nums text-foreground">
               {formatINR(monthTotal)}
             </span>
           </div>

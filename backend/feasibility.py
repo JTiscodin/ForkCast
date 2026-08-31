@@ -38,16 +38,90 @@ _MEAL_LABEL = {
 }
 
 
-def _floor_cost(catalog, profile, days, meals, constraints):
-    """Cheapest achievable total for this configuration.
+def _floor_cost(catalog, profile, days, meals, constraints, veg_only=False):
+    """Cheapest achievable total for this configuration, constraints honoured.
 
-    Runs the optimizer with a budget of 1 so every pacing decision falls through
-    to "take the cheapest thing that fills the slot" - the true floor, not an
-    estimate.
+    Two requirements shape this probe, both learned from live failures:
+
+    1. The planner probed must behave EXACTLY like /plan. Running it at
+       budget=1 makes every pacing decision fall through to "take the cheapest
+       thing", which diverged from real behavior and quoted "minimum Rs 10,501"
+       for a request whose real plan cost Rs 13,560. So the budget escalates
+       until the optimizer's own output fits inside it AND meets every
+       min-count constraint.
+    2. A stall (neither the constraint count nor the cost moving between
+       escalations) only means "impossible" when the plan ALREADY FITS its
+       budget. Below the true floor the opposite happens: the pacing reserves
+       freeze the total near the cheap minimum while the constraint stays
+       starved, and reading that as a stall quoted Rs 7,600 for plans that
+       genuinely need Rs 8,400 -- a floor no real run could honour.
+
+    The first succeeding budget is found by geometric escalation, so it can
+    overshoot; a short binary refinement walks it back down. What is returned
+    is the smallest VERIFIED-SUFFICIENT budget: calling /plan with exactly this
+    number fits inside it and meets every min-count constraint.
     """
-    r = optimize(catalog, profile, 1, days=days, constraints=constraints,
-                 meals=list(meals))
-    return r.total_cost
+    def attempt(b):
+        r = optimize(catalog, profile, b, days=days,
+                     constraints=constraints, meals=list(meals),
+                     veg_only=veg_only)
+        # Guards stay ON deliberately: the quoted floor must be one a REAL
+        # plan (variety disciplines included) can honour, or /plan at exactly
+        # this budget would still come back over.
+        ok = (r.total_cost <= b + 0.01
+              and all(s["got"] >= s["needed"]
+                      for s in r.constraint_status.values()))
+        return r, ok
+
+    budget = 1.0
+    result, ok = attempt(budget)
+    low = 0.0                     # highest budget known to FAIL
+    sufficient = None             # lowest budget known to WORK
+    prev_got = prev_total = None
+    stall_rounds = 0
+    for _ in range(12):
+        if ok:
+            sufficient = budget
+            break
+        low = max(low, budget)
+        got = sum(s["got"] for s in result.constraint_status.values())
+        if (prev_got is not None and got == prev_got
+                and abs(result.total_cost - prev_total) < 0.01):
+            stall_rounds += 1
+        else:
+            stall_rounds = 0
+        prev_got, prev_total = got, result.total_cost
+        # A single frozen round below the floor is NORMAL: the pacing reserves
+        # hold the total at the cheap minimum while the constraint waits for
+        # real money. Only a stall that SURVIVES another full escalation --
+        # budget grown well past the plan, constraint still unmoved -- means
+        # more money cannot help (e.g. nothing matches the tag).
+        if stall_rounds >= 2 and result.total_cost <= budget + 0.01:
+            break
+        budget = max(result.total_cost, budget * 1.35) + 1.0
+        result, ok = attempt(budget)
+
+    if result is None:
+        return 0.0
+    if sufficient is not None:
+        # Binary refinement: the escalation overshot, so pull the budget back
+        # toward the highest known-failing point while it keeps working.
+        # What we quote is this smallest VERIFIED-SUFFICIENT budget — not the
+        # cheaper total the planner happened to spend once — because quoting
+        # the total invited "run /plan at exactly this number" and a tighter
+        # budget re-starves the constraint (got dropped from 10 to 1).
+        high = sufficient
+        for _ in range(6):
+            mid = round((low + high) / 2, 2)
+            if mid <= low or mid >= high:
+                break
+            r_mid, ok_mid = attempt(mid)
+            if ok_mid:
+                high, sufficient, result = mid, mid, r_mid
+            else:
+                low = mid
+        return round(sufficient, 2)
+    return round(result.total_cost, 2)
 
 
 def analyse(catalog, profile_builder, user_id, appetite_level, budget, days,
@@ -87,7 +161,7 @@ def analyse(catalog, profile_builder, user_id, appetite_level, budget, days,
             cons.append(Constraint(c.strip().lower(), 1))
 
     prof = profile_builder(user_id, appetite_level)
-    floor = _floor_cost(catalog, prof, days, meals, cons)
+    floor = _floor_cost(catalog, prof, days, meals, cons, veg_only=veg_only)
     slot_count = days * len(meals)
     shortfall = round(max(0.0, floor - budget), 2)
     feasible = floor <= budget
@@ -131,7 +205,7 @@ def analyse(catalog, profile_builder, user_id, appetite_level, budget, days,
             seen.add(key)
 
             cost = _floor_cost(catalog, profile_builder(user_id, lvl), days,
-                               combo, cons)
+                               combo, cons, veg_only=veg_only)
             if cost > budget:
                 continue  # doesn't actually solve anything
 

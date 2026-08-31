@@ -5,6 +5,7 @@ import type {
   PlanFull,
   WalletSummary,
   DishAlternative,
+  MealSlot,
   NotifyPayload,
   SwiggyAddress,
   ChatResponse,
@@ -72,6 +73,18 @@ export const api = {
 
   addresses: () =>
     req<{ addresses: SwiggyAddress[] }>("/mcp/addresses"),
+
+  /**
+   * Pin the addressId all live searches and orders run against. Called with
+   * the user's onboarding pick, and again on session restore so a reload
+   * re-syncs the backend (which otherwise falls back to the first saved
+   * Swiggy address).
+   */
+  setAddress: (address_id: string) =>
+    req<{ status: string; address_id: string }>("/address", {
+      method: "POST",
+      body: { address_id },
+    }),
 
   intake: (user_id: number, text: string) =>
     req<ParsedIntake>("/intake", { method: "POST", body: { user_id, text } }),
@@ -162,10 +175,17 @@ export const api = {
       body: { answer, ...extra },
     }),
 
-  alternatives: (slot_id: number, band = 100, veg_only = false) =>
+  alternatives: (slot_id: number, opts?: { veg_only?: boolean }) =>
     req<{ alternatives: DishAlternative[] }>(
-      `/slot/${slot_id}/alternatives?band=${band}&veg_only=${veg_only}`
+      `/slot/${slot_id}/alternatives?band=100${opts?.veg_only ? "&veg_only=true" : ""}`
     ),
+
+  /** Persist a chosen alternative into the slot (survives refresh). */
+  swapSlot: (slot_id: number, alt: DishAlternative) =>
+    req<{ slot: MealSlot }>(`/slot/${slot_id}/swap`, {
+      method: "POST",
+      body: alt,
+    }),
 
   why: (slot_id: number) =>
     req<{ slot_id: number; why: string; cached: boolean }>(

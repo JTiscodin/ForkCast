@@ -16,7 +16,7 @@ import os
 import config  # noqa: F401 — loads .env before anything reads os.environ
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel
+from pydantic import BaseModel, field_validator
 
 from db import init_db, get_conn
 from wallet_service import WalletService
@@ -25,7 +25,7 @@ from catalog_fetcher import CatalogFetcher
 from optimizer import optimize, Constraint
 from plan_service import PlanService
 from order_executor import OrderExecutor
-from swap_service import alternatives
+from swap_service import alternatives, apply_swap, SwapError
 from intake import parse_intake
 import gemini
 import blueprint_chat
@@ -42,6 +42,10 @@ STATE = {
     "client": None,
     "fetcher": None,
     "needs_auth": False,   # True when mcp desired but no valid token
+    # The addressId every live search/order runs against. Defaults to the
+    # SWIGGY_ADDRESS_ID env var; the frontend overrides it with the user's
+    # onboarding pick via POST /address (see _set_address).
+    "address_id": ADDRESS_ID,
 }
 
 
@@ -56,8 +60,15 @@ def _build_client():
 
 
 def _init_runtime():
-    """(Re)build client + fetcher from current env/token. Safe to call anytime."""
+    """(Re)build client + fetcher from current env/token. Safe to call anytime.
+
+    Also resets the active address to the env default — after a login/logout
+    the account (and its saved addresses) may have changed, so a pick from a
+    previous session must not survive. The frontend re-syncs its pick via
+    POST /address right after onboarding / session restore.
+    """
     _CATALOG_CACHE.clear()
+    STATE["address_id"] = ADDRESS_ID
     if STATE["mode"] == "mcp":
         client = _build_client()
         if client is None:
@@ -85,7 +96,45 @@ app = FastAPI(title="Budget Meal Planner")
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"],
                    allow_headers=["*"])
 
-_APPETITE_CACHE = {}   # user_id -> AppetiteProfile (also persisted)
+class _AppetiteCache(dict):
+    """user_id -> AppetiteProfile.
+
+    The in-memory cache dies on restart (or another worker serves the next
+    request), but /appetite persists every profile to the appetite_profiles
+    table — so on a miss we reload from there instead of letting every planner
+    path silently fall back to "moderate" portions.
+    """
+
+    def get(self, key, default=None):
+        prof = super().get(key)
+        if prof is not None:
+            return prof
+        try:
+            conn, _, _ = svc()
+        except Exception:
+            return default
+        try:
+            row = conn.execute(
+                "SELECT appetite_level FROM appetite_profiles WHERE user_id=?",
+                (key,)).fetchone()
+        except Exception:
+            row = None
+        finally:
+            try:
+                conn.close()
+            except Exception:
+                pass
+        if row is None:
+            return default
+        try:
+            prof = build_profile(key, row["appetite_level"])
+        except ValueError:
+            return default  # corrupt row — behave like "not set"
+        self[key] = prof
+        return prof
+
+
+_APPETITE_CACHE = _AppetiteCache()
 
 
 def _live():
@@ -94,22 +143,51 @@ def _live():
 
 
 def get_catalog(veg_only=False, high_protein=False):
-    """Catalog for a given diet. Cached per (diet, protein) combination.
+    """Catalog for a given diet. Cached per (diet, protein, address) combination.
 
     The cache key MUST include high_protein: the seed queries differ, so a
     non-veg high-protein pool is a genuinely different set of dishes, not a
-    filtered view of the veg one.
+    filtered view of the veg one. It must also include the active addressId:
+    search_menu is address-scoped, so a pool built around one address is wrong
+    for another (different restaurants, prices, availability).
     """
-    key = ("veg" if veg_only else "all") + ("+protein" if high_protein else "")
+    key = (("veg" if veg_only else "all")
+           + ("+protein" if high_protein else "")
+           + f"@{STATE['address_id']}")
     if key not in _CATALOG_CACHE:
+        # Pass the CURRENT address explicitly — the fetcher's own address_id
+        # was baked in at construction and may predate the user's pick.
         _CATALOG_CACHE[key] = STATE["fetcher"].fetch(
+            address_id=STATE["address_id"],
             veg_only=veg_only, high_protein=high_protein)
     return _CATALOG_CACHE[key]
 
 
+def _swap_catalog():
+    """Whole-neighbourhood catalog for validating / re-pairing swaps.
+
+    A swap can arrive for any slot of any plan, so it must be checked against
+    every diet pool we know about, not just one cached view. Reuses warm
+    caches (deduped by dish_id) and only falls back to a fresh default fetch
+    when nothing was fetched yet — a live fetch failure degrades to "whatever
+    is already cached" instead of 500ing the endpoint.
+    """
+    by_id = {}
+    pools = list(_CATALOG_CACHE.values())
+    try:
+        pools.append(get_catalog())
+    except RuntimeError:
+        pass  # live fetch unavailable; validate against the cached pools only
+    for dishes in pools:
+        for d in dishes:
+            by_id.setdefault(d.dish_id, d)
+    return list(by_id.values())
+
+
 def _executor():
     mode = "mcp" if _live() else "mock"
-    return OrderExecutor(mode=mode, mcp_client=STATE["client"], address_id=ADDRESS_ID)
+    return OrderExecutor(mode=mode, mcp_client=STATE["client"],
+                         address_id=STATE["address_id"])
 
 
 def svc():
@@ -148,11 +226,46 @@ class PlanIn(BaseModel):
     # never fetched, so this has to reach the search, not just the optimizer.
     high_protein: bool = False
 
+    @field_validator("days")
+    @classmethod
+    def _days_positive(cls, v):
+        if v < 1:
+            raise ValueError("days must be >= 1")
+        return v
+
+    @field_validator("meals")
+    @classmethod
+    def _meals_valid(cls, v):
+        if not v:
+            raise ValueError("meals must not be empty")
+        bad = [m for m in v if m not in ("breakfast", "lunch", "dinner")]
+        if bad:
+            raise ValueError(f"invalid meal types: {bad}")
+        return v
+
+    @field_validator("budget")
+    @classmethod
+    def _budget_positive(cls, v):
+        if v <= 0:
+            raise ValueError("budget must be positive")
+        return v
+
 
 class RespondIn(BaseModel):
     answer: str
     new_day: int = None
     new_meal_type: str = None
+
+
+class SwapIn(BaseModel):
+    dish_id: str
+    name: str = ""
+    restaurant_id: str = ""
+    restaurant_name: str = ""
+    image_url: str = ""
+    price: float
+    rating: float = 0.0
+    variant: str = "regular"
 
 
 class UserIn(BaseModel):
@@ -251,10 +364,65 @@ def auth_logout():
 
 @app.get("/mcp/addresses")
 def mcp_addresses():
-    """Live only: list saved Swiggy addresses to pick an addressId for ordering."""
+    """Live only: list saved Swiggy addresses to pick an addressId for ordering.
+
+    Normalizes the raw Swiggy payload to the shape the frontend expects:
+    {"addresses": [{id, addressLine, addressCategory, addressTag, label}]}.
+    Swiggy has been observed wrapping the list in "addresses" OR "data" and
+    naming the id "id" OR "addressId"; the backend resolvers already tolerate
+    both, so the picker endpoint must too — otherwise the UI shows a false
+    "no saved addresses" state (and a dead-ended onboarding) on the other shape.
+    """
     if not _live():
         raise HTTPException(400, "not connected to Swiggy")
-    return STATE["client"].call("get_addresses", {})
+    try:
+        raw = STATE["client"].call("get_addresses", {})
+    except Exception as e:  # noqa: BLE001 - surface as a clean 502 for the UI
+        raise HTTPException(502, f"Swiggy address lookup failed: {e}")
+    if isinstance(raw, dict) and raw.get("isError"):
+        raise HTTPException(502, "Swiggy rejected the address lookup")
+    entries = raw.get("addresses") or raw.get("data") or [] if isinstance(raw, dict) else []
+    if not isinstance(entries, list):
+        entries = []
+    out = []
+    for a in entries:
+        if not isinstance(a, dict):
+            continue
+        aid = a.get("id") or a.get("addressId")
+        if aid is None:
+            continue  # an entry with no id can't be selected or ordered against
+        out.append({
+            "id": str(aid),
+            "addressLine": a.get("addressLine") or a.get("address") or a.get("label"),
+            "addressCategory": a.get("addressCategory") or a.get("type"),
+            "addressTag": a.get("addressTag") or a.get("label"),
+            "label": a.get("label"),
+        })
+    return {"addresses": out}
+
+
+class AddressIn(BaseModel):
+    address_id: str
+
+
+@app.post("/address")
+def set_address(body: AddressIn):
+    """Pin the addressId all live searches and orders run against.
+
+    Called from onboarding (the user's pick) and again on session restore, so
+    a page reload re-syncs the backend. The pick always wins over the
+    SWIGGY_ADDRESS_ID env default; changing it invalidates the address-scoped
+    catalog caches.
+    """
+    aid = (body.address_id or "").strip()
+    if not aid:
+        raise HTTPException(400, "address_id is required")
+    if aid != STATE["address_id"]:
+        STATE["address_id"] = aid
+        _CATALOG_CACHE.clear()
+        if STATE["fetcher"] is not None:
+            STATE["fetcher"].address_id = aid
+    return {"status": "ok", "address_id": aid}
 
 
 @app.get("/mcp/tools")
@@ -281,35 +449,89 @@ def intake(body: IntakeIn):
 
 @app.post("/appetite")
 def set_appetite(body: AppetiteIn):
-    prof = build_profile(body.user_id, body.appetite_level,
-                         body.roti_per_meal, body.rice_katori_per_meal)
+    try:
+        prof = build_profile(body.user_id, body.appetite_level,
+                             body.roti_per_meal, body.rice_katori_per_meal)
+    except ValueError as e:
+        raise HTTPException(400, str(e))
     _APPETITE_CACHE[body.user_id] = prof
+    # Persist too — the in-memory cache dies on restart, and the
+    # appetite_profiles table existed but was never written.
+    import json as _json
+    conn, _, _ = svc()
+    try:
+        conn.execute(
+            "INSERT OR REPLACE INTO appetite_profiles "
+            "(user_id, appetite_level, base_multiplier, roti_per_meal, rice_katori, per_slot_json) "
+            "VALUES (?,?,?,?,?,?)",
+            (body.user_id, prof.appetite_level, prof.base_multiplier,
+             prof.roti_per_meal, prof.rice_katori_per_meal,
+             _json.dumps(prof.per_slot)))
+        conn.commit()
+    finally:
+        conn.close()
     return prof.to_row()
 
 
 @app.post("/plan")
 def make_plan(body: PlanIn):
-    prof = _APPETITE_CACHE.get(body.user_id) or build_profile(body.user_id, "moderate")
-    # Normalize at the boundary: constraints can arrive as bare strings from an
-    # LLM-authored blueprint, and indexing those as dicts crashed /plan with a
-    # 500. Never trust the shape of model-generated input.
-    constraints = [Constraint(c["dish_tag"], c["min_count"])
-                   for c in blueprint_chat._normalize_constraints(body.constraints)]
-    result = optimize(get_catalog(body.veg_only, body.high_protein), prof,
-                      body.budget, days=body.days, constraints=constraints,
-                      veg_only=body.veg_only, meals=body.meals)
-    conn, _, plan_svc = svc()
-    plan_id = plan_svc.save_plan(body.user_id, body.month, result)
-    conn.close()
-    return {
-        "plan_id": plan_id,
-        "feasible": result.feasible,
-        "total_cost": result.total_cost,
-        "budget": result.budget,
-        "leftover": result.leftover,
-        "constraint_status": result.constraint_status,
-        "message": result.message,
-    }
+    import sqlite3 as _sqlite3
+    import traceback as _tb
+    conn = None
+    try:
+        prof = _APPETITE_CACHE.get(body.user_id) or build_profile(body.user_id, "moderate")
+        # Normalize at the boundary: constraints can arrive as bare strings from an
+        # LLM-authored blueprint, and indexing those as dicts crashed /plan with a
+        # 500. Never trust the shape of model-generated input.
+        constraints = [Constraint(c["dish_tag"], c["min_count"])
+                       for c in blueprint_chat._normalize_constraints(body.constraints)]
+        catalog = get_catalog(body.veg_only, body.high_protein)
+        result = optimize(catalog, prof,
+                          body.budget, days=body.days, constraints=constraints,
+                          veg_only=body.veg_only, meals=body.meals)
+        conn, _, plan_svc = svc()
+        plan_id = plan_svc.save_plan(body.user_id, body.month, result)
+        return {
+            "plan_id": plan_id,
+            "feasible": result.feasible,
+            "total_cost": result.total_cost,
+            "budget": result.budget,
+            "leftover": result.leftover,
+            "constraint_status": result.constraint_status,
+            "message": result.message,
+        }
+    except _sqlite3.IntegrityError as e:
+        # Almost always a stale session: the browser's saved user_id no longer
+        # exists (DB was reset). 404 tells the frontend to restart onboarding
+        # instead of showing a dead-end error.
+        print(f"[plan] integrity error: {e}\n{_tb.format_exc()}")
+        raise HTTPException(404, "User session expired — please start again from onboarding.")
+    except _sqlite3.OperationalError as e:
+        msg = str(e)
+        if "locked" in msg or "busy" in msg:
+            print(f"[plan] DB busy: {e}\n{_tb.format_exc()}")
+            raise HTTPException(503, f"Database busy — please retry: {e}")
+        print(f"[plan] DB error: {e}\n{_tb.format_exc()}")
+        raise HTTPException(500, f"Database error: {e}")
+    except RuntimeError as e:
+        # catalog empty (live mode token/network failure) — actionable 502
+        print(f"[plan] catalog/runtime error: {e}\n{_tb.format_exc()}")
+        raise HTTPException(502, str(e))
+    except ValueError as e:
+        # Bad days/meals from a hand-authored blueprint (optimize validates at
+        # its boundary) — a clean 400 beats an opaque 500.
+        raise HTTPException(400, str(e))
+    except HTTPException:
+        raise
+    except Exception as e:  # noqa: BLE001
+        print(f"[plan] unexpected: {type(e).__name__}: {e}\n{_tb.format_exc()}")
+        raise HTTPException(500, f"{type(e).__name__}: {e}")
+    finally:
+        if conn is not None:
+            try:
+                conn.close()
+            except Exception:
+                pass
 
 
 @app.post("/plan/feasibility")
@@ -389,7 +611,56 @@ def alts(slot_id: int, band: int = 100, veg_only: bool = False):
                             (s["plan_id"],)).fetchone()
         prof = _APPETITE_CACHE.get(plan["user_id"])
         mult = prof.base_multiplier if prof else 1.0
-        return {"alternatives": alternatives(dict(s), get_catalog(veg_only), mult, band, veg_only)}
+        # Repetition-penalty input: how often each dish already appears in this
+        # plan (keyed by both id and name), so alternatives demote the dishes
+        # the month already hammers instead of offering them again.
+        used_counts = {}
+        for r in conn.execute(
+                "SELECT dish_id, dish_name FROM meal_slots WHERE plan_id=?",
+                (s["plan_id"],)):
+            for key in (r["dish_id"], r["dish_name"]):
+                if key:
+                    used_counts[key] = used_counts.get(key, 0) + 1
+        return {"alternatives": alternatives(dict(s), get_catalog(veg_only),
+                                             mult, band, veg_only,
+                                             used_counts=used_counts)}
+    finally:
+        conn.close()
+
+
+@app.post("/slot/{slot_id}/swap")
+def swap(slot_id: int, body: SwapIn):
+    """Persist a dish swap chosen from /alternatives.
+
+    The UI used to apply swaps client-side only, so a refresh silently
+    reverted them. Now the write itself is hardened: the posted dish must
+    exist in the catalog with matching name/price/rating (SwapIn used to be
+    trusted blindly), a bare bread/rice can't be posted as a whole meal, a
+    swapped-in curry gets a fresh accompaniment instead of losing its side,
+    and the plan's total_cost/feasible are recomputed so the approve guard
+    stops running on stale money numbers.
+    """
+    conn, _, plan_svc = svc()
+    try:
+        s = plan_svc._slot(slot_id)
+        if s["status"] == "confirmed":
+            raise HTTPException(400, "can't swap a meal that's already ordered")
+        plan = conn.execute("SELECT user_id FROM plans WHERE id=?",
+                            (s["plan_id"],)).fetchone()
+        prof = _APPETITE_CACHE.get(plan["user_id"]) if plan else None
+        mult = prof.base_multiplier if prof else 1.0
+        catalog = _swap_catalog()
+        if not catalog:
+            raise HTTPException(503, "catalog unavailable — cannot validate swap")
+        try:
+            slot_row = apply_swap(conn, s, body.model_dump(), catalog, mult)
+        except SwapError as e:
+            raise HTTPException(400, str(e))
+        return {"slot": slot_row}
+    except HTTPException:
+        raise
+    except ValueError as e:
+        raise HTTPException(404, str(e))
     finally:
         conn.close()
 

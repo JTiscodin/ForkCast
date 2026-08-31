@@ -1,17 +1,23 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState, type KeyboardEvent } from "react";
+import gsap from "gsap";
+import { useGSAP } from "@gsap/react";
 import { motion } from "framer-motion";
 import { toast } from "sonner";
 
 import { api, ApiError } from "@/lib/api";
 import type { SwiggyAddress } from "@/lib/types";
 import { cn } from "@/lib/utils";
-import { gradients, gradientText, surfaces } from "@/lib/design";
+import { focusRing } from "@/lib/design";
+import { DUR, EASE, prefersReducedMotion } from "@/lib/motion";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { MapPin, Loader2, ArrowRight } from "lucide-react";
+import { ChefHatIllustration } from "@/components/ui/illustrations";
+import { MapPin, Loader2, ArrowRight, AlertTriangle, RefreshCw } from "lucide-react";
 import { ConnectSwiggy } from "./ConnectSwiggy";
+
+gsap.registerPlugin(useGSAP);
 
 export function Onboarding({
   live,
@@ -35,31 +41,77 @@ export function Onboarding({
   const [picked, setPicked] = useState<SwiggyAddress | null>(null);
   // start in the loading state when live, so we don't sync-setState inside the effect.
   const [loadingAddr, setLoadingAddr] = useState(live);
+  // Fetch failure is its own terminal state — distinct from "no addresses" —
+  // with a retry affordance; otherwise a flaky network dead-ends onboarding.
+  const [addrError, setAddrError] = useState<string | null>(null);
+  // Bumped by Retry to re-run the address fetch.
+  const [addrReload, setAddrReload] = useState(0);
   const [starting, setStarting] = useState(false);
+
+  // GSAP motion layer (scoped to this component; the hook reverts everything
+  // on unmount/update). The card itself keeps its framer-motion entrance —
+  // GSAP only drives the hat idle loop and the staggered card CONTENTS.
+  const rootRef = useRef<HTMLDivElement>(null);
+
+  useGSAP(
+    () => {
+      if (prefersReducedMotion()) return;
+
+      // Gentle perpetual idle on the chef hat: ±3° tilt with a slight bob,
+      // yoyo repeat -1 → ~2.8s round trip, pivoted near its base.
+      gsap.to(".ob-hat", {
+        rotation: 3,
+        y: -6,
+        duration: 1.4,
+        ease: EASE.loop,
+        repeat: -1,
+        yoyo: true,
+        transformOrigin: "50% 85%",
+      });
+
+      // Welcome-card contents fade up in reading order: title → subtitle →
+      // form/connect block (whichever branch is mounted), 70ms apart.
+      gsap.from(".ob-step", {
+        opacity: 0,
+        y: 14,
+        duration: DUR.base,
+        stagger: 0.07,
+        ease: EASE.soft,
+      });
+    },
+    { scope: rootRef, dependencies: [showConnect], revertOnUpdate: true }
+  );
+
+  const loadAddresses = useCallback(() => {
+    // Enter the loading state HERE, not just at mount: `live` can flip
+    // false->true after mount (boot /mode resolution, or an in-app Swiggy
+    // connect), and without this the list renders "no addresses" for the
+    // whole fetch window — up to ~24s, since the backend retries a 12s
+    // socket timeout once.
+    setLoadingAddr(true);
+    setAddrError(null);
+    api
+      .addresses()
+      .then((r) => setAddresses(r.addresses ?? []))
+      .catch((e) => {
+        setAddrError(e instanceof ApiError ? e.message : "Could not load addresses");
+        toast.error(e instanceof ApiError ? e.message : "Could not load addresses");
+      })
+      .finally(() => setLoadingAddr(false));
+  }, []);
 
   useEffect(() => {
     if (!live) return;
-    let cancelled = false;
-    api
-      .addresses()
-      .then((r) => {
-        if (!cancelled) setAddresses(r.addresses ?? []);
-      })
-      .catch((e) =>
-        toast.error(e instanceof ApiError ? e.message : "Could not load addresses")
-      )
-      .finally(() => {
-        if (!cancelled) setLoadingAddr(false);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [live]);
+    loadAddresses();
+  }, [live, addrReload, loadAddresses]);
 
   const selected = picked ?? addresses[0] ?? null;
   const setSelected = setPicked;
 
-  const canStart = name.trim().length > 0 && (!live || selected);
+  // Live mode needs a delivery address, but a failed or empty address fetch
+  // must not trap the user: they can continue without one (the backend falls
+  // back to the account's first saved address) or retry the fetch.
+  const canStart = name.trim().length > 0 && (!live || selected !== null || addrError !== null);
 
   const start = async () => {
     if (!canStart) return;
@@ -68,57 +120,69 @@ export function Onboarding({
     setStarting(false);
   };
 
-  return (
-    <div className="relative flex min-h-dvh items-center justify-center overflow-hidden bg-background p-6">
-      <div className={cn("pointer-events-none absolute inset-0 -z-10", gradients.mesh)} />
-      <div
-        className={cn(
-          "pointer-events-none absolute left-1/2 top-0 -z-10 h-105 w-180 -translate-x-1/2 blur-3xl",
-          gradients.glow
-        )}
-      />
+  // Radio-group keyboard support: arrows move the selection, Home/End jump.
+  const onListKeyDown = (e: KeyboardEvent<HTMLDivElement>) => {
+    if (addresses.length === 0) return;
+    const keys = ["ArrowDown", "ArrowRight", "ArrowUp", "ArrowLeft", "Home", "End"];
+    if (!keys.includes(e.key)) return;
+    e.preventDefault();
+    const idx = selected ? addresses.findIndex((a) => a.id === selected.id) : 0;
+    let next = idx;
+    if (e.key === "ArrowDown" || e.key === "ArrowRight") next = (idx + 1) % addresses.length;
+    else if (e.key === "ArrowUp" || e.key === "ArrowLeft") next = (idx - 1 + addresses.length) % addresses.length;
+    else if (e.key === "Home") next = 0;
+    else if (e.key === "End") next = addresses.length - 1;
+    setSelected(addresses[next]);
+    // Move focus with the selection (roving tabindex).
+    rootRef.current
+      ?.querySelector<HTMLElement>(`[data-addr-idx="${next}"]`)
+      ?.focus();
+  };
 
+  return (
+    <div
+      ref={rootRef}
+      className="relative flex min-h-dvh items-center justify-center overflow-hidden bg-background p-6"
+    >
       <motion.div
         initial={{ opacity: 0, y: 20, scale: 0.98 }}
         animate={{ opacity: 1, y: 0, scale: 1 }}
         transition={{ duration: 0.5, ease: [0.22, 1, 0.36, 1] }}
         className={cn(
-          "w-full max-w-md rounded-3xl border border-border/60 p-8 shadow-layered",
-          surfaces.glass
+          "w-full max-w-md rounded-lg border border-border bg-card p-8 shadow-soft"
         )}
       >
-        <div
-          className={cn(
-            "mb-6 flex size-14 items-center justify-center rounded-2xl text-3xl shadow-glow",
-            gradients.brand
-          )}
-        >
-          🍱
+        <div className="mb-6 flex justify-center">
+          <ChefHatIllustration className="ob-hat h-40 w-40" />
         </div>
 
-        <h1 className={cn("font-display text-3xl font-semibold tracking-tight", gradientText)}>
+        <h1 className="ob-step font-heading text-3xl font-extrabold tracking-[-0.02em] text-foreground">
           {showConnect ? "Connect your Swiggy" : "Plan your month of meals"}
         </h1>
-        <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
+        <p className="ob-step mt-2 text-sm leading-[1.4] text-muted-foreground">
           {showConnect
-            ? "Link Swiggy for real restaurants and orders — or skip to try it in demo mode."
-            : "Set a monthly food budget and your must-haves. I'll build a full calendar of breakfast, lunch & dinner within budget — and roll unused money into next month as Swiggy Cash."}
+            ? "Link Swiggy for real restaurants and orders, or skip to try it in demo mode."
+            : "Set a monthly food budget and your must-haves. I'll build a full calendar of breakfast, lunch & dinner within budget, and roll unused money into next month as Swiggy Cash."}
         </p>
 
         {showConnect ? (
-          <div className="mt-7">
+          <div className="ob-step mt-7">
             <ConnectSwiggy
               onConnected={() => onConnected?.()}
               onSkip={() => setSkippedAuth(true)}
             />
           </div>
         ) : (
-        <div className="mt-7 flex flex-col gap-4">
+        <div className="ob-step mt-7 flex flex-col gap-4">
           <div>
-            <label className="mb-1.5 block text-xs font-medium text-muted-foreground">
+            <label
+              htmlFor="onboarding-name"
+              className="mb-1.5 block text-sm font-medium leading-[1.4] text-muted-foreground"
+            >
               Your name
             </label>
             <Input
+              id="onboarding-name"
               value={name}
               onChange={(e) => setName(e.target.value)}
               placeholder="e.g. Jatin"
@@ -128,72 +192,124 @@ export function Onboarding({
           </div>
 
           {live && (
-            <div>
-              <label className="mb-1.5 block text-xs font-medium text-muted-foreground">
+            // min-w-0 is load-bearing: a <fieldset> defaults to
+            // min-inline-size:min-content, so one long address line would
+            // widen it past the card and spill the rows out of the box.
+            <fieldset className="min-w-0">
+              <legend
+                id="onboarding-address-label"
+                className="mb-1.5 block text-sm font-medium leading-[1.4] text-muted-foreground"
+              >
                 Delivery address (from your Swiggy account)
-              </label>
+              </legend>
               {loadingAddr ? (
-                <div className="flex items-center gap-2 rounded-xl border border-border/60 bg-surface-elevated px-3 py-3 text-sm text-muted-foreground">
-                  <Loader2 className="size-4 animate-spin" /> Loading your addresses…
+                <div className="flex items-center gap-2 rounded-lg border border-border bg-surface-elevated px-3 py-3 text-sm leading-[1.4] text-muted-foreground">
+                  <Loader2 className="size-4 animate-spin" strokeWidth={2.4} /> Loading your addresses…
+                </div>
+              ) : addrError ? (
+                <div className="flex flex-col gap-2.5 rounded-lg border border-danger/30 bg-danger/5 px-3 py-3">
+                  <div className="flex items-start gap-2 text-sm leading-[1.4] text-foreground">
+                    <AlertTriangle className="mt-0.5 size-4 shrink-0 text-danger" strokeWidth={2.4} />
+                    <span>
+                      Couldn't load your addresses. You can retry, or continue
+                      and Swiggy's default address will be used.
+                    </span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setAddrReload((n) => n + 1)}
+                    className={cn(
+                      "flex w-fit items-center gap-1.5 rounded-md border border-border bg-surface-elevated px-2.5 py-1.5 text-sm font-medium leading-[1.4] text-foreground transition hover:border-brand-300",
+                      focusRing
+                    )}
+                  >
+                    <RefreshCw className="size-3.5" strokeWidth={2.4} /> Retry
+                  </button>
                 </div>
               ) : (
-                <div className="flex max-h-52 flex-col gap-2 overflow-y-auto pr-1">
-                  {addresses.map((a) => (
-                    <button
-                      key={a.id}
-                      onClick={() => setSelected(a)}
-                      className={cn(
-                        "flex items-start gap-2.5 rounded-xl border px-3 py-2.5 text-left text-sm transition",
-                        selected?.id === a.id
-                          ? "border-brand-500 bg-brand-500/10"
-                          : "border-border/60 bg-surface-elevated hover:border-border"
-                      )}
-                    >
-                      <MapPin
+                <div
+                  role="radiogroup"
+                  aria-labelledby="onboarding-address-label"
+                  onKeyDown={onListKeyDown}
+                  className="flex max-h-52 min-w-0 flex-col gap-2 overflow-y-auto pr-1"
+                >
+                  {addresses.map((a, i) => {
+                    const isSel = selected?.id === a.id;
+                    return (
+                      <button
+                        key={a.id}
+                        type="button"
+                        role="radio"
+                        aria-checked={isSel}
+                        data-addr-idx={i}
+                        tabIndex={isSel || (i === 0 && !selected) ? 0 : -1}
+                        onClick={() => setSelected(a)}
                         className={cn(
-                          "mt-0.5 size-4 shrink-0",
-                          selected?.id === a.id ? "text-brand-500" : "text-muted-foreground"
+                          "flex w-full min-w-0 items-start gap-2.5 rounded-lg border px-3 py-2.5 text-left text-sm leading-[1.4] transition",
+                          focusRing,
+                          isSel
+                            ? "border-brand-500 bg-brand-50"
+                            : "border-border bg-surface-elevated hover:border-brand-300"
                         )}
-                      />
-                      <span className="min-w-0">
-                        <span className="block font-medium">
-                          {a.addressTag ?? a.addressCategory ?? "Address"}
+                      >
+                        <MapPin
+                          strokeWidth={2.4}
+                          className={cn(
+                            "mt-0.5 size-4 shrink-0",
+                            isSel ? "text-brand-500" : "text-muted-foreground"
+                          )}
+                        />
+                        <span className="min-w-0 flex-1">
+                          <span className="block truncate font-medium">
+                            {a.addressTag ?? a.addressCategory ?? "Address"}
+                          </span>
+                          {a.addressLine && (
+                            <span className="line-clamp-2 block text-sm leading-[1.4] text-muted-foreground">
+                              {a.addressLine}
+                            </span>
+                          )}
                         </span>
-                        <span className="block truncate text-xs text-muted-foreground">
-                          {a.addressLine}
-                        </span>
-                      </span>
-                    </button>
-                  ))}
+                      </button>
+                    );
+                  })}
                   {addresses.length === 0 && (
-                    <p className="text-xs text-muted-foreground">
-                      No saved addresses found on your Swiggy account.
-                    </p>
+                    <div className="flex flex-col gap-1 rounded-lg border border-border bg-surface-elevated px-3 py-3 text-sm leading-[1.4] text-muted-foreground">
+                      <span>No saved addresses found on your Swiggy account.</span>
+                      <span>
+                        Add one in the Swiggy app, or continue and we'll use
+                        Swiggy's default.
+                      </span>
+                    </div>
                   )}
                 </div>
               )}
-            </div>
+            </fieldset>
           )}
 
+          {/* Flat Swiggy-orange CTA — the one loud element on this screen. */}
           <Button
             onClick={start}
             disabled={!canStart || starting}
-            className={cn("mt-1 h-11 w-full text-white", gradients.brand)}
+            size="lg"
+            className="mt-1 w-full"
           >
             {starting ? (
-              <Loader2 className="size-4 animate-spin" />
+              <Loader2 className="size-4 animate-spin" strokeWidth={2.4} />
             ) : (
               <>
-                Start planning <ArrowRight className="size-4" />
+                {live && !selected
+                  ? "Continue without an address"
+                  : "Start planning"}{" "}
+                <ArrowRight className="size-4" strokeWidth={2.4} />
               </>
             )}
           </Button>
 
           {!live && (
-            <p className="text-center text-xs text-muted-foreground">
+            <p className="text-center text-sm leading-[1.4] text-muted-foreground">
               {skippedAuth
-                ? "Demo mode — mock catalog, no real orders."
-                : "Running in demo mode — mock catalog, no real orders."}
+                ? "Demo mode: mock catalog, no real orders."
+                : "Running in demo mode: mock catalog, no real orders."}
             </p>
           )}
         </div>

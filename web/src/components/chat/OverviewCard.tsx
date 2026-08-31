@@ -7,15 +7,16 @@ import {
   Leaf,
   Loader2,
   Sparkles,
-  Utensils,
+  UtensilsCrossed,
   Wallet,
   Zap,
 } from "lucide-react";
 
 import { cn } from "@/lib/utils";
-import { gradients, focusRing } from "@/lib/design";
+import { focusRing } from "@/lib/design";
 import type { AppetiteLevel, Blueprint } from "@/lib/types";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Separator } from "@/components/ui/separator";
 import {
@@ -50,8 +51,13 @@ const APPETITE_ORDER: AppetiteLevel[] = [
   "very_heavy",
 ];
 
+/* The Generate CTA keeps its spring hover/tap beat, but the base styling now
+   comes from the shared Button component (flat brand-500, focus ring, lg
+   height) instead of a hand-rolled recipe that could drift out of sync. */
+const MotionButton = motion.create(Button);
+
 /**
- * The "plan blueprint" bubble — a premium glass card the assistant drops into
+ * The "plan blueprint" bubble — a featured card the assistant drops into
  * the chat once it has gathered enough requirements. Summarizes the plan and
  * offers a prominent "Generate Plan" CTA. When `onEdit` is provided, budget,
  * appetite, and diet get lightweight inline controls; otherwise it renders
@@ -106,34 +112,26 @@ export function OverviewCard({
       animate={{ opacity: 1, y: 0, scale: 1 }}
       transition={{ type: "spring", stiffness: 260, damping: 26 }}
       className={cn(
-        "glass-panel relative w-full overflow-hidden rounded-2xl shadow-glow",
-        "border border-brand-500/25",
+        "relative w-full overflow-hidden rounded-lg border border-border bg-card text-card-foreground shadow-soft",
         className
       )}
       role="group"
       aria-label={`Plan blueprint. ${blueprintSummaryLine(blueprint)}`}
     >
-      {/* Brand-tinted header band */}
-      <div className="relative overflow-hidden">
-        <div
-          className={cn(gradients.glow, "pointer-events-none absolute inset-0")}
-          aria-hidden
-        />
-        <div className="relative flex items-center gap-3 px-5 pt-5 pb-4">
+      {/* Branded offer header — flat brand-tinted strip */}
+      <div className="bg-brand-50">
+        <div className="flex items-center gap-3 px-5 pt-5 pb-4">
           <div
-            className={cn(
-              "flex size-9 shrink-0 items-center justify-center rounded-xl text-primary-foreground shadow-glow",
-              gradients.brand
-            )}
+            className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-brand-500 text-white"
             aria-hidden
           >
-            <Sparkles className="size-4.5" />
+            <Sparkles className="size-5" strokeWidth={2.4} />
           </div>
           <div className="min-w-0">
-            <h3 className="font-display text-lg leading-tight font-semibold">
+            <h3 className="font-heading text-lg font-extrabold leading-[1.4] tracking-[-0.02em] text-foreground">
               Here&rsquo;s your plan blueprint
             </h3>
-            <p className="text-xs text-muted-foreground">
+            <p className="text-sm leading-[1.4] text-muted-foreground">
               Review it, tweak anything, then generate.
             </p>
           </div>
@@ -145,24 +143,24 @@ export function OverviewCard({
       {/* Fields */}
       <div className="grid gap-4 px-5 py-4">
         {/* Budget */}
-        <Row icon={<Wallet className="size-4" />} label="Budget">
+        <Row icon={<Wallet className="size-4" strokeWidth={2.4} />} label="Budget">
           {editable ? (
             <div className="flex items-center gap-1.5">
-              <span className="font-mono text-sm text-muted-foreground">₹</span>
+              <span className="text-sm leading-[1.4] font-semibold text-foreground">₹</span>
               <Input
                 inputMode="numeric"
                 value={budgetDraft}
                 onChange={(e) => handleBudgetChange(e.target.value)}
                 placeholder="0"
                 aria-label="Budget in rupees"
-                className="h-8 w-28 font-mono text-sm"
+                className="h-8 w-full max-w-28 text-sm leading-[1.4] font-bold tabular-nums"
               />
-              <span className="text-xs text-muted-foreground">/ month</span>
+              <span className="shrink-0 text-sm leading-[1.4] text-muted-foreground">/ month</span>
             </div>
           ) : (
-            <span className="font-mono text-sm font-medium">
+            <span className="text-lg leading-[1.2] font-extrabold tabular-nums text-foreground">
               {formatINR(blueprint.budget)}
-              <span className="ml-1 text-xs font-normal text-muted-foreground">
+              <span className="ml-1 text-sm leading-[1.4] font-normal text-muted-foreground">
                 / month
               </span>
             </span>
@@ -170,13 +168,13 @@ export function OverviewCard({
         </Row>
 
         {/* Appetite */}
-        <Row icon={<Utensils className="size-4" />} label="Appetite">
+        <Row icon={<UtensilsCrossed className="size-4" strokeWidth={2.4} />} label="Appetite">
           {editable ? (
             <Select
               value={blueprint.appetite_level ?? ""}
               onValueChange={(v) => handleAppetiteChange(v as AppetiteLevel)}
             >
-              <SelectTrigger size="sm" className="w-40" aria-label="Appetite level">
+              <SelectTrigger size="sm" className="w-full max-w-40" aria-label="Appetite level">
                 <SelectValue placeholder="Pick appetite" />
               </SelectTrigger>
               <SelectContent>
@@ -192,19 +190,19 @@ export function OverviewCard({
               {APPETITE_LABELS[blueprint.appetite_level]}
             </Badge>
           ) : (
-            <span className="text-sm text-muted-foreground">Not set</span>
+            <span className="text-sm leading-[1.4] text-muted-foreground">Not set</span>
           )}
         </Row>
 
         {/* Diet */}
-        <Row icon={<Leaf className="size-4" />} label="Diet">
+        <Row icon={<Leaf className="size-4" strokeWidth={2.4} />} label="Diet">
           {editable ? (
             <button
               type="button"
               onClick={toggleVegOnly}
               aria-pressed={blueprint.veg_only}
               className={cn(
-                "inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-sm font-medium transition-colors",
+                "inline-flex items-center gap-1.5 rounded-md border px-3 py-1 text-sm leading-[1.4] font-medium transition-colors",
                 focusRing,
                 blueprint.veg_only
                   ? "border-success/30 bg-success/12 text-success hover:bg-success/20"
@@ -213,7 +211,7 @@ export function OverviewCard({
             >
               {blueprint.veg_only ? (
                 <>
-                  <Check className="size-3.5" /> Veg-only
+                  <Check className="size-4" strokeWidth={2.4} /> Veg-only
                 </>
               ) : (
                 "Veg & Non-veg"
@@ -221,17 +219,17 @@ export function OverviewCard({
             </button>
           ) : blueprint.veg_only ? (
             <Badge className="border-success/30 bg-success/12 text-success" variant="outline">
-              <Leaf className="size-3" /> Veg-only
+              <Leaf className="size-4" strokeWidth={2.4} /> Veg-only
             </Badge>
           ) : (
-            <span className="text-sm text-muted-foreground">Veg &amp; Non-veg</span>
+            <span className="text-sm leading-[1.4] text-muted-foreground">Veg &amp; Non-veg</span>
           )}
 
           {/* High-protein changes which dishes are SEARCHED for, so surface it
               here — the user needs to see we understood the request. */}
           {blueprint.high_protein && (
             <Badge
-              className="ml-2 border-brand-500/30 bg-accent text-accent-brand"
+              className="ml-2 border-brand-200 bg-brand-50 text-brand-700"
               variant="outline"
             >
               High protein
@@ -241,14 +239,14 @@ export function OverviewCard({
 
         {/* Must-have dishes */}
         {blueprint.constraints.length > 0 && (
-          <Row icon={<Check className="size-4" />} label="Must-haves" align="start">
+          <Row icon={<Check className="size-4" strokeWidth={2.4} />} label="Must-haves" align="start">
             <div className="flex flex-wrap gap-1.5">
               {blueprint.constraints.map((c, i) => (
                 <span
                   key={`${c.dish_tag}-${i}`}
-                  className="inline-flex items-center gap-1 rounded-full border border-brand-500/25 bg-accent px-2.5 py-0.5 text-xs text-accent-foreground"
+                  className="inline-flex items-center gap-1 rounded-md border border-brand-200 bg-brand-50 px-2.5 py-0.5 text-sm leading-[1.4] text-brand-700"
                 >
-                  <span className="font-mono font-medium">{c.min_count}×</span>
+                  <span className="font-bold tabular-nums">{c.min_count}×</span>
                   {c.dish_tag}
                 </span>
               ))}
@@ -258,7 +256,7 @@ export function OverviewCard({
 
         {/* Cuisines */}
         {blueprint.cuisines.length > 0 && (
-          <Row icon={<Sparkles className="size-4" />} label="Cuisines" align="start">
+          <Row icon={<Sparkles className="size-4" strokeWidth={2.4} />} label="Cuisines" align="start">
             <div className="flex flex-wrap gap-1.5">
               {blueprint.cuisines.map((cuisine, i) => (
                 <Badge key={`${cuisine}-${i}`} variant="outline" className="capitalize">
@@ -270,10 +268,10 @@ export function OverviewCard({
         )}
 
         {/* Coverage: days + meals */}
-        <Row icon={<Utensils className="size-4" />} label="Coverage" align="start">
+        <Row icon={<UtensilsCrossed className="size-4" strokeWidth={2.4} />} label="Coverage" align="start">
           <div className="flex flex-wrap items-center gap-2">
-            <span className="text-sm">
-              <span className="font-mono font-medium">{days}</span>{" "}
+            <span className="text-sm leading-[1.4]">
+              <span className="font-semibold tabular-nums">{days}</span>{" "}
               {days === 1 ? "day" : "days"}
             </span>
             {blueprint.meals.length > 0 && (
@@ -298,38 +296,32 @@ export function OverviewCard({
 
       {/* CTA */}
       <div className="px-5 py-4">
-        <motion.button
-          type="button"
+        <MotionButton
           onClick={onGenerate}
           disabled={generating}
+          size="lg"
           whileHover={generating ? undefined : { scale: 1.015 }}
           whileTap={generating ? undefined : { scale: 0.985 }}
-          className={cn(
-            "flex w-full items-center justify-center gap-2 rounded-xl px-4 py-3 text-sm font-semibold text-primary-foreground",
-            "shadow-soft transition-shadow hover:shadow-glow",
-            "disabled:pointer-events-none disabled:opacity-70",
-            gradients.brand,
-            focusRing
-          )}
+          className="w-full"
           aria-label="Generate plan"
         >
           {generating ? (
             <>
-              <Loader2 className="size-4 animate-spin" />
+              <Loader2 className="size-4 animate-spin" strokeWidth={2.4} />
               Building your plan…
             </>
           ) : (
             <>
-              <Zap className="size-4" />
+              <Zap className="size-4" strokeWidth={2.4} />
               Generate Plan
             </>
           )}
-        </motion.button>
-        <p className="mt-2.5 text-center text-xs text-muted-foreground">
-          You can keep chatting to tweak it — e.g.{" "}
-          <span className="text-foreground/80">&ldquo;make it cheaper&rdquo;</span>{" "}
+        </MotionButton>
+        <p className="mt-2.5 text-center text-sm leading-[1.4] text-muted-foreground">
+          You can keep chatting to tweak it, e.g.{" "}
+          <span className="font-medium text-foreground">&ldquo;make it cheaper&rdquo;</span>{" "}
           or{" "}
-          <span className="text-foreground/80">&ldquo;less paneer&rdquo;</span>.
+          <span className="font-medium text-foreground">&ldquo;less paneer&rdquo;</span>.
         </p>
       </div>
     </motion.div>
@@ -357,8 +349,8 @@ function Row({
     >
       <div
         className={cn(
-          "flex w-28 shrink-0 items-center gap-2 text-xs font-medium tracking-wide text-muted-foreground uppercase",
-          align === "start" && "pt-1"
+          "flex w-24 shrink-0 items-center gap-2 text-[11px] leading-[1.4] font-bold uppercase tracking-wide text-muted-foreground",
+          align === "start" && "pt-0.5"
         )}
       >
         <span className="text-brand-500" aria-hidden>

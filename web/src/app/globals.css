@@ -5,44 +5,38 @@
 @custom-variant dark (&:is(.dark *));
 
 /* =========================================================================
-   BUDGET MEAL PLANNER — DESIGN SYSTEM
-   Tailwind v4 CSS-first config. Dark is the primary theme.
-   Brand: Swiggy orange (#FC8019) with warm amber gradients over a
-   warm-charcoal surface scale (never clinical gray — it should feel edible).
-   All colors in oklch for perceptual consistency.
+   BUDGET MEAL PLANNER — SWIGGY FOUNDATION
+   Tailwind v4 CSS-first config. Light is the default; .dark is explicit.
+   The semantic palette stays intentionally flat and high contrast so the
+   Orange Thread remains the primary visual signal.
    ========================================================================= */
 
-/* -------------------------------------------------------------------------
-   @theme inline — exposes tokens to Tailwind utilities.
-   Semantic vars (--background etc.) are re-mapped per theme in :root / .dark
-   below, so utilities like bg-background flip automatically.
-   ------------------------------------------------------------------------- */
 @theme inline {
   /* Fonts (variables provided by next/font in layout.tsx) */
-  --font-sans: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
-  --font-display: var(--font-space-grotesk), var(--font-inter), sans-serif;
+  --font-sans: var(--font-manrope), ui-sans-serif, system-ui, sans-serif;
+  --font-display: var(--font-manrope), ui-sans-serif, system-ui, sans-serif;
+  --font-heading: var(--font-manrope), ui-sans-serif, system-ui, sans-serif;
   --font-mono: var(--font-geist-mono), ui-monospace, monospace;
-  --font-heading: var(--font-space-grotesk), sans-serif;
 
-  /* --- Brand: Swiggy orange scale 50–900 --- */
+  /* Swiggy brand and offer accents */
   --color-brand-50: var(--brand-50);
   --color-brand-100: var(--brand-100);
   --color-brand-200: var(--brand-200);
   --color-brand-300: var(--brand-300);
   --color-brand-400: var(--brand-400);
-  --color-brand-500: var(--brand-500); /* #FC8019 — the Swiggy orange */
+  --color-brand-500: var(--brand-500);
   --color-brand-600: var(--brand-600);
   --color-brand-700: var(--brand-700);
   --color-brand-800: var(--brand-800);
   --color-brand-900: var(--brand-900);
+  --color-brand-500-a20: var(--brand-500-a20);
+  --color-brand-500-a30: var(--brand-500-a30);
+  --color-offer-yellow: var(--offer-yellow);
 
-  /* --- Warm amber (secondary accent / gradient partner) --- */
-  --color-amber-300: var(--amber-300);
-  --color-amber-400: var(--amber-400);
-  --color-amber-500: var(--amber-500);
-  --color-amber-600: var(--amber-600);
+  /* Signature Swiggy rating-pill green. */
+  --color-rating: var(--rating);
 
-  /* --- Semantic surface + text tokens --- */
+  /* Semantic surface and text tokens */
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --color-surface: var(--surface);
@@ -50,24 +44,22 @@
   --color-muted-foreground: var(--muted-foreground);
   --color-accent-brand: var(--accent-brand);
 
-  /* --- Semantic status --- */
+  /* Semantic status */
   --color-success: var(--success);
   --color-success-foreground: var(--success-foreground);
   --color-warning: var(--warning);
   --color-danger: var(--danger);
   --color-danger-foreground: var(--danger-foreground);
 
-  /* --- Meal-type accents --- */
+  /* Meal and diet accents */
   --color-meal-breakfast: var(--meal-breakfast);
   --color-meal-lunch: var(--meal-lunch);
   --color-meal-dinner: var(--meal-dinner);
   --color-meal-snack: var(--meal-snack);
-
-  /* --- Diet indicator (veg / non-veg) — muted, tasteful, NOT neon --- */
   --color-diet-veg: var(--diet-veg);
   --color-diet-nonveg: var(--diet-nonveg);
 
-  /* --- shadcn contract (mapped to brand palette below) --- */
+  /* shadcn contract */
   --color-sidebar-ring: var(--sidebar-ring);
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
@@ -97,267 +89,397 @@
   --color-card-foreground: var(--card-foreground);
   --color-card: var(--card);
 
-  /* --- Type scale (font-size / line-height) --- */
+  /* Type scale */
   --text-xs: 0.75rem;
   --text-xs--line-height: 1.1rem;
   --text-sm: 0.875rem;
-  --text-sm--line-height: 1.35rem;
+  --text-sm--line-height: 1.4rem;
   --text-base: 1rem;
-  --text-base--line-height: 1.6rem;
+  --text-base--line-height: 1.4rem;
   --text-lg: 1.125rem;
-  --text-lg--line-height: 1.7rem;
+  --text-lg--line-height: 1.5rem;
   --text-xl: 1.375rem;
-  --text-xl--line-height: 1.85rem;
+  --text-xl--line-height: 1.7rem;
   --text-2xl: 1.75rem;
-  --text-2xl--line-height: 2.15rem;
-  --text-2xl--letter-spacing: -0.01em;
+  --text-2xl--line-height: 2.1rem;
+  --text-2xl--letter-spacing: -0.02em;
   --text-3xl: 2.25rem;
-  --text-3xl--line-height: 2.55rem;
-  --text-3xl--letter-spacing: -0.015em;
+  --text-3xl--line-height: 2.6rem;
+  --text-3xl--letter-spacing: -0.02em;
   --text-4xl: 3rem;
-  --text-4xl--line-height: 3.15rem;
+  --text-4xl--line-height: 3.2rem;
   --text-4xl--letter-spacing: -0.02em;
   --text-5xl: 4rem;
-  --text-5xl--line-height: 4.1rem;
-  --text-5xl--letter-spacing: -0.025em;
+  --text-5xl--line-height: 4.2rem;
+  --text-5xl--letter-spacing: -0.02em;
 
-  /* --- Radius scale --- */
-  --radius-sm: calc(var(--radius) * 0.6);
-  --radius-md: calc(var(--radius) * 0.8);
-  --radius-lg: var(--radius);
-  --radius-xl: calc(var(--radius) * 1.4);
-  --radius-2xl: calc(var(--radius) * 1.8);
-  --radius-3xl: calc(var(--radius) * 2.2);
-  --radius-4xl: calc(var(--radius) * 2.6);
+  /* Canonical radius scale: 8px UI, 0px marketing, full pills explicit. */
+  --radius: 8px;
+  --radius-sm: 4px;
+  --radius-md: 8px;
+  --radius-lg: 8px;
+  --radius-xl: 8px;
+  --radius-2xl: 8px;
+  --radius-3xl: 0px;
+  --radius-4xl: 0px;
 
-  /* --- Elevation / shadow tokens --- */
-  --shadow-soft: 0 1px 2px oklch(0 0 0 / 0.18), 0 4px 12px oklch(0 0 0 / 0.14);
-  --shadow-layered:
-    0 1px 2px oklch(0 0 0 / 0.16),
-    0 6px 16px oklch(0 0 0 / 0.20),
-    0 18px 48px oklch(0 0 0 / 0.24);
-  --shadow-glow: 0 0 0 1px var(--brand-500-a20), 0 8px 30px var(--brand-500-a30);
-  --shadow-glass:
-    inset 0 1px 0 oklch(1 0 0 / 0.08),
-    0 8px 32px oklch(0 0 0 / 0.30);
+  /* Restrained elevation and motion tokens */
+  --shadow-soft: var(--shadow-soft);
+  --shadow-layered: var(--shadow-layered);
+  --shadow-glow: var(--shadow-glow);
+  --shadow-pop-art: var(--shadow-pop-art);
+  --shadow-glass: var(--shadow-soft);
+  --ease-out: var(--ease-out);
+  --transition-fast: var(--motion-fast);
+  --transition-standard: var(--motion-standard);
 }
 
 /* -------------------------------------------------------------------------
-   LIGHT THEME (:root default) + explicit override via [data-theme="light"]
+   LIGHT THEME — default and explicit .light class
    ------------------------------------------------------------------------- */
 :root,
-:root[data-theme="light"] {
-  --radius: 0.75rem;
+:root.light,
+.light {
+  color-scheme: light;
 
-  /* Brand scale (identical across themes — brand is brand) */
-  --brand-50: oklch(0.971 0.021 68);
-  --brand-100: oklch(0.941 0.045 68);
-  --brand-200: oklch(0.897 0.083 66);
-  --brand-300: oklch(0.842 0.120 62);
-  --brand-400: oklch(0.780 0.158 55);
-  --brand-500: oklch(0.720 0.178 47.5); /* #FC8019 */
-  --brand-600: oklch(0.652 0.176 44);
-  --brand-700: oklch(0.560 0.155 41);
-  --brand-800: oklch(0.470 0.128 40);
-  --brand-900: oklch(0.395 0.100 40);
-  --brand-500-a20: oklch(0.720 0.178 47.5 / 0.20);
-  --brand-500-a30: oklch(0.720 0.178 47.5 / 0.30);
+  --radius: 8px;
+  --radius-sm: 4px;
+  --radius-md: 8px;
+  --radius-lg: 8px;
+  --radius-xl: 8px;
+  --radius-2xl: 8px;
+  --radius-3xl: 0px;
+  --radius-4xl: 0px;
 
-  --amber-300: oklch(0.880 0.115 78);
-  --amber-400: oklch(0.828 0.140 74);
-  --amber-500: oklch(0.780 0.155 70);
-  --amber-600: oklch(0.710 0.150 64);
+  /* Brand scale; --brand-500 is the exact Swiggy orange. */
+  --brand-50: #fff4e9;
+  --brand-100: #ffe4c7;
+  --brand-200: #ffc58c;
+  --brand-300: #ff9f50;
+  --brand-400: #ff8f3f;
+  --brand-500: #fc8019;
+  --brand-600: #d9670b;
+  --brand-700: #b84f06;
+  --brand-800: #923d05;
+  --brand-900: #733005;
+  --brand-500-a20: rgb(252 128 25 / 0.20);
+  --brand-500-a30: rgb(252 128 25 / 0.30);
+  --offer-yellow: #f3c334;
+  --rating: #24963f;
 
-  /* Warm-tinted light surfaces */
-  --background: oklch(0.992 0.004 70);
-  --foreground: oklch(0.205 0.012 55);
-  --surface: oklch(1 0 0);
-  --surface-elevated: oklch(1 0 0);
-  --muted-foreground: oklch(0.520 0.014 55);
-  --accent-brand: var(--brand-600);
+  /* Exact Swiggy app palette: light-gray canvas behind flat white cards. */
+  --background: #f0f0f5;
+  --foreground: #282c3f;
+  --surface: #ffffff;
+  --surface-elevated: #ffffff;
+  --muted-foreground: #686b78;
+  --accent-brand: #fc8019;
 
-  --success: oklch(0.620 0.150 150);
-  --success-foreground: oklch(0.985 0.01 150);
-  --warning: oklch(0.760 0.150 78);
-  --danger: oklch(0.585 0.225 27);
-  --danger-foreground: oklch(0.985 0.01 27);
+  --success: #16803c;
+  --success-foreground: #ffffff;
+  --warning: #f3c334;
+  --danger: #c9352b;
+  --danger-foreground: #ffffff;
 
-  --meal-breakfast: oklch(0.780 0.155 70);  /* amber sunrise */
-  --meal-lunch: oklch(0.720 0.178 47.5);    /* brand orange */
-  --meal-dinner: oklch(0.560 0.140 300);    /* dusk violet */
-  --meal-snack: oklch(0.680 0.140 165);     /* teal */
-
-  /* Diet indicator — desaturated forest-green / brick-red (light theme) */
-  --diet-veg: oklch(0.520 0.095 148);       /* muted forest green */
-  --diet-nonveg: oklch(0.520 0.130 27);     /* muted brick red */
+  /* Taxonomy markers stay secondary to the Orange Thread. */
+  --meal-breakfast: #c48100;
+  --meal-lunch: #fc8019;
+  --meal-dinner: #7965a9;
+  --meal-snack: #008f82;
+  --diet-veg: #357a4b;
+  --diet-nonveg: #a5483f;
 
   /* shadcn contract */
-  --card: oklch(1 0 0);
-  --card-foreground: var(--foreground);
-  --popover: oklch(1 0 0);
-  --popover-foreground: var(--foreground);
-  --primary: var(--brand-500);
-  --primary-foreground: oklch(0.995 0.004 70);
-  --secondary: oklch(0.965 0.008 70);
-  --secondary-foreground: oklch(0.255 0.012 55);
-  --muted: oklch(0.965 0.008 70);
-  --accent: oklch(0.955 0.020 68);
-  --accent-foreground: var(--brand-700);
-  --destructive: var(--danger);
-  --border: oklch(0.905 0.008 68);
-  --input: oklch(0.905 0.008 68);
-  --ring: var(--brand-500);
-  --chart-1: var(--brand-500);
-  --chart-2: var(--amber-500);
-  --chart-3: var(--meal-dinner);
-  --chart-4: var(--meal-snack);
-  --chart-5: var(--success);
-  --sidebar: oklch(0.985 0.006 70);
-  --sidebar-foreground: var(--foreground);
-  --sidebar-primary: var(--brand-500);
-  --sidebar-primary-foreground: oklch(0.995 0.004 70);
-  --sidebar-accent: oklch(0.955 0.020 68);
-  --sidebar-accent-foreground: var(--brand-700);
-  --sidebar-border: oklch(0.905 0.008 68);
-  --sidebar-ring: var(--brand-500);
+  --card: #ffffff;
+  --card-foreground: #282c3f;
+  --popover: #ffffff;
+  --popover-foreground: #282c3f;
+  --primary: #fc8019;
+  --primary-foreground: #ffffff;
+  --secondary: #e9e9eb;
+  --secondary-foreground: #282c3f;
+  --muted: #e9e9eb;
+  --accent: #f3c334;
+  --accent-foreground: #282c3f;
+  --destructive: #c9352b;
+  --border: #e9e9eb;
+  --input: #e9e9eb;
+  --ring: #fc8019;
+  --chart-1: #fc8019;
+  --chart-2: #f3c334;
+  --chart-3: #7965a9;
+  --chart-4: #008f82;
+  --chart-5: #16803c;
+  --sidebar: #ffffff;
+  --sidebar-foreground: #282c3f;
+  --sidebar-primary: #fc8019;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: #f3c334;
+  --sidebar-accent-foreground: #282c3f;
+  --sidebar-border: #e9e9eb;
+  --sidebar-ring: #fc8019;
 
-  /* Gradient tokens */
-  --gradient-brand: linear-gradient(135deg, var(--brand-500) 0%, var(--amber-400) 100%);
-  --gradient-surface: linear-gradient(180deg, oklch(1 0 0) 0%, oklch(0.982 0.006 70) 100%);
-  --gradient-glow: radial-gradient(60% 60% at 50% 0%, var(--brand-500-a20) 0%, transparent 70%);
+  /* Branded gradients are accents, not default card surfaces.
+     The brand CTA gradient is gone — Swiggy CTAs are FLAT solid orange. */
+  --gradient-brand: linear-gradient(135deg, #fc8019 0%, #fb8b2e 100%);
+  --gradient-surface: linear-gradient(180deg, #ffffff 0%, #fdfdfe 100%);
+  --gradient-glow: radial-gradient(
+    60% 60% at 50% 0%,
+    rgb(252 128 25 / 0.14) 0%,
+    transparent 70%
+  );
   --gradient-mesh:
-    radial-gradient(45% 55% at 12% 8%, oklch(0.842 0.120 62 / 0.35) 0%, transparent 60%),
-    radial-gradient(40% 50% at 88% 12%, oklch(0.880 0.115 78 / 0.30) 0%, transparent 60%),
-    radial-gradient(55% 60% at 55% 100%, oklch(0.780 0.158 55 / 0.20) 0%, transparent 65%),
-    linear-gradient(180deg, oklch(0.992 0.004 70) 0%, oklch(0.985 0.010 68) 100%);
+    radial-gradient(
+      45% 55% at 12% 8%,
+      rgb(252 128 25 / 0.14) 0%,
+      transparent 60%
+    ),
+    radial-gradient(
+      40% 50% at 88% 12%,
+      rgb(243 195 52 / 0.12) 0%,
+      transparent 60%
+    ),
+    linear-gradient(180deg, #ffffff 0%, #f7f7f8 100%);
+
+  --shadow-soft: 0 1px 2px rgb(40 44 63 / 0.08),
+    0 4px 12px rgb(40 44 63 / 0.08);
+  --shadow-layered: 0 1px 2px rgb(40 44 63 / 0.08),
+    0 8px 20px rgb(40 44 63 / 0.10);
+  --shadow-glow: 0 0 0 1px rgb(252 128 25 / 0.20),
+    0 8px 24px rgb(252 128 25 / 0.18);
+  --shadow-pop-art: 4px 4px 0 #282c3f;
+
+  --motion-fast: 150ms;
+  --motion-standard: 200ms;
+  --motion-progress: 900ms;
+  --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 /* -------------------------------------------------------------------------
-   DARK THEME — PRIMARY. Applied via .dark class (next-themes) OR
-   [data-theme="dark"], and as the default when the OS prefers dark.
+   DARK THEME — explicit .dark class
    ------------------------------------------------------------------------- */
-.dark,
-:root[data-theme="dark"] {
-  /* Warm-charcoal surface scale — a faint orange hue keeps it appetizing */
-  --background: oklch(0.178 0.010 55);
-  --foreground: oklch(0.965 0.006 70);
-  --surface: oklch(0.215 0.011 55);
-  --surface-elevated: oklch(0.255 0.013 55);
-  --muted-foreground: oklch(0.700 0.014 62);
-  --accent-brand: var(--brand-400);
+.dark {
+  color-scheme: dark;
 
-  --success: oklch(0.700 0.160 150);
-  --success-foreground: oklch(0.180 0.02 150);
-  --warning: oklch(0.800 0.150 78);
-  --danger: oklch(0.650 0.205 27);
-  --danger-foreground: oklch(0.985 0.01 27);
+  --radius: 8px;
+  --radius-sm: 4px;
+  --radius-md: 8px;
+  --radius-lg: 8px;
+  --radius-xl: 8px;
+  --radius-2xl: 8px;
+  --radius-3xl: 0px;
+  --radius-4xl: 0px;
 
-  --meal-breakfast: oklch(0.828 0.140 74);
-  --meal-lunch: oklch(0.780 0.158 55);
-  --meal-dinner: oklch(0.680 0.150 300);
-  --meal-snack: oklch(0.740 0.140 165);
+  /* Brand tints become alpha washes on dark so tinted surfaces (chat bubbles,
+     offer banners, option rows, chips) stay dark with readable light text.
+     The light cream values would paint near-white under #e9e9eb foreground. */
+  --brand-50: rgb(252 128 25 / 0.10);
+  --brand-100: rgb(252 128 25 / 0.16);
+  --brand-200: rgb(252 128 25 / 0.28);
+  --brand-300: #ff9f50;
+  --brand-400: #ff8f3f;
+  --brand-500: #fc8019;
+  --brand-600: #ff9440;
+  --brand-700: #ffa763;
+  --brand-800: #ffbd8a;
+  --brand-900: #ffd2b0;
+  --brand-500-a20: rgb(252 128 25 / 0.20);
+  --brand-500-a30: rgb(252 128 25 / 0.30);
+  --offer-yellow: #f3c334;
+  --rating: #3fb35c;
 
-  /* Diet indicator — muted green / brick-red tuned for dark (NOT neon) */
-  --diet-veg: oklch(0.600 0.105 148);       /* desaturated forest green */
-  --diet-nonveg: oklch(0.590 0.145 27);     /* muted brick red */
+  /* Exact Swiggy dark semantic palette. */
+  --background: #121212;
+  --foreground: #e9e9eb;
+  --surface: #1a1a1a;
+  --surface-elevated: #1a1a1a;
+  --muted-foreground: #93959f;
+  --accent-brand: #fc8019;
+
+  --success: #7bd99a;
+  --success-foreground: #121212;
+  --warning: #f3c334;
+  --danger: #ff8b80;
+  --danger-foreground: #121212;
+
+  --meal-breakfast: #f3c334;
+  --meal-lunch: #fc8019;
+  --meal-dinner: #b6a1f7;
+  --meal-snack: #55c4ba;
+  --diet-veg: #78bf8b;
+  --diet-nonveg: #e58a80;
 
   /* shadcn contract */
-  --card: oklch(0.215 0.011 55);
-  --card-foreground: var(--foreground);
-  --popover: oklch(0.230 0.012 55);
-  --popover-foreground: var(--foreground);
-  --primary: var(--brand-500);
-  --primary-foreground: oklch(0.180 0.02 47);
-  --secondary: oklch(0.268 0.013 55);
-  --secondary-foreground: var(--foreground);
-  --muted: oklch(0.268 0.013 55);
-  --accent: oklch(0.285 0.020 52);
-  --accent-foreground: var(--brand-300);
-  --destructive: var(--danger);
-  --border: oklch(1 0 0 / 0.09);
-  --input: oklch(1 0 0 / 0.12);
-  --ring: var(--brand-500);
-  --chart-1: var(--brand-500);
-  --chart-2: var(--amber-400);
-  --chart-3: var(--meal-dinner);
-  --chart-4: var(--meal-snack);
-  --chart-5: var(--success);
-  --sidebar: oklch(0.198 0.010 55);
-  --sidebar-foreground: var(--foreground);
-  --sidebar-primary: var(--brand-500);
-  --sidebar-primary-foreground: oklch(0.180 0.02 47);
-  --sidebar-accent: oklch(0.285 0.020 52);
-  --sidebar-accent-foreground: var(--brand-300);
-  --sidebar-border: oklch(1 0 0 / 0.09);
-  --sidebar-ring: var(--brand-500);
+  --card: #1a1a1a;
+  --card-foreground: #e9e9eb;
+  --popover: #1a1a1a;
+  --popover-foreground: #e9e9eb;
+  --primary: #fc8019;
+  --primary-foreground: #121212;
+  --secondary: #282c3f;
+  --secondary-foreground: #e9e9eb;
+  --muted: #282c3f;
+  --accent: #f3c334;
+  --accent-foreground: #121212;
+  --destructive: #ff8b80;
+  --border: #282c3f;
+  --input: #282c3f;
+  --ring: #fc8019;
+  --chart-1: #fc8019;
+  --chart-2: #f3c334;
+  --chart-3: #b6a1f7;
+  --chart-4: #55c4ba;
+  --chart-5: #7bd99a;
+  --sidebar: #1a1a1a;
+  --sidebar-foreground: #e9e9eb;
+  --sidebar-primary: #fc8019;
+  --sidebar-primary-foreground: #121212;
+  --sidebar-accent: #f3c334;
+  --sidebar-accent-foreground: #121212;
+  --sidebar-border: #282c3f;
+  --sidebar-ring: #fc8019;
 
-  /* Gradient tokens (tuned for dark) */
-  --gradient-brand: linear-gradient(135deg, var(--brand-500) 0%, var(--amber-400) 100%);
-  --gradient-surface: linear-gradient(180deg, oklch(0.235 0.012 55) 0%, oklch(0.205 0.010 55) 100%);
-  --gradient-glow: radial-gradient(60% 60% at 50% 0%, var(--brand-500-a30) 0%, transparent 70%);
+  --gradient-brand: linear-gradient(135deg, #fc8019 0%, #f3c334 100%);
+  --gradient-surface: linear-gradient(180deg, #1a1a1a 0%, #121212 100%);
+  --gradient-glow: radial-gradient(
+    60% 60% at 50% 0%,
+    rgb(252 128 25 / 0.24) 0%,
+    transparent 70%
+  );
   --gradient-mesh:
-    radial-gradient(48% 58% at 10% 6%, oklch(0.720 0.178 47.5 / 0.28) 0%, transparent 60%),
-    radial-gradient(42% 52% at 90% 10%, oklch(0.780 0.155 70 / 0.22) 0%, transparent 60%),
-    radial-gradient(60% 65% at 55% 105%, oklch(0.560 0.140 300 / 0.20) 0%, transparent 65%),
-    linear-gradient(180deg, oklch(0.190 0.010 55) 0%, oklch(0.165 0.009 55) 100%);
+    radial-gradient(
+      45% 55% at 12% 8%,
+      rgb(252 128 25 / 0.18) 0%,
+      transparent 60%
+    ),
+    radial-gradient(
+      40% 50% at 88% 12%,
+      rgb(243 195 52 / 0.14) 0%,
+      transparent 60%
+    ),
+    linear-gradient(180deg, #1a1a1a 0%, #121212 100%);
+
+  --shadow-soft: 0 1px 2px rgb(0 0 0 / 0.32),
+    0 4px 12px rgb(0 0 0 / 0.24);
+  --shadow-layered: 0 1px 2px rgb(0 0 0 / 0.36),
+    0 8px 20px rgb(0 0 0 / 0.30);
+  --shadow-glow: 0 0 0 1px rgb(252 128 25 / 0.30),
+    0 8px 24px rgb(252 128 25 / 0.24);
+  --shadow-pop-art: 4px 4px 0 #282c3f;
+
+  --motion-fast: 150ms;
+  --motion-standard: 200ms;
+  --motion-progress: 900ms;
+  --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
 }
 
-/* Follow OS preference when no explicit data-theme is set on :root.
-   next-themes still adds .dark for its own toggle; this covers first paint. */
+/* Follow OS preference only before next-themes has applied a class. Explicit
+   .light and .dark choices always win, even when the OS is dark. */
 @media (prefers-color-scheme: dark) {
-  :root:not([data-theme="light"]) {
-    --background: oklch(0.178 0.010 55);
-    --foreground: oklch(0.965 0.006 70);
-    --surface: oklch(0.215 0.011 55);
-    --surface-elevated: oklch(0.255 0.013 55);
-    --muted-foreground: oklch(0.700 0.014 62);
-    --accent-brand: var(--brand-400);
+  :root:not(.light):not(.dark) {
+    color-scheme: dark;
 
-    --success: oklch(0.700 0.160 150);
-    --success-foreground: oklch(0.180 0.02 150);
-    --warning: oklch(0.800 0.150 78);
-    --danger: oklch(0.650 0.205 27);
-    --danger-foreground: oklch(0.985 0.01 27);
+    --radius: 8px;
+    --radius-sm: 4px;
+    --radius-md: 8px;
+    --radius-lg: 8px;
+    --radius-xl: 8px;
+    --radius-2xl: 8px;
+    --radius-3xl: 0px;
+    --radius-4xl: 0px;
+    /* Same dark-mode brand treatment as the .dark block above. */
+    --brand-50: rgb(252 128 25 / 0.10);
+    --brand-100: rgb(252 128 25 / 0.16);
+    --brand-200: rgb(252 128 25 / 0.28);
+    --brand-300: #ff9f50;
+    --brand-400: #ff8f3f;
+    --brand-500: #fc8019;
+    --brand-600: #ff9440;
+    --brand-700: #ffa763;
+    --brand-800: #ffbd8a;
+    --brand-900: #ffd2b0;
+    --brand-500-a20: rgb(252 128 25 / 0.20);
+    --brand-500-a30: rgb(252 128 25 / 0.30);
+    --offer-yellow: #f3c334;
+    --rating: #3fb35c;
+    --background: #121212;
+    --foreground: #e9e9eb;
+    --surface: #1a1a1a;
+    --surface-elevated: #1a1a1a;
+    --muted-foreground: #93959f;
+    --accent-brand: #fc8019;
+    --success: #7bd99a;
+    --success-foreground: #121212;
+    --warning: #f3c334;
+    --danger: #ff8b80;
+    --danger-foreground: #121212;
+    --card: #1a1a1a;
+    --card-foreground: #e9e9eb;
+    --popover: #1a1a1a;
+    --popover-foreground: #e9e9eb;
+    --primary: #fc8019;
+    --primary-foreground: #121212;
+    --secondary: #282c3f;
+    --secondary-foreground: #e9e9eb;
+    --muted: #282c3f;
+    --accent: #f3c334;
+    --accent-foreground: #121212;
+    --destructive: #ff8b80;
+    --border: #282c3f;
+    --input: #282c3f;
+    --ring: #fc8019;
+    --chart-1: #fc8019;
+    --chart-2: #f3c334;
+    --chart-3: #b6a1f7;
+    --chart-4: #55c4ba;
+    --chart-5: #7bd99a;
+    --sidebar: #1a1a1a;
+    --sidebar-foreground: #e9e9eb;
+    --sidebar-primary: #fc8019;
+    --sidebar-primary-foreground: #121212;
+    --sidebar-accent: #f3c334;
+    --sidebar-accent-foreground: #121212;
+    --sidebar-border: #282c3f;
+    --sidebar-ring: #fc8019;
 
-    --meal-breakfast: oklch(0.828 0.140 74);
-    --meal-lunch: oklch(0.780 0.158 55);
-    --meal-dinner: oklch(0.680 0.150 300);
-    --meal-snack: oklch(0.740 0.140 165);
+    --meal-breakfast: #f3c334;
+    --meal-lunch: #fc8019;
+    --meal-dinner: #b6a1f7;
+    --meal-snack: #55c4ba;
+    --diet-veg: #78bf8b;
+    --diet-nonveg: #e58a80;
 
-    --diet-veg: oklch(0.600 0.105 148);
-    --diet-nonveg: oklch(0.590 0.145 27);
-
-    --card: oklch(0.215 0.011 55);
-    --card-foreground: oklch(0.965 0.006 70);
-    --popover: oklch(0.230 0.012 55);
-    --popover-foreground: oklch(0.965 0.006 70);
-    --primary: var(--brand-500);
-    --primary-foreground: oklch(0.180 0.02 47);
-    --secondary: oklch(0.268 0.013 55);
-    --secondary-foreground: oklch(0.965 0.006 70);
-    --muted: oklch(0.268 0.013 55);
-    --accent: oklch(0.285 0.020 52);
-    --accent-foreground: var(--brand-300);
-    --destructive: oklch(0.650 0.205 27);
-    --border: oklch(1 0 0 / 0.09);
-    --input: oklch(1 0 0 / 0.12);
-    --ring: var(--brand-500);
-    --sidebar: oklch(0.198 0.010 55);
-    --sidebar-foreground: oklch(0.965 0.006 70);
-    --sidebar-primary: var(--brand-500);
-    --sidebar-primary-foreground: oklch(0.180 0.02 47);
-    --sidebar-accent: oklch(0.285 0.020 52);
-    --sidebar-accent-foreground: var(--brand-300);
-    --sidebar-border: oklch(1 0 0 / 0.09);
-    --sidebar-ring: var(--brand-500);
-
-    --gradient-surface: linear-gradient(180deg, oklch(0.235 0.012 55) 0%, oklch(0.205 0.010 55) 100%);
-    --gradient-glow: radial-gradient(60% 60% at 50% 0%, var(--brand-500-a30) 0%, transparent 70%);
+    --gradient-brand: linear-gradient(135deg, #fc8019 0%, #f3c334 100%);
+    --gradient-surface: linear-gradient(180deg, #1a1a1a 0%, #121212 100%);
+    --gradient-glow: radial-gradient(
+      60% 60% at 50% 0%,
+      rgb(252 128 25 / 0.24) 0%,
+      transparent 70%
+    );
     --gradient-mesh:
-      radial-gradient(48% 58% at 10% 6%, oklch(0.720 0.178 47.5 / 0.28) 0%, transparent 60%),
-      radial-gradient(42% 52% at 90% 10%, oklch(0.780 0.155 70 / 0.22) 0%, transparent 60%),
-      radial-gradient(60% 65% at 55% 105%, oklch(0.560 0.140 300 / 0.20) 0%, transparent 65%),
-      linear-gradient(180deg, oklch(0.190 0.010 55) 0%, oklch(0.165 0.009 55) 100%);
+      radial-gradient(
+        45% 55% at 12% 8%,
+        rgb(252 128 25 / 0.18) 0%,
+        transparent 60%
+      ),
+      radial-gradient(
+        40% 50% at 88% 12%,
+        rgb(243 195 52 / 0.14) 0%,
+        transparent 60%
+      ),
+      linear-gradient(180deg, #1a1a1a 0%, #121212 100%);
+
+    --shadow-soft: 0 1px 2px rgb(0 0 0 / 0.32),
+      0 4px 12px rgb(0 0 0 / 0.24);
+    --shadow-layered: 0 1px 2px rgb(0 0 0 / 0.36),
+      0 8px 20px rgb(0 0 0 / 0.30);
+    --shadow-glow: 0 0 0 1px rgb(252 128 25 / 0.30),
+      0 8px 24px rgb(252 128 25 / 0.24);
+    --shadow-pop-art: 4px 4px 0 #282c3f;
+    --motion-fast: 150ms;
+    --motion-standard: 200ms;
+    --motion-progress: 900ms;
+    --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
   }
 }
 
@@ -368,23 +490,40 @@
   * {
     @apply border-border outline-ring/50;
   }
+
+  html {
+    @apply font-sans;
+    color-scheme: light;
+  }
+
+  html.dark {
+    color-scheme: dark;
+  }
+
   body {
     @apply bg-background text-foreground;
+    /* Global horizontal-overflow guard: any element that outgrows the viewport
+       (header chips, wide rails, hydration-flash states) gets clipped here
+       instead of producing page-level horizontal scrolling. `clip` (not
+       `hidden`) avoids creating a new scroll container, so sticky positioning
+       keeps working. */
+    overflow-x: clip;
+    font-size: 14px;
+    line-height: 1.4;
     font-feature-settings: "cv11", "ss01";
     -webkit-font-smoothing: antialiased;
     text-rendering: optimizeLegibility;
   }
-  html {
-    @apply font-sans;
-    color-scheme: dark;
+
+  h1,
+  h2,
+  h3,
+  h4 {
+    @apply font-heading;
+    font-weight: 700;
+    letter-spacing: -0.02em;
   }
-  :root[data-theme="light"] {
-    color-scheme: light;
-  }
-  h1, h2, h3, h4 {
-    @apply font-display;
-    letter-spacing: -0.015em;
-  }
+
   ::selection {
     background: var(--brand-500-a30);
   }
@@ -396,34 +535,63 @@
 @utility bg-gradient-brand {
   background-image: var(--gradient-brand);
 }
+
 @utility bg-gradient-surface {
   background-image: var(--gradient-surface);
 }
+
 @utility bg-gradient-glow {
   background-image: var(--gradient-glow);
 }
+
 @utility bg-gradient-mesh {
   background-image: var(--gradient-mesh);
 }
+
 @utility text-gradient-brand {
   background-image: var(--gradient-brand);
   -webkit-background-clip: text;
   background-clip: text;
   color: transparent;
 }
+
 @utility shadow-soft {
   box-shadow: var(--shadow-soft);
 }
+
 @utility shadow-layered {
   box-shadow: var(--shadow-layered);
 }
+
 @utility shadow-glow {
   box-shadow: var(--shadow-glow);
 }
+
+@utility shadow-pop-art {
+  box-shadow: var(--shadow-pop-art);
+}
+
+/* Toast surface — applied by sonner.tsx via toastOptions.classNames. */
+@utility cn-toast {
+  box-shadow: var(--shadow-layered);
+  border-radius: var(--radius);
+}
+
 @utility glass-panel {
-  background: color-mix(in oklch, var(--surface) 72%, transparent);
+  background: color-mix(in srgb, var(--surface) 72%, transparent);
   backdrop-filter: blur(16px) saturate(1.4);
   -webkit-backdrop-filter: blur(16px) saturate(1.4);
   border: 1px solid var(--border);
   box-shadow: var(--shadow-glass);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    scroll-behavior: auto !important;
+    transition-duration: 0.01ms !important;
+  }
 }

@@ -1,10 +1,9 @@
 "use client";
 
 import { motion } from "framer-motion";
-import { Sparkles, User, Bell } from "lucide-react";
+import { Sparkles, UserRound, Bell } from "lucide-react";
 
 import { cn } from "@/lib/utils";
-import { gradients } from "@/lib/design";
 import type { ChatMessage } from "./types";
 
 export interface MessageBubbleProps {
@@ -14,11 +13,11 @@ export interface MessageBubbleProps {
 
 /**
  * Renders a single chat message.
- * - user:      right-aligned, brand gradient.
- * - assistant: left-aligned on a glass panel with a small AI avatar.
+ * - user:      right-aligned on a soft brand tint (Swiggy user-side).
+ * - assistant: left-aligned white bubble with a small AI avatar.
  *              `pending` swaps the body for an animated typing indicator.
  * - system:    centered, quiet meta line.
- * Notification-kind messages render inside a highlighted brand card.
+ * Notification-kind messages render inside a highlighted brand-tinted card.
  */
 export function MessageBubble({ message, className }: MessageBubbleProps) {
   const { role, kind, text, pending } = message;
@@ -31,7 +30,7 @@ export function MessageBubble({ message, className }: MessageBubbleProps) {
         transition={{ duration: 0.25 }}
         className={cn("flex justify-center px-2 py-1", className)}
       >
-        <span className="text-xs text-muted-foreground">{text}</span>
+        <span className="text-[11px] leading-[1.4] text-muted-foreground">{text}</span>
       </motion.div>
     );
   }
@@ -53,15 +52,12 @@ export function MessageBubble({ message, className }: MessageBubbleProps) {
 
       <div
         className={cn(
-          "max-w-[82%] rounded-2xl px-4 py-2.5 text-sm leading-relaxed",
+          "max-w-[82%] rounded-xl border px-4 py-2.5 text-sm leading-[1.4]",
           isUser
-            ? cn(
-                gradients.brand,
-                "rounded-br-md text-primary-foreground shadow-soft"
-              )
+            ? "rounded-br-md border-brand-100 bg-brand-50 text-foreground"
             : kind === "notification"
-              ? "rounded-bl-md border border-brand-500/25 bg-accent text-accent-foreground shadow-soft"
-              : "glass-panel rounded-bl-md text-foreground"
+              ? "rounded-bl-md border-brand-200 bg-brand-50 text-foreground"
+              : "rounded-bl-md border-border bg-card text-foreground shadow-soft"
         )}
       >
         {pending ? (
@@ -78,13 +74,10 @@ function Avatar({ kind }: { kind?: ChatMessage["kind"] }) {
   const Icon = kind === "notification" ? Bell : Sparkles;
   return (
     <div
-      className={cn(
-        "flex size-7 shrink-0 items-center justify-center rounded-full text-primary-foreground shadow-glow",
-        gradients.brand
-      )}
+      className="flex size-7 shrink-0 items-center justify-center rounded-full bg-brand-500 text-white"
       aria-hidden
     >
-      <Icon className="size-3.5" />
+      <Icon className="size-4" strokeWidth={2.4} />
     </div>
   );
 }
@@ -92,7 +85,11 @@ function Avatar({ kind }: { kind?: ChatMessage["kind"] }) {
 /** Three bouncing dots — the assistant "thinking" indicator. */
 function TypingDots() {
   return (
-    <div className="flex items-center gap-1 py-1" aria-label="Assistant is typing">
+    <div
+      className="flex items-center gap-1 py-1"
+      role="status"
+      aria-label="Assistant is typing"
+    >
       {[0, 1, 2].map((i) => (
         <motion.span
           key={i}
@@ -110,5 +107,5 @@ function TypingDots() {
   );
 }
 
-// re-export so callers can spread the User icon if needed elsewhere
-export { User };
+// re-export so callers can spread the user glyph if needed elsewhere
+export { UserRound };

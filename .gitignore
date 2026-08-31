@@ -25,3 +25,11 @@ node_modules/
 *.log
 D:/Temp/
 /scratchpad/
+
+# ---- local tooling / transient artifacts ----
+.claude/
+.claude-flow/
+.playwright-mcp/
+backend/out*.txt
+*.png
+/mealplanner.db

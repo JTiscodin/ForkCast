@@ -49,6 +49,25 @@ ACCOMPANIMENT = frozenset({BREAD, STAPLE})
 # Courses that must never be planned as a meal, paired or otherwise.
 NEVER_STANDALONE = frozenset({BREAD, STAPLE, SIDE})
 
+# --- Dish KINDS: what category of food a dish is ---------------------------
+# Course says what ROLE a dish plays in a meal (bread/curry/complete/...);
+# kind says what CATEGORY of food it is. The two axes are independent: a
+# gulab jamun is course=side AND kind=sweet; a samosa is course=side AND
+# kind=snack; a biryani is course=complete AND kind=meal.
+#
+# WHY: the optimizer's hard filter for meal slots needs the category axis.
+# Course alone can't express it — course=side covers sweets, snacks, drinks
+# AND condiments, and course=complete covers a few desserts whose names carry
+# a meal-ish form word. The live catalog surfaced exactly these failures:
+# "Rasmalai" ₹89 and "Ice Cream Sundae" sailed the default-COMPLETE path into
+# dinner slots. Kind gives the planner one field to gate on: meal slots take
+# kind=meal, full stop.
+KIND_MEAL = "meal"
+KIND_SNACK = "snack"
+KIND_SWEET = "sweet"
+KIND_BEVERAGE = "beverage"
+KINDS = (KIND_MEAL, KIND_SNACK, KIND_SWEET, KIND_BEVERAGE)
+
 # --- Dish FORMS that override any ingredient ------------------------------
 # The single most important rule in this module.
 #
@@ -72,6 +91,46 @@ _FORM_OVERRIDES = (
         "pani puri", "puchka", "dahi puri", "sev puri", "bhel", "cutlet",
         "croquette", "nugget", "fries", "wedges", "spring roll", "wonton",
         "garlic bread", "cheese balls", "popcorn",
+        # CONDIMENTS & ACCOMPANIMENTS live here, not in the keyword table below.
+        # Tier order made anything named "Masala X" a curry before the SIDE
+        # keywords were ever consulted: "Masala Papad" was classified a curry
+        # (confidently — bypassing the price floor) and served with two rotis.
+        # A condiment's FORM is what it is regardless of flavour words, so these
+        # beat every ingredient keyword.
+        "papad", "papadum", "poppadom", "appalam", "fryums", "vadam",
+        "raita", "chutney", "chutneys", "achar", "achaar", "pickle", "salan",
+        "dip", "dips", "salsa",
+        # drinks — "Mango Shake" defaulted to COMPLETE and got planned as dinner
+        "juice", "shake", "milkshake", "smoothie", "mojito", "soda",
+        "jaljeera", "nimbu pani", "shikanji", "thandai", "tea", "coffee",
+        "chai", "water", "beverage",
+        # desserts beyond gulab jamun / ice cream / brownie: "Rasmalai" ₹89
+        # sailed through the default-COMPLETE price gate as an entire meal
+        "rasmalai", "ras malai", "kulfi", "jalebi", "halwa", "phirni",
+        "kheer", "payasam", "seviyan", "malpua", "rabri", "rabdi",
+        "shahi tukda", "basundi", "peda", "barfi", "burfi", "katli",
+        # more sweets the live catalogs surfaced: "Rasgulla" and "Laddoo"
+        # missed the list above and defaulted to COMPLETE dinners. As FORMS
+        # they also beat any ingredient keyword ("Dry Fruit Laddoo" can't be
+        # read as a curry by its words).
+        "gulab jamun", "rasgulla", "laddoo", "laddu", "sandesh",
+        "modak", "sheera", "sooji halwa", "double ka meetha", "mithai",
+        "ice cream", "brownie", "cheesecake", "cupcake", "pudding", "cake",
+        "dessert",
+        # NON-MEAL platters. A bare "platter" is deliberately not a form (see
+        # the COMPLETE tuple), so these multi-word entries are what catches
+        # the assortments outright: "Dessert Platter" is six sweets on a
+        # tray, not dinner, and "Snack Platter" is a starter board.
+        "dessert platter", "sweet platter", "snack platter", "drinks platter",
+        # soups are starters, not dinners ("Tomato Soup" ₹120 → COMPLETE)
+        "soup", "shorba", "consomme",
+        # fried starters the snack list missed
+        "lollipop", "wings", "winglet", "drumlet", "cheese sticks",
+        "mozzarella sticks", "hush puppies",
+        # more fried snack sides from live promo catalogs ("Veg Nuggets" ₹80
+        # defaulted to COMPLETE and was planned as a whole dinner nine times)
+        "nachos", "nacho", "french fries", "hash brown", "hashbrown",
+        "chips", "nuggets",
     )),
     # complete dishes whose form makes them a meal regardless of ingredient
     (COMPLETE, (
@@ -87,6 +146,14 @@ _FORM_OVERRIDES = (
         "upma", "noodles", "chowmein", "chow mein", "hakka", "manchurian",
         "burger", "pizza", "sandwich", "wrap", "frankie", "shawarma",
         "maggi", "pasta", "risotto", "bowl", "combo", "meal box", "tiffin",
+        # NOTE on "platter": deliberately NOT a bare COMPLETE form. A food
+        # platter already resolves to a COMPLETE meal through its food word
+        # ("Momo Platter" -> "momo") or the default pass, while a bare
+        # "platter" form would give generic names ("Zzz Mystery Platter")
+        # form-confidence and block the description tier from settling them —
+        # which is exactly how test_description_settles_unknown_names works.
+        # The multi-word SIDE forms above ("dessert platter", "snack platter",
+        # ...) still beat everything for the non-meal assortments.
         "pav bhaji", "vada pav", "misal", "bhurji", "omelette", "paratha roll",
         # Dry Indo-Chinese starters. "Chilli Paneer" is stir-fried and eaten on
         # its own, not a gravy — without this the "paneer" keyword would give it
@@ -130,10 +197,19 @@ _COURSE_KEYWORDS = (
     # breads — accompaniment only
     (BREAD, (
         "tandoori roti", "butter roti", "tawa roti", "rumali roti",
+        # Bare spellings too: a live catalog surfaced "Roomali (Whole Wheat)"
+        # ₹29 with no "roti" word in the name, so it fell through to the
+        # COMPLETE default and got planned as a whole dinner.
+        "roomali", "rumali",
         "missi roti", "garlic naan", "butter naan", "cheese naan",
         "laccha paratha", "aloo paratha", "roti", "chapati", "chapathi",
         "phulka", "naan", "kulcha", "bhatura", "bhature", "puri", "poori",
         "paratha", "parantha", "porotta", "appam", "thepla", "bread basket",
+        # Bare carrier breads. Form overrides ("pav bhaji", "vada pav") win
+        # first via longer-match, so these only catch a bare "Pav Basket" /
+        # "Butter Bun" that used to ride the COMPLETE default past the price
+        # floor as a ₹49 "meal".
+        "pav", "bun",
     )),
     # plain staples — accompaniment only
     (STAPLE, (
@@ -157,24 +233,161 @@ _COURSE_KEYWORDS = (
         "raita", "papad", "salad", "pickle", "achar", "chutney",
         "dahi", "curd", "buttermilk", "chaas", "lassi", "gulab jamun",
         "ice cream", "brownie", "cold drink", "coke", "pepsi", "water",
+        # soda-pop brands and drinks the live catalog surfaced; also here so
+        # the fuzzy tier can catch misspellings of them
+        "cola", "lemonade", "nimbu soda", "iced tea", "soft drink",
+        "sprite", "fanta", "mirinda", "limca",
+        # drinks the kind tables know but the course table didn't — "Masala
+        # Chai" and "Mango Lassi" used to fall through to the COMPLETE default
+        # and pass the price gate as meals.
+        "chai", "tea", "coffee", "juice", "shake", "milkshake", "falooda",
+        "sundae",
+        "nachos", "nacho", "french fries", "hash brown", "hashbrown",
+        "chips", "nuggets",
+        # "Salan" is the Hyderabadi condiment served WITH biryani — a ₹19
+        # sauce, not a dish you order as dinner. Unlisted, it defaulted to
+        # COMPLETE and was planned as a whole dinner; as a CURRY it became
+        # "salan + 2 roti", still a poor meal. It is a side, full stop.
+        "salan",
+        # A BARE egg item ("Roasted Egg" ₹20, "Boiled Egg", "Egg 65") is a
+        # single egg — an add-on, not a breakfast. This sits LAST on purpose:
+        # every real egg meal carries a form word that an earlier tuple
+        # claims first ("Egg Roll" -> roll, "Egg Bhurji" -> bhurji,
+        # "Egg Curry" -> curry, "Egg Omelette" -> omelette), so "egg" only
+        # ever fires when nothing else described the dish.
+        "egg", "anda",
     )),
 )
 
+# --- DRINK-COMBO DEMOTION ---------------------------------------------------
+# Promo SKUs bundle a drink with a snack: "Nachos + Coke Combo @ Rs.49". The
+# word "combo" is a COMPLETE form override, so a nachos-and-soda promo
+# classified as a full dinner — and was served as DINNER nine times in one
+# month. Rule: when a name carries a DRINK word, the item is at most a snack,
+# UNLESS it also names real food (a burger, a biryani, a chicken bucket...):
+# "Burger + Coke Combo" is dinner, "Nachos + Coke Combo" is not.
+#
+# Checked BEFORE the form overrides: this is itself a form judgment, and it
+# exists precisely to beat the "combo"/"bowl"/"box" complete-form words.
+_DRINK_WORDS = (
+    "coca cola", "cold drink", "soft drink", "iced tea", "lemonade",
+    "coke", "cola", "pepsi", "mirinda", "sprite", "fanta", "thumbs up",
+    "thums up", "mountain dew", "limca", "soda", "mojito",
+)
+_DRINK_SET = frozenset(_DRINK_WORDS)
+# Real-food forms strong enough that a drink alongside them is just a combo
+# add-on. Deliberately EXCLUDES the promo words themselves ("combo", "bowl",
+# "meal box") — those are what the demotion protects against.
+_STRONG_MEAL_FORMS = (
+    "burger", "pizza", "sandwich", "wrap", "roll", "biryani", "thali",
+    "momos", "dosa", "paratha", "fried rice", "rice", "noodles", "pasta",
+    "frankie", "shawarma", "khichdi", "poha", "upma", "omelette", "bhurji",
+    "pav bhaji", "vada pav", "idli", "uttapam",
+    "chicken", "mutton", "fish", "prawn", "egg", "kebab", "tikka",
+)
+
+# --- KIND word tables -------------------------------------------------------
+# Used to split course=side items into beverage / sweet / snack, and to catch
+# the few desserts that a meal-ish FORM word mislabels as a meal ("Ice Cream
+# Sundae" carries no sweet form word, so it rides the COMPLETE default into a
+# dinner slot). Checked beverage-first: a sweet word inside a drink name
+# ("Mango Shake") must still classify as a beverage.
+_KIND_DRINK_WORDS = _DRINK_WORDS + (
+    "lassi", "chai", "tea", "coffee", "juice", "shake", "milkshake", "soda",
+    "nimbu pani", "falooda", "thandai", "buttermilk", "chaach", "chaas",
+    "water", "beverage", "smoothie", "mojito", "jaljeera", "shikanji",
+)
+_KIND_SWEET_WORDS = (
+    "gulab jamun", "rasgulla", "rasmalai", "ras malai", "jalebi", "kheer",
+    "payasam", "barfi", "burfi", "laddoo", "laddu", "peda", "halwa",
+    "sandesh", "kulfi", "phirni", "ice cream", "brownie", "cake", "dessert",
+    "mithai", "modak", "sheera", "basundi", "double ka meetha", "sundae",
+    "cheesecake", "cupcake", "pudding", "malpua", "rabri", "rabdi",
+    "shahi tukda", "seviyan", "katli",
+)
+# The fallback bucket — listed for documentation and for the LLM prompt, not
+# matched: anything SIDE that is neither a drink nor a sweet is a snack.
+_KIND_SNACK_WORDS = (
+    "samosa", "pakora", "pakoda", "chaat", "vada", "bhel", "pani puri",
+    "golgappa", "kachori", "tikki", "cutlet", "nachos", "chips", "nuggets",
+    "fries", "spring roll", "papad", "raita", "chutney", "salad", "soup",
+)
+
 # Accompaniment quantity per curry, by course.
-# Two rotis per curry is the realistic Indian serving; rice is one portion.
+# Two thin rotis per curry is the realistic Indian serving; rice is one portion.
 ACCOMPANIMENT_QTY = {BREAD: 2, STAPLE: 1}
+
+# Breads where ONE is the realistic serving: a naan/kulcha/bhatura/paratha is
+# roughly two rotis of flour already. Serving two of those alongside a curry
+# produced the live plan's overstuffed dinners (Rs90 of rumali roti beside a
+# Rs75 curry). Thin flatbreads keep the classic two.
+_ONE_PIECE_BREADS = ("naan", "kulcha", "bhatura", "bhature",
+                     "paratha", "parantha")
+
+# Price floor for a standalone meal. No real Swiggy meal costs less than this —
+# anything cheaper is an add-on (a ₹19 salan, a ₹20 egg, a ₹10 roti) that the
+# keyword rules happened not to name. Only applies to DEFAULT-confidence
+# classifications: a confidently recognised dish keeps its course whatever the
+# price, so a genuine ₹35 street-food breakfast is never demoted.
+MIN_MEAL_PRICE = 40
+
+
+def _memo(fn):
+    """Cache by arguments. Dish names repeat constantly inside one optimizer
+    run — every budget/scoring pass re-asks what every candidate dish is — and
+    classification is pure string work, so the profiler showed millions of
+    re-parses of the same few hundred names per plan. Pure functions of their
+    string inputs, hence safe to cache without bounds (catalogs are small)."""
+    cache = {}
+
+    def wrapper(*args, **kwargs):
+        key = args + tuple(sorted(kwargs.items()))
+        try:
+            return cache[key]
+        except KeyError:
+            value = fn(*args, **kwargs)
+            cache[key] = value
+            return value
+
+    return wrapper
 
 
 @dataclass(frozen=True)
 class CourseInfo:
     course: str
     confidence: str   # "keyword" | "fuzzy" | "llm" | "default"
+    # What CATEGORY of food it is (see KIND_* above). Defaults to meal so the
+    # two-arg constructions all over this module keep working — and because
+    # the default-COMPLETE guess is exactly the "probably a meal" guess.
+    dish_kind: str = KIND_MEAL
 
 
+def _kind_for(course: str, name: str) -> str:
+    """Derive the dish KIND from its course and name.
+
+    BREAD/STAPLE/CURRY/COMPLETE are meal categories by definition — a roti is
+    part of a meal whatever else the name says. SIDE is the mixed bag (sweets,
+    snacks, drinks, condiments), so it gets split by the word tables, beverage
+    first: "Mango Shake" names a sweet word but IS a drink.
+    """
+    if course != SIDE:
+        return KIND_MEAL
+    if any(_contains_word(name, w) for w in _KIND_DRINK_WORDS):
+        return KIND_BEVERAGE
+    if any(_contains_word(name, w) for w in _KIND_SWEET_WORDS):
+        return KIND_SWEET
+    return KIND_SNACK
+
+
+@_memo
 def classify(name: str) -> CourseInfo:
     """Classify a menu-item name into a course.
 
     Passes, in order:
+      0. DRINK-COMBO   — a drink word ("coke", "pepsi", ...) demotes the item
+                          to a side unless real food is also named. Stops the
+                          "Nachos + Coke Combo @ Rs.49" promo classifying as a
+                          complete dinner via its "combo" form word.
       1. FORM override  — "kachori", "momo", "biryani". The dish's form beats
                           any ingredient in the name. This is what stops "Dal
                           Kachori" being read as a dal curry.
@@ -191,6 +404,24 @@ def classify(name: str) -> CourseInfo:
     if not n:
         return CourseInfo(COMPLETE, "default")
 
+    # 0. A drink is never the meal — unless real food is named alongside it
+    # ("Burger + Coke Combo" IS dinner). See _DRINK_WORDS above for why this
+    # runs ahead of the form overrides: it exists to beat the "combo"/"bowl"
+    # complete-form words on promo SKUs like "Nachos + Coke Combo @ Rs.49".
+    has_drink = any(_contains_word(n, w) for w in _DRINK_WORDS)
+    if has_drink and not any(_contains_word(n, f) for f in _STRONG_MEAL_FORMS):
+        # Kind refinement for the demoted combo: the item is at most a snack,
+        # but a sweet or a snack word in the name says which. "Nachos + Coke
+        # Combo" -> snack, "Gulab Jamun + Pepsi" -> sweet, bare "Pepsi" ->
+        # beverage.
+        if any(_contains_word(n, w) for w in _KIND_SNACK_WORDS):
+            kind = KIND_SNACK
+        elif any(_contains_word(n, w) for w in _KIND_SWEET_WORDS):
+            kind = KIND_SWEET
+        else:
+            kind = KIND_BEVERAGE
+        return CourseInfo(SIDE, "form", kind)
+
     # 1. Form wins outright over any ingredient keyword.
     # Take the LONGEST matching form, not the first one listed: "Idli Vada
     # Combo" contains both "vada" (a snack) and "combo" (a full meal), and the
@@ -202,19 +433,34 @@ def classify(name: str) -> CourseInfo:
             if len(form) > best_len and _contains_word(n, form):
                 best, best_len = course, len(form)
     if best:
-        return CourseInfo(best, "form")
+        return CourseInfo(best, "form", _kind_for(best, n))
 
     # 2. Ingredient / preparation keywords.
     for course, keywords in _COURSE_KEYWORDS:
+        if has_drink and course == SIDE:
+            # Real food is named alongside the drink; ignore the drink words so
+            # "Chicken Bucket + Pepsi 750ml" doesn't fall through to the bare
+            # "pepsi" side keyword and lose its meal status after all.
+            keywords = [kw for kw in keywords if kw not in _DRINK_SET]
         for kw in keywords:
             if _contains_word(n, kw):
-                return CourseInfo(course, "keyword")
+                return CourseInfo(course, "keyword", _kind_for(course, n))
 
     fuzzy = _fuzzy_classify(n)
     if fuzzy:
-        return CourseInfo(fuzzy, "fuzzy")
+        return CourseInfo(fuzzy, "fuzzy", _kind_for(fuzzy, n))
 
-    return CourseInfo(COMPLETE, "default")
+    # 3. The default guess. The course stays COMPLETE (it may fill a meal
+    # slot), but the KIND gets one last look at the name: a dessert whose
+    # name carries no form word we know ("Ice Cream Sundae") must not ride
+    # the default into a dinner slot — the kind gate is what catches it.
+    kind = _kind_for(COMPLETE, n)
+    if kind == KIND_MEAL:
+        if any(_contains_word(n, w) for w in _KIND_SWEET_WORDS):
+            kind = KIND_SWEET
+        elif any(_contains_word(n, w) for w in _KIND_DRINK_WORDS):
+            kind = KIND_BEVERAGE
+    return CourseInfo(COMPLETE, "default", kind)
 
 
 def _contains_word(name: str, phrase: str) -> bool:
@@ -267,9 +513,16 @@ def _fuzzy_classify(name: str):
     return None
 
 
+@_memo
 def course_of(name: str) -> str:
     """Convenience: just the course string."""
     return classify(name).course
+
+
+@_memo
+def dish_kind_of(name: str) -> str:
+    """Convenience: just the kind string (meal|snack|sweet|beverage)."""
+    return classify(name).dish_kind
 
 
 # Description phrases that reveal a dish's form when the name doesn't.
@@ -292,6 +545,20 @@ _DESC_SIGNALS = (
             "snack", "starter", "appetizer", "finger food", "tea time")),
 )
 
+# Description signals for the KIND axis, checked in the same tier as
+# _DESC_SIGNALS and with the same restraint: they only refine a weak
+# (default/keyword) name classification, never a form match. Order matters —
+# beverage before sweet, because dessert-shop blurbs love the word "sweet".
+_DESC_KIND_SIGNALS = (
+    (KIND_BEVERAGE, ("beverage", "drink", "drinks", "refreshing drink",
+                     "thirst quencher", "served chilled", "soft drink")),
+    (KIND_SWEET, ("dessert", "sweet", "sweets", "sugar syrup", "sweetened",
+                  "served hot with rabri", "garnished with pistachios",
+                  "milk fudge", "condensed milk")),
+    (KIND_SNACK, ("snack", "starter", "appetizer", "finger food", "deep fried",
+                  "deep-fried", "crispy", "tea time", "street style")),
+)
+
 
 def classify_with_description(name: str, description: str = "") -> CourseInfo:
     """Classify using the dish DESCRIPTION as a tiebreaker for weak name matches.
@@ -308,20 +575,54 @@ def classify_with_description(name: str, description: str = "") -> CourseInfo:
     if info.confidence == "form":
         return info
 
+    n = (name or "").lower().strip()
     d = description.lower()
     for course, phrases in _DESC_SIGNALS:
         for phrase in phrases:
             if phrase in d:
                 # Only override a guess or a bare ingredient match.
                 if info.confidence in ("default", "keyword") and course != info.course:
-                    return CourseInfo(course, "description")
+                    return CourseInfo(course, "description",
+                                      _kind_for(course, n))
+                return info
+
+    # The course signals found nothing, but the description may still settle
+    # the KIND — "Zzz Mystery Platter" reads as a snack from its blurb even
+    # when no course phrase fires. Same restraint as above: a form-matched
+    # name keeps its kind, and a confident keyword course is trusted over
+    # prose ("served with rice" must not demote a real curry's kind).
+    if info.confidence in ("default",):
+        for kind, phrases in _DESC_KIND_SIGNALS:
+            if any(phrase in d for phrase in phrases):
+                if kind != info.dish_kind:
+                    return CourseInfo(info.course, "description", kind)
                 return info
     return info
 
 
+@_memo
 def is_standalone_meal(name: str) -> bool:
     """True if this dish can fill a meal slot by itself."""
     return course_of(name) in STANDALONE
+
+
+@_memo
+def standalone_meal(name: str, price: float = None) -> bool:
+    """Can this dish headline a meal slot on its own?
+
+    The course says what role the dish plays; the price guards against the
+    classifier's blind spot. An UNRECOGNISED name defaults to COMPLETE, and
+    that default is how a ₹19 salan and a ₹20 roasted egg ended up planned as
+    whole dinners. A default-confidence dish below MIN_MEAL_PRICE is treated
+    as a side — it can still pair with a curry, just never stand alone.
+    """
+    info = classify(name)
+    if info.course not in STANDALONE:
+        return False
+    if (info.confidence == "default" and price is not None
+            and price < MIN_MEAL_PRICE):
+        return False
+    return True
 
 
 # Confidence levels we trust enough to attach bread/rice to a dish.
@@ -331,6 +632,7 @@ def is_standalone_meal(name: str) -> bool:
 _PAIRABLE_CONFIDENCE = frozenset({"form", "keyword", "fuzzy"})
 
 
+@_memo
 def needs_accompaniment(name: str) -> bool:
     """True if this dish is confidently a curry, so it should get bread/rice.
 
@@ -342,67 +644,117 @@ def needs_accompaniment(name: str) -> bool:
             and info.confidence in _PAIRABLE_CONFIDENCE)
 
 
+@_memo
 def can_accompany(name: str) -> bool:
     """True if this dish can serve as the bread/rice half of a paired meal."""
     return course_of(name) in ACCOMPANIMENT
 
 
+@_memo
 def accompaniment_qty(name: str) -> int:
-    """How many units of this accompaniment go with one curry (2 roti, 1 rice)."""
-    return ACCOMPANIMENT_QTY.get(course_of(name), 1)
+    """How many units of this accompaniment go with one curry (2 roti, 1 rice,
+    but only 1 of the heavyweight breads — see _ONE_PIECE_BREADS)."""
+    course = course_of(name)
+    if course == BREAD and any(_contains_word(name.lower(), w)
+                               for w in _ONE_PIECE_BREADS):
+        return 1
+    return ACCOMPANIMENT_QTY.get(course, 1)
 
 
 # --- Tier 3: LLM fallback, cached forever by dish_id ----------------------
 _LLM_CACHE = {}
 
 _CLASSIFY_SYSTEM = """You classify Indian restaurant menu items by their role in a meal.
-Reply with ONE word only, no punctuation, from exactly this list:
+Reply with TWO words only, no punctuation: <course> <kind>.
+
+First word, the course, from exactly this list:
 bread    - roti, naan, paratha, puri (eaten WITH something)
 staple   - plain rice, pulao, jeera rice (eaten WITH something)
 curry    - paneer/dal/chicken GRAVIES, eaten with bread or rice
 complete - biryani, thali, dosa, momos, noodles, burger (a full meal alone)
 side     - samosa, kachori, tikki, chaat, pakora, raita, papad, dessert, drinks
 
+Second word, the kind (what CATEGORY of food it is), from exactly this list:
+meal     - real food that can be eaten AS a meal (breads, curries, biryani...)
+snack    - samosa, kachori, tikki, chaat, pakora, nachos, fries, condiments
+sweet    - gulab jamun, kheer, jalebi, ice cream, brownie, any dessert
+beverage - chai, lassi, juice, shake, soda, any drink
+
 CRITICAL: judge the dish's FORM, not its ingredients.
-"Dal Kachori" is a KACHORI (side), not a dal curry.
-"Paneer Momos" are MOMOS (complete), not a paneer curry.
-"Chilli Paneer" is a dry stir-fry (complete), not a gravy.
+"Dal Kachori" is a KACHORI (side snack), not a dal curry.
+"Paneer Momos" are MOMOS (complete meal), not a paneer curry.
+"Chilli Paneer" is a dry stir-fry (complete meal), not a gravy.
 Answer curry ONLY for actual gravies you would eat with roti or rice.
 Ignore brand and marketing words ("Party Bucket", "Special", "Combo Pack")."""
 
 
-def classify_unknown(dish_id: str, name: str, use_llm: bool = False) -> str:
-    """Classify with the LLM only when tiers 1-2 defaulted, then cache forever.
+def _resolve_unknown(dish_id: str, name: str, use_llm: bool):
+    """Shared engine behind classify_unknown / kind_unknown.
 
-    Bounded by design: the cache key is dish_id, so each unseen dish costs at
-    most one call for the lifetime of the process. Off unless use_llm=True so
-    plan generation never silently depends on the network.
+    ONE Gemini call resolves BOTH axes: the cache stores a (course, kind)
+    tuple per dish_id, so asking for the kind after the course (or vice
+    versa) never costs a second call. Bounded by design: each unseen dish
+    costs at most one call for the lifetime of the process. Off unless
+    use_llm=True so plan generation never silently depends on the network.
     """
     if dish_id in _LLM_CACHE:
-        return _LLM_CACHE[dish_id]
+        entry = _LLM_CACHE[dish_id]
+        # Defensive: an entry written as a bare course string (pre-tuple
+        # shape) still answers the course question; derive the kind from the
+        # name rules.
+        if isinstance(entry, str):
+            return entry, dish_kind_of(name)
+        return entry
 
     info = classify(name)
     if info.confidence != "default" or not use_llm:
-        _LLM_CACHE[dish_id] = info.course
-        return info.course
+        entry = (info.course, info.dish_kind)
+        _LLM_CACHE[dish_id] = entry
+        return entry
 
-    course = info.course  # COMPLETE fallback if the call fails
+    course, kind = info.course, info.dish_kind  # fallbacks if the call fails
     try:
         import gemini
         if gemini.has_key():
             reply = gemini.chat(f"Menu item: {name}", system=_CLASSIFY_SYSTEM)
-            word = (reply or "").strip().lower().split()
-            if word and word[0] in (BREAD, STAPLE, CURRY, COMPLETE, SIDE):
-                course = word[0]
+            words = (reply or "").strip().lower().split()
+            # Validate each word INDEPENDENTLY: a good course with a garbled
+            # kind (or vice versa) keeps the half the model got right.
+            if words and words[0] in (BREAD, STAPLE, CURRY, COMPLETE, SIDE):
+                course = words[0]
+            if len(words) > 1 and words[1] in KINDS:
+                kind = words[1]
     except Exception:  # noqa: BLE001 — classification must never break planning
         pass
 
-    _LLM_CACHE[dish_id] = course
-    return course
+    entry = (course, kind)
+    _LLM_CACHE[dish_id] = entry
+    return entry
+
+
+def classify_unknown(dish_id: str, name: str, use_llm: bool = False) -> str:
+    """Classify with the LLM only when tiers 1-2 defaulted, then cache forever.
+    Returns the COURSE; see kind_unknown for the sibling kind accessor."""
+    return _resolve_unknown(dish_id, name, use_llm)[0]
+
+
+def kind_unknown(dish_id: str, name: str, use_llm: bool = False) -> str:
+    """The KIND half of the same cached classification. One Gemini call
+    resolves both axes — calling this after classify_unknown for the same
+    dish_id is a pure cache hit."""
+    return _resolve_unknown(dish_id, name, use_llm)[1]
 
 
 def cache_stats():
     """Visibility into what the LLM tier has been asked to resolve."""
+    def _entry(v):
+        # Tolerate a bare-string entry (see _resolve_unknown) when counting.
+        return v if isinstance(v, tuple) else (v, dish_kind_of(""))
+
     return {"cached": len(_LLM_CACHE),
-            "by_course": {c: sum(1 for v in _LLM_CACHE.values() if v == c)
-                          for c in (BREAD, STAPLE, CURRY, COMPLETE, SIDE)}}
+            "by_course": {c: sum(1 for v in _LLM_CACHE.values()
+                                 if _entry(v)[0] == c)
+                          for c in (BREAD, STAPLE, CURRY, COMPLETE, SIDE)},
+            "by_kind": {k: sum(1 for v in _LLM_CACHE.values()
+                               if _entry(v)[1] == k)
+                        for k in KINDS}}

@@ -40,12 +40,24 @@ def test_full_demo_flow():
                       constraints=cons, veg_only=parsed.veg_only)
     assert len(result.slots) == 90
 
-    # 4. save + approve
+    # 4. save + approve. An over-budget plan must be REJECTED at approval
+    #    (wallet-integrity guard); re-plan with a budget that fits, then approve.
     plan_id = plan_svc.save_plan(uid, "2026-07", result)
     plan, slots = plan_svc.get_plan(plan_id)
     assert len(slots) == 90
+    if not result.feasible:
+        try:
+            plan_svc.approve_plan(plan_id)
+            assert False, "over-budget plan was approved"
+        except ValueError:
+            pass
+        result = optimize(mock_catalog(), prof, int(result.total_cost) + 1000,
+                          days=30, constraints=cons, veg_only=parsed.veg_only)
+        assert result.feasible
+        plan_id = plan_svc.save_plan(uid, "2026-07", result)
+        plan, slots = plan_svc.get_plan(plan_id)
     plan_svc.approve_plan(plan_id)
-    assert w.get_summary(uid, "2026-07")["budget_allocated"] == 10000
+    assert w.get_summary(uid, "2026-07")["budget_allocated"] == result.budget
 
     # 5. notify + YES on first slot -> order + debit
     first = slots[0]
@@ -79,10 +91,10 @@ def test_full_demo_flow():
     summary = w.get_summary(uid, "2026-07")
     assert summary["total_spent"] == first["price"]  # only the confirmed order spent
     rolled = w.close_cycle(uid, "2026-07")
-    assert 0 <= rolled <= 10000
+    assert 0 <= rolled <= result.budget
     assert w.get_summary(uid, "2026-08")["rolled_in"] == rolled
 
-    print(f"  demo: budget 10000, planned {result.total_cost}, "
+    print(f"  demo: budget {result.budget}, planned {result.total_cost}, "
           f"paneer {result.constraint_status.get('paneer')}, rolled {rolled}")
 
 

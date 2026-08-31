@@ -14,9 +14,10 @@ export interface QuickRepliesProps {
 }
 
 /**
- * Pill-shaped quick-reply chips with a staggered pop-in.
+ * Compact quick-reply pill chips with a staggered pop-in.
  * Used for onboarding suggestions and the Yes/No/Later/Something-else
- * meal-notification flow. The chip's visual tone is inferred from its value.
+ * meal-notification flow. The chip's resting tone is inferred from its value;
+ * every chip warms to the brand tint on hover.
  */
 export function QuickReplies({
   replies,
@@ -27,7 +28,7 @@ export function QuickReplies({
   if (!replies.length) return null;
 
   return (
-    <div className={cn("flex flex-wrap gap-2", className)}>
+    <div className={cn("flex min-w-0 max-w-full flex-wrap gap-2 pb-1", className)}>
       {replies.map((r, i) => (
         <motion.button
           key={`${r.value}-${i}`}
@@ -45,10 +46,11 @@ export function QuickReplies({
           whileHover={disabled ? undefined : { scale: 1.04 }}
           whileTap={disabled ? undefined : { scale: 0.96 }}
           className={cn(
-            "inline-flex items-center gap-1.5 rounded-full border px-3.5 py-1.5 text-sm font-medium transition-colors",
+            "inline-flex max-w-full shrink-0 items-center gap-1.5 rounded-full border px-3.5 py-1.5 text-left text-xs leading-[1.4] font-semibold whitespace-normal break-words transition-[background-color,border-color,color,transform] duration-150 ease-out",
+            "hover:border-brand-300 hover:bg-brand-50 hover:text-brand-700",
             "disabled:pointer-events-none disabled:opacity-50",
             focusRing,
-            toneClasses(r.value)
+            toneClasses(r.value, i)
           )}
         >
           {r.label}
@@ -59,22 +61,25 @@ export function QuickReplies({
 }
 
 /**
- * Map the reply's semantic value to a tone.
- * Yes = brand/success, No/Later = muted, Something else = outline.
- * Everything else (onboarding suggestions) uses a soft brand-tinted chip.
+ * Map the reply's semantic value to a resting tone.
+ * Suggested chips (Yes / first discovery pick) sit on the soft brand tint;
+ * the rest are quiet white pills that warm to brand on hover.
  */
-function toneClasses(value: string): string {
+function toneClasses(value: string, index: number): string {
   const v = value.trim().toLowerCase();
 
   if (v === "yes") {
-    return "border-success/30 bg-success/12 text-success hover:bg-success/20";
+    return "border-brand-200 bg-brand-50 text-brand-700";
   }
   if (v === "no" || v === "later") {
-    return "border-border bg-muted/60 text-muted-foreground hover:bg-muted hover:text-foreground";
+    return "border-border bg-card text-muted-foreground";
   }
   if (v === "other" || v === "something_else" || v === "something else") {
-    return "border-border bg-transparent text-foreground hover:bg-muted";
+    return "border-border bg-card text-foreground";
   }
-  // Default: soft brand suggestion chip.
-  return "border-brand-500/25 bg-accent text-accent-foreground hover:bg-accent/70";
+  // Keep the first discovery suggestion pre-highlighted on the brand lane.
+  if (index === 0) {
+    return "border-brand-200 bg-brand-50 text-brand-700";
+  }
+  return "border-border bg-card text-foreground";
 }

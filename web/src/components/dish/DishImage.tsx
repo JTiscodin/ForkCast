@@ -14,8 +14,8 @@ import { dishInitials } from "./dish-helpers";
  *    "url is valid but upstream response is invalid". We therefore render them
  *    `unoptimized` (browser fetches the CDN directly — which works fine) and
  *    normalize obviously-broken URLs.
- *  - Any load error (403, dead asset, non-image) falls back to a branded
- *    gradient tile with the dish initials instead of a broken-image icon.
+ *  - Any load error (403, dead asset, non-image) falls back to a neutral
+ *    muted tile with the dish initials instead of a broken-image icon.
  */
 export function DishImage({
   src,
@@ -23,7 +23,7 @@ export function DishImage({
   sizes,
   className,
   fallbackClassName,
-  rounded = "rounded-lg",
+  rounded = "rounded-md",
 }: {
   src?: string | null;
   alt: string;
@@ -41,7 +41,7 @@ export function DishImage({
       <div
         aria-hidden
         className={cn(
-          "flex size-full items-center justify-center bg-gradient-brand text-primary-foreground",
+          "flex size-full items-center justify-center bg-muted text-muted-foreground",
           rounded,
           fallbackClassName
         )}

@@ -23,7 +23,7 @@ const EMPTY: Session = {
   name: "",
   address: null,
   planId: null,
-  month: "2026-07",
+  month: new Date().toISOString().slice(0, 7),
   approved: false,
 };
 

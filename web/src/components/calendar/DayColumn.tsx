@@ -21,17 +21,15 @@ function FallbackSlotCell({ slot }: { slot: MealSlot }) {
   return (
     <div
       className={cn(
-        "group/slot relative w-full rounded-lg border px-2.5 py-2 text-left transition-colors",
-        meal.soft,
-        meal.border,
-        "hover:bg-surface-elevated",
+        "group/slot relative w-full rounded-lg border border-border bg-card px-2.5 py-2 text-left transition-colors",
+        "hover:bg-muted/40",
       )}
     >
       {/* meal accent rail */}
       <span
         aria-hidden
         className={cn(
-          "absolute inset-y-1 left-0 w-0.5 rounded-full",
+          "absolute inset-y-1 left-0 w-0.5 rounded-full opacity-60",
           meal.bg,
         )}
       />
@@ -39,7 +37,7 @@ function FallbackSlotCell({ slot }: { slot: MealSlot }) {
         <div className="min-w-0">
           <p
             className={cn(
-              "truncate text-[13px] font-medium leading-tight text-foreground",
+              "truncate text-sm font-semibold leading-[1.4] text-foreground",
               slot.status === "skipped" && "line-through opacity-60",
             )}
             title={slot.dish_name}
@@ -47,18 +45,25 @@ function FallbackSlotCell({ slot }: { slot: MealSlot }) {
             {slot.dish_name}
           </p>
           <div className="mt-1 flex items-center gap-1.5">
-            <span className={cn("text-[10px] font-medium uppercase tracking-wide", meal.text)}>
+            <span
+              className={cn(
+                "inline-flex items-center rounded-full border px-1.5 py-px text-[11px] font-semibold uppercase tracking-wide",
+                meal.soft,
+                meal.text,
+                meal.border,
+              )}
+            >
               {meal.label}
             </span>
             {typeof slot.rating === "number" && (
-              <span className="inline-flex items-center gap-0.5 text-[10px] text-muted-foreground">
-                <Star className="size-2.5 fill-amber-400 text-amber-400" />
-                <span className="font-mono">{slot.rating.toFixed(1)}</span>
+              <span className="inline-flex items-center gap-0.5 rounded bg-rating px-1.5 py-0.5 text-[11px] font-bold leading-[1.4] text-white">
+                <Star className="size-2.5 fill-current" strokeWidth={2.4} />
+                <span className="tabular-nums">{slot.rating.toFixed(1)}</span>
               </span>
             )}
           </div>
         </div>
-        <span className="shrink-0 font-mono text-xs font-semibold text-foreground">
+        <span className="shrink-0 text-sm font-bold tabular-nums text-foreground">
           {formatINR(slot.price)}
         </span>
       </div>
@@ -66,7 +71,7 @@ function FallbackSlotCell({ slot }: { slot: MealSlot }) {
       {slot.status !== "planned" && (
         <span
           className={cn(
-            "mt-1.5 ml-1.5 inline-flex items-center gap-1 px-1.5 py-0.5 text-[9px] font-medium uppercase tracking-wide",
+            "mt-1.5 ml-1.5 inline-flex items-center gap-1 px-1.5 py-0.5 text-[11px] font-medium uppercase tracking-wide",
             status.badge,
           )}
         >
@@ -82,11 +87,10 @@ function FallbackSlotCell({ slot }: { slot: MealSlot }) {
 function EmptyMealCell({ mealType }: { mealType: MealType }) {
   const meal = mealStyle(mealType);
   return (
-    <div className="flex items-center gap-2 rounded-lg border border-dashed border-border/60 px-2.5 py-2">
-      <span className={cn("text-[10px] font-medium uppercase tracking-wide opacity-40", meal.text)}>
+    <div className="flex items-center gap-2 rounded-lg border border-dashed border-border px-2.5 py-2">
+      <span className={cn("text-[11px] font-medium uppercase tracking-wide opacity-40", meal.text)}>
         {meal.label}
       </span>
-      <span className="ml-auto select-none text-muted-foreground/40">—</span>
     </div>
   );
 }
@@ -111,27 +115,22 @@ export function DayColumn({ group, onSlotClick, renderSlot }: DayColumnProps) {
       whileHover={{ y: -3 }}
       transition={{ type: "spring", stiffness: 320, damping: 26 }}
       className={cn(
-        "flex h-full flex-col overflow-hidden rounded-xl bg-card ring-1 ring-foreground/10 shadow-soft",
-        "transition-shadow hover:shadow-layered",
+        "flex h-full flex-col overflow-hidden rounded-lg border border-border bg-card shadow-soft",
       )}
     >
-      {/* Day header with a subtle brand gradient accent bar */}
-      <div className="relative bg-gradient-surface px-3 pb-2 pt-2.5">
-        <span
-          aria-hidden
-          className="absolute inset-x-0 top-0 h-0.5 bg-gradient-brand opacity-80"
-        />
+      {/* Quiet day header — flat white, thin bottom divider */}
+      <div className="border-b border-border px-3 pb-2 pt-2.5">
         <div className="flex items-baseline justify-between">
           <div className="flex items-baseline gap-1.5">
-            <span className="text-[10px] font-medium uppercase tracking-widest text-muted-foreground">
+            <span className="text-[11px] font-bold uppercase tracking-wide text-muted-foreground">
               Day
             </span>
-            <span className="font-display text-lg font-semibold leading-none text-foreground">
+            <span className="font-heading text-lg font-extrabold leading-none tracking-[-0.02em] text-foreground">
               {group.day}
             </span>
           </div>
           {hasSlots && (
-            <span className="font-mono text-[11px] font-semibold text-accent-brand">
+            <span className="text-sm font-bold tabular-nums text-foreground">
               {formatINR(total)}
             </span>
           )}
@@ -152,7 +151,7 @@ export function DayColumn({ group, onSlotClick, renderSlot }: DayColumnProps) {
                 key={mealType}
                 type="button"
                 onClick={() => onSlotClick(slot)}
-                className="block w-full rounded-lg text-left outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1 focus-visible:ring-offset-background"
+                className="block w-full rounded-md text-left outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1 focus-visible:ring-offset-background"
               >
                 {content}
               </button>

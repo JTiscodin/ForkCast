@@ -24,6 +24,13 @@ class Dish:
     course: str = "complete"  # bread|staple|curry|complete|side — see course.py.
                               # Decides whether this dish can stand as a meal on
                               # its own, needs a bread/rice, or is only a side.
+    dish_kind: str = "meal"   # meal|snack|sweet|beverage — see course.py.
+                              # The CATEGORY axis the optimizer's meal-slot
+                              # hard filter gates on: a gulab jamun is
+                              # course=side AND kind=sweet, and only kind=meal
+                              # dishes may headline a breakfast/lunch/dinner.
+                              # Defaulted so existing positional constructions
+                              # (tests, helpers) keep working unchanged.
 
 
 def variant_price(dish: Dish, multiplier: float) -> tuple:
@@ -51,10 +58,13 @@ def mock_catalog():
     """Mock pool. Courses are classified from the names by course.classify, the
     same path the live Swiggy fetch uses — so mock and live behave identically
     and the pairing logic is exercised by tests."""
-    from course import course_of
+    from course import course_of, dish_kind_of
     def d(*a, **kw):
         dish = Dish(*a, **kw)
-        return replace(dish, course=course_of(dish.name))
+        # course AND kind both come from the same name rules the live fetch
+        # uses — mock/live parity on both axes.
+        return replace(dish, course=course_of(dish.name),
+                       dish_kind=dish_kind_of(dish.name))
     img = "https://media-assets.swiggy.com/swiggy/image/upload/mock/{}.jpg".format
     return [
         # breakfast

@@ -27,6 +27,34 @@ SLOT_WEIGHT = {
     "dinner": 1.0,
 }
 
+# --- Component-count dimension ---------------------------------------------
+# Appetite used to express itself ONLY through price multipliers (LEVEL_MULT),
+# which scale portion SIZE. But a heavy eater doesn't just want bigger portions
+# — they want MORE COMPONENTS on the plate. So alongside (not replacing) the
+# price axis, appetite now also drives how many accompaniments a curry gets:
+#   light      -> 1 complete dish, OR a curry with NO sides
+#   moderate   -> curry + 1 accompaniment (today's behavior)
+#   heavy      -> curry + 2 accompaniments (staple + bread)
+#   very_heavy -> same as heavy (portion size keeps scaling via LEVEL_MULT)
+# Tuple is (pair_curry, extra_component): pair_curry=False means skip sides
+# entirely; extra_component=True means pick a SECOND accompaniment.
+COMPONENT_PLAN = {
+    "light": (False, False),
+    "moderate": (True, False),
+    "heavy": (True, True),
+    "very_heavy": (True, True),
+}
+
+
+def component_plan(profile, meal_type) -> tuple:
+    """(pair_curry, extra_component) for this appetite at this meal.
+
+    meal_type is accepted for symmetry with slot_multiplier and future
+    per-meal tuning (a heavy breakfast might stay moderate); today every meal
+    uses the same plan. Unknown levels fall back to moderate behavior.
+    """
+    return COMPONENT_PLAN.get(profile.appetite_level, (True, False))
+
 
 @dataclass
 class AppetiteProfile:

@@ -3,10 +3,10 @@
 import * as React from "react";
 import Image from "next/image";
 import { motion, AnimatePresence } from "framer-motion";
-import { Sparkles, Star, ArrowLeftRight, Utensils } from "lucide-react";
+import { Sparkles, ArrowLeftRight, UtensilsCrossed, Star } from "lucide-react";
 
 import { cn } from "@/lib/utils";
-import { surfaces, mealStyle, statusStyle, dietBorder } from "@/lib/design";
+import { mealStyle, statusStyle, focusRing } from "@/lib/design";
 import { api } from "@/lib/api";
 import { slotTotal, type MealSlot, type DishAlternative } from "@/lib/types";
 import {
@@ -17,31 +17,55 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
-import { inferVeg, dishInitials, formatINR, ratingColor } from "./dish-helpers";
-import { DishImage } from "./DishImage";
+import { SwapBeat } from "@/components/ui/SwapBeat";
+import { inferVeg, dishInitials, formatINR } from "./dish-helpers";
 
 export interface DishDetailModalProps {
   slot: MealSlot | null;
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onSwap?: (alt: DishAlternative) => void;
+  /** Swap request for this slot is in flight — shows the inline beat. */
+  swapping?: boolean;
+  /** Blueprint veg preference — filters swap alternatives to veg-only. */
+  vegOnly?: boolean;
 }
 
 /**
- * Veg / non-veg indicator — a small chip carrying the same colored LEFT BORDER
- * used on dish cards, plus a text label. Consistent with `dietBorder`.
+ * FSSAI veg/non-veg mark — the classic square-and-dot stamp Swiggy prints
+ * beside every dish name (green = veg, brown-red = non-veg). Token-colored.
+ * Kept inline here (mirrors DishCard) rather than in a shared file.
  */
+function DietMarker({ veg }: { veg: boolean }) {
+  const color = veg ? "var(--diet-veg)" : "var(--diet-nonveg)";
+  return (
+    <svg
+      width={14}
+      height={14}
+      viewBox="0 0 14 14"
+      aria-hidden
+      className="shrink-0"
+    >
+      <rect
+        x="1"
+        y="1"
+        width="12"
+        height="12"
+        rx="2"
+        fill="none"
+        stroke={color}
+        strokeWidth="1.5"
+      />
+      <circle cx="7" cy="7" r="3" fill={color} />
+    </svg>
+  );
+}
+
+/** Veg / non-veg indicator — FSSAI square mark plus a small text label. */
 function VegIndicator({ veg }: { veg: boolean }) {
   return (
-    <span
-      className={cn(
-        dietBorder(veg, "rounded-md bg-muted/50 pl-2 pr-2.5 py-0.5"),
-        "inline-flex items-center text-xs font-medium",
-        veg ? "text-diet-veg" : "text-diet-nonveg"
-      )}
-      title={veg ? "Veg" : "Non-veg"}
-    >
+    <span className="inline-flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
+      <DietMarker veg={veg} />
       {veg ? "Veg" : "Non-veg"}
     </span>
   );
@@ -78,21 +102,16 @@ function WhySection({ slotId }: { slotId: number }) {
   if (failed) return null;
 
   return (
-    <div
-      className={cn(
-        surfaces.glass,
-        "flex gap-3 p-4"
-      )}
-    >
+    <div className="flex gap-3 border-b border-border pb-5">
       <span
         className={cn(
-          "flex size-8 shrink-0 items-center justify-center rounded-full bg-gradient-brand text-primary-foreground shadow-glow"
+          "flex size-8 shrink-0 items-center justify-center rounded-lg bg-brand-500 text-primary-foreground"
         )}
       >
-        <Sparkles className="size-4" />
+        <Sparkles className="size-5" strokeWidth={2.4} />
       </span>
       <div className="min-w-0 flex-1">
-        <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-accent-brand">
+        <p className="mb-1 font-heading text-sm font-extrabold uppercase tracking-[-0.02em] text-accent-brand">
           Why this dish?
         </p>
         {loading ? (
@@ -115,55 +134,45 @@ function WhySection({ slotId }: { slotId: number }) {
   );
 }
 
-/** A mini alternative dish card inside the swap scroll row. */
-function AltCard({
+/** One swap alternative as a clean menu row — name, price, orange SWAP chip. */
+function AltRow({
   alt,
   onClick,
+  disabled,
 }: {
   alt: DishAlternative;
   onClick: () => void;
+  disabled?: boolean;
 }) {
   return (
     <motion.button
       type="button"
       onClick={onClick}
-      whileHover={{ y: -3 }}
-      whileTap={{ scale: 0.97 }}
+      disabled={disabled}
+      whileTap={{ scale: disabled ? undefined : 0.99 }}
       transition={{ type: "spring", stiffness: 400, damping: 26 }}
       className={cn(
-        "flex w-36 shrink-0 flex-col overflow-hidden rounded-xl border border-border bg-card text-left shadow-soft",
-        // Veg / non-veg signal: colored LEFT BORDER (matches DishCard). Hover
-        // tints only the non-left edges so the diet cue stays stable.
-        dietBorder(alt.veg),
-        "transition-[box-shadow,border-color] hover:border-t-brand-500/50 hover:border-r-brand-500/50 hover:border-b-brand-500/50 hover:shadow-layered"
+        "flex w-full items-center gap-3 bg-card px-4 py-3 text-left",
+        disabled && "cursor-not-allowed opacity-60",
+        focusRing
       )}
       title={alt.veg ? "Veg" : "Non-veg"}
     >
-      <div className="relative aspect-[4/3] w-full overflow-hidden">
-        <DishImage src={alt.image_url} alt={alt.name} sizes="144px" rounded="rounded-none" />
-      </div>
-      <div className="flex flex-1 flex-col gap-1 p-2">
-        <span className="truncate text-xs font-medium text-foreground">
+      <DietMarker veg={alt.veg} />
+      <span className="min-w-0 flex-1">
+        <span className="block truncate text-sm font-bold leading-[1.4] text-foreground">
           {alt.name}
         </span>
-        <span className="truncate text-[0.65rem] text-muted-foreground">
+        <span className="block truncate text-xs leading-[1.4] text-muted-foreground">
           {alt.restaurant_name}
         </span>
-        <div className="mt-auto flex items-center justify-between pt-1">
-          <span className="font-mono text-xs font-semibold text-foreground">
-            {formatINR(alt.price)}
-          </span>
-          <span
-            className={cn(
-              "inline-flex items-center gap-0.5 font-mono text-[0.7rem] font-semibold",
-              ratingColor(alt.rating)
-            )}
-          >
-            <Star className="size-2.5 fill-current" />
-            {alt.rating.toFixed(1)}
-          </span>
-        </div>
-      </div>
+      </span>
+      <span className="shrink-0 text-sm font-bold leading-[1.4] tabular-nums text-foreground">
+        {formatINR(alt.price)}
+      </span>
+      <span className="shrink-0 rounded border border-brand-500 bg-card px-3 py-1 text-xs font-bold uppercase tracking-wide text-brand-700 transition-colors hover:bg-brand-50">
+        Swap
+      </span>
     </motion.button>
   );
 }
@@ -171,22 +180,25 @@ function AltCard({
 /** "Swap this meal" section — lazy loads alternatives on first click. */
 function SwapSection({
   slotId,
+  vegOnly,
   onSwap,
+  swapping,
 }: {
   slotId: number;
+  vegOnly: boolean;
   onSwap?: (alt: DishAlternative) => void;
+  /** Swap request in flight — beat strip replaces the list interaction. */
+  swapping?: boolean;
 }) {
   const [alts, setAlts] = React.useState<DishAlternative[] | null>(null);
-  const [loading, setLoading] = React.useState(false);
+  const [loading, setLoading] = React.useState(true);
   const [failed, setFailed] = React.useState(false);
-  const [requested, setRequested] = React.useState(false);
 
   const load = React.useCallback(() => {
-    setRequested(true);
     setLoading(true);
     setFailed(false);
     api
-      .alternatives(slotId)
+      .alternatives(slotId, { veg_only: vegOnly })
       .then((res) => {
         setAlts(res.alternatives);
         setLoading(false);
@@ -195,34 +207,39 @@ function SwapSection({
         setFailed(true);
         setLoading(false);
       });
-  }, [slotId]);
+  }, [slotId, vegOnly]);
+
+  // Load alternatives as soon as the modal opens — they used to hide behind a
+  // "Show alternatives" click, so most users never saw the swap option at all.
+  React.useEffect(() => {
+    load();
+  }, [load]);
 
   return (
     <div>
       <div className="mb-2 flex items-center justify-between">
-        <h3 className="flex items-center gap-1.5 font-display text-sm font-semibold text-foreground">
-          <ArrowLeftRight className="size-4 text-accent-brand" />
+        <h3 className="flex items-center gap-1.5 font-heading text-sm font-extrabold tracking-[-0.02em] text-foreground">
+          <ArrowLeftRight className="size-4 text-accent-brand" strokeWidth={2.4} />
           Swap this meal
         </h3>
-        {!requested && (
+        {failed && (
           <Button size="sm" variant="outline" onClick={load}>
-            Show alternatives
+            Retry
           </Button>
         )}
       </div>
 
       {loading && (
-        <div className="flex gap-3 overflow-hidden">
+        <div className="flex flex-col divide-y divide-border rounded-lg border border-border bg-card">
           {[0, 1, 2].map((i) => (
-            <div
-              key={i}
-              className="w-36 shrink-0 overflow-hidden rounded-xl border border-border"
-            >
-              <Skeleton className="aspect-[4/3] w-full rounded-none" />
-              <div className="space-y-1.5 p-2">
+            <div key={i} className="flex items-center gap-3 px-4 py-3">
+              <Skeleton className="size-3.5 rounded-sm" />
+              <div className="min-w-0 flex-1 space-y-1.5">
                 <Skeleton className="h-3 w-3/4" />
                 <Skeleton className="h-2.5 w-1/2" />
               </div>
+              <Skeleton className="h-4 w-12" />
+              <Skeleton className="h-6 w-14 rounded" />
             </div>
           ))}
         </div>
@@ -241,30 +258,40 @@ function SwapSection({
       )}
 
       {!loading && !failed && alts && alts.length > 0 && (
-        <ScrollArea className="w-full whitespace-nowrap">
-          <motion.div
-            initial="hidden"
-            animate="show"
-            variants={{
-              hidden: {},
-              show: { transition: { staggerChildren: 0.05 } },
-            }}
-            className="flex gap-3 pb-3"
-          >
-            {alts.map((alt) => (
-              <motion.div
-                key={`${alt.dish_id}-${alt.restaurant_id}`}
-                variants={{
-                  hidden: { opacity: 0, y: 8 },
-                  show: { opacity: 1, y: 0 },
-                }}
-              >
-                <AltCard alt={alt} onClick={() => onSwap?.(alt)} />
-              </motion.div>
-            ))}
-          </motion.div>
-          <ScrollBar orientation="horizontal" />
-        </ScrollArea>
+        swapping ? (
+          <div className="flex items-center gap-3 rounded-lg border border-brand-200 bg-brand-50 px-4 py-2.5">
+            <SwapBeat active className="size-10 shrink-0" />
+            <p className="min-w-0 text-sm font-medium text-muted-foreground">
+              Swapping your meal…
+            </p>
+          </div>
+        ) : (
+        <motion.div
+          initial="hidden"
+          animate="show"
+          variants={{
+            hidden: {},
+            show: { transition: { staggerChildren: 0.05 } },
+          }}
+          className="flex flex-col divide-y divide-border rounded-lg border border-border bg-card"
+        >
+          {alts.map((alt) => (
+            <motion.div
+              key={`${alt.dish_id}-${alt.restaurant_id}`}
+              variants={{
+                hidden: { opacity: 0, y: 8 },
+                show: { opacity: 1, y: 0 },
+              }}
+            >
+              <AltRow
+                alt={alt}
+                onClick={() => onSwap?.(alt)}
+                disabled={swapping}
+              />
+            </motion.div>
+          ))}
+        </motion.div>
+        )
       )}
     </div>
   );
@@ -279,12 +306,14 @@ export function DishDetailModal({
   open,
   onOpenChange,
   onSwap,
+  swapping,
+  vegOnly,
 }: DishDetailModalProps) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent
         className={cn(
-          "max-h-[90vh] gap-0 overflow-y-auto p-0 sm:max-w-lg"
+          "max-h-[90vh] gap-0 overflow-y-auto rounded-lg border border-border bg-card p-0 shadow-layered sm:max-w-lg"
         )}
       >
         <AnimatePresence mode="wait">
@@ -292,7 +321,9 @@ export function DishDetailModal({
             <DishDetailBody
               key={slot.id}
               slot={slot}
+              vegOnly={vegOnly ?? false}
               onSwap={onSwap}
+              swapping={swapping}
             />
           )}
         </AnimatePresence>
@@ -304,10 +335,14 @@ export function DishDetailModal({
 /** Inner body split out so entrance animation keys on slot identity. */
 function DishDetailBody({
   slot,
+  vegOnly,
   onSwap,
+  swapping,
 }: {
   slot: MealSlot;
+  vegOnly: boolean;
   onSwap?: (alt: DishAlternative) => void;
+  swapping?: boolean;
 }) {
   const meal = mealStyle(slot.meal_type);
   const status = statusStyle(slot.status);
@@ -336,8 +371,8 @@ function DishDetailBody({
             priority
           />
         ) : (
-          <div className="flex size-full items-center justify-center bg-gradient-mesh">
-            <span className="flex size-16 items-center justify-center rounded-2xl bg-gradient-brand text-2xl font-bold text-primary-foreground shadow-glow">
+          <div className="flex size-full items-center justify-center bg-muted">
+            <span className="flex size-16 items-center justify-center rounded-md bg-brand-500 text-2xl font-bold text-primary-foreground">
               {dishInitials(slot.dish_name)}
             </span>
           </div>
@@ -346,7 +381,7 @@ function DishDetailBody({
         <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-background/85 via-background/10 to-transparent" />
 
         {/* Meal-type + status chips */}
-        <div className="absolute bottom-3 left-4 flex items-center gap-2">
+        <div className="absolute bottom-3 left-4 right-4 flex flex-wrap items-center gap-2">
           <span
             className={cn(
               "inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-semibold",
@@ -356,10 +391,10 @@ function DishDetailBody({
               meal.border
             )}
           >
-            <Utensils className="size-3" />
+            <UtensilsCrossed className="size-4" strokeWidth={2.4} />
             {meal.label}
           </span>
-          <span className={cn("px-2 py-0.5 text-xs font-medium", status.badge)}>
+          <span className={cn("rounded-full px-2 py-0.5 text-xs font-medium", status.badge)}>
             {status.label}
           </span>
         </div>
@@ -367,30 +402,27 @@ function DishDetailBody({
 
       {/* Body */}
       <div className="flex flex-col gap-5 p-5">
-        <div className="flex flex-col gap-2">
+        <div className="flex flex-col gap-2 border-b border-border pb-5">
           <div className="flex items-start justify-between gap-3">
             <div className="min-w-0">
-              <DialogTitle className="font-display text-xl leading-tight text-foreground">
-                {slot.dish_name}
+              <DialogTitle className="flex items-center gap-2 font-heading text-xl font-extrabold leading-tight tracking-[-0.02em] text-foreground">
+                <DietMarker veg={veg} />
+                <span className="line-clamp-2">{slot.dish_name}</span>
               </DialogTitle>
               {slot.restaurant_name && (
-                <DialogDescription className="mt-0.5 text-sm">
+                <DialogDescription className="mt-0.5 text-xs text-muted-foreground">
                   {slot.restaurant_name}
                 </DialogDescription>
               )}
             </div>
+            {/* Signature Swiggy rating pill — always solid green. */}
             {typeof slot.rating === "number" && (
-              <div className="flex shrink-0 flex-col items-end">
-                <span
-                  className={cn(
-                    "inline-flex items-center gap-1 font-mono text-lg font-bold",
-                    ratingColor(slot.rating)
-                  )}
-                >
-                  <Star className="size-4 fill-current" />
+              <div className="flex shrink-0 flex-col items-end gap-0.5">
+                <span className="inline-flex items-center gap-0.5 rounded bg-rating px-1.5 py-0.5 text-xs font-bold leading-none text-white">
+                  <Star className="size-2.5 fill-current" strokeWidth={2.4} aria-hidden />
                   {slot.rating.toFixed(1)}
                 </span>
-                <span className="text-[0.65rem] text-muted-foreground">
+                <span className="text-xs text-muted-foreground">
                   based on ratings
                 </span>
               </div>
@@ -399,7 +431,7 @@ function DishDetailBody({
 
           {/* Price + variant + veg indicator */}
           <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
-            <span className="font-mono text-lg font-bold text-foreground">
+            <span className="text-lg font-extrabold leading-[1.4] tabular-nums text-foreground">
               {formatINR(slot.price)}
             </span>
             {slot.variant && (
@@ -415,7 +447,7 @@ function DishDetailBody({
           {/* Accompaniment — the bread/rice that completes a curry. Shown here
               too so the modal's figure matches what the wallet is charged. */}
           {slot.side_dish_name && (
-            <div className="rounded-xl border border-dashed border-border/70 bg-muted/30 px-3 py-2">
+            <div className="rounded-md border border-dashed border-border bg-card px-3 py-2">
               <div className="flex items-center justify-between gap-2">
                 <span className="truncate text-sm text-foreground">
                   + {slot.side_dish_name}
@@ -425,16 +457,8 @@ function DishDetailBody({
                     </span>
                   )}
                 </span>
-                <span className="shrink-0 font-mono text-sm text-muted-foreground">
+                <span className="shrink-0 text-sm tabular-nums text-muted-foreground">
                   {formatINR(slot.side_price ?? 0)}
-                </span>
-              </div>
-              <div className="mt-1.5 flex items-center justify-between border-t border-border/60 pt-1.5">
-                <span className="text-[0.65rem] font-medium uppercase tracking-wide text-muted-foreground">
-                  Meal total
-                </span>
-                <span className="font-mono text-base font-bold text-accent-brand">
-                  {formatINR(slotTotal(slot))}
                 </span>
               </div>
             </div>
@@ -445,7 +469,23 @@ function DishDetailBody({
         <WhySection slotId={slot.id} />
 
         {/* Swap this meal */}
-        <SwapSection slotId={slot.id} onSwap={onSwap} />
+        <SwapSection
+          slotId={slot.id}
+          vegOnly={vegOnly}
+          onSwap={onSwap}
+          swapping={swapping}
+        />
+      </div>
+
+      {/* Sticky white footer — the figure the wallet actually gets charged,
+          pinned to the bottom of the scrollable dialog. */}
+      <div className="sticky bottom-0 z-10 mt-auto flex items-center justify-between gap-3 border-t border-border bg-card px-5 py-3">
+        <span className="text-sm font-medium uppercase tracking-wide text-muted-foreground">
+          Meal total
+        </span>
+        <span className="text-base font-extrabold tabular-nums text-foreground">
+          {formatINR(slotTotal(slot))}
+        </span>
       </div>
     </motion.div>
   );
