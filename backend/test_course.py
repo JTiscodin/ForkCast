@@ -310,7 +310,14 @@ def test_gulab_jamun_is_sweet_not_curry_trap():
 
 def test_sweets_never_meal_kind():
     # also cover the extended sweet family (barfi etc) that live catalog surfaced
-    sweets = SWEET_NAMES + ["Barfi", "Laddoo", "Peda", "Halwa", "Sandesh"]
+    # second sweep: bakery + regional dessert-counter names ("Mishti", "Pastry",
+    # "Shrikhand", "Chum Chum", ...) that each rode the COMPLETE default into
+    # meal slots on live menus before the kind table learned them.
+    sweets = SWEET_NAMES + ["Barfi", "Laddoo", "Peda", "Halwa", "Sandesh",
+                            "Mishti", "Pastry", "Pastries", "Custard",
+                            "Shrikhand", "Motichoor", "Ghevar", "Puran Poli",
+                            "Mysore Pak", "Boondi", "Falooda", "Kaju Katli",
+                            "Sohan Papdi", "Chum Chum"]
     for n in sweets:
         k = course.dish_kind_of(n)
         assert k != course.KIND_MEAL, f"{n} should not be meal, got {k}"
@@ -321,7 +328,15 @@ def test_sweets_never_meal_kind():
 
 def test_snacks_never_meal_kind():
     # Momos excluded — it is a complete meal, not a snack
-    snacks = SNACK_NAMES + ["Nachos", "Spring Roll", "French Fries"]
+    # second sweep: Gujarati/Maharashtrian farsan-counter staples ("Dhokla",
+    # "Khandvi", "Fafda"), namkeen ("Bhujia", "Sev", "Namkeen"), condiments
+    # ("Peanut Butter", "Hummus", "Ketchup") and "Macaroni"/"Toast" that each
+    # defaulted to COMPLETE meals on live menus.
+    snacks = SNACK_NAMES + ["Nachos", "Spring Roll", "French Fries",
+                            "Dhokla", "Khandvi", "Fafda", "Bonda", "Bhujia",
+                            "Namkeen", "Sev", "Peanut Butter", "Toast",
+                            "Macaroni", "Khakhra", "Chakli", "Mathri",
+                            "Farsan", "Hummus", "Ketchup"]
     for n in snacks:
         k = course.dish_kind_of(n)
         assert k != course.KIND_MEAL, f"{n} should not be meal, got {k}"
@@ -333,8 +348,13 @@ def test_snacks_never_meal_kind():
 
 
 def test_beverages_never_meal_kind():
+    # second sweep: milk-based, hot and iced drinks the live catalog surfaced
+    # ("Rose Milk", "Cold Coffee", "Green Tea", ...) that used to ride the
+    # COMPLETE default into meal slots.
     bevs = ["Pepsi", "Coke", "Mango Shake", "Lassi", "Chai", "Coffee",
-            "Mojito", "Jaljeera", "Nimbu Pani", "Thandai"]
+            "Mojito", "Jaljeera", "Nimbu Pani", "Thandai",
+            "Rose Milk", "Badam Milk", "Cold Coffee", "Iced Tea", "Green Tea",
+            "Mineral Water", "Sugarcane Juice"]
     for n in bevs:
         k = course.dish_kind_of(n)
         assert k != course.KIND_MEAL, f"{n} should not be meal, got {k}"
@@ -414,6 +434,29 @@ def test_momos_is_meal_not_snack():
     assert course.course_of("Momos") == course.COMPLETE
     assert course.dish_kind_of("Veg Momos Platter") == course.KIND_MEAL
     assert course.dish_kind_of("Momo Platter") == course.KIND_MEAL
+
+
+def test_meal_names_survive_sweet_and_drink_words():
+    """A MAIN dish whose name mentions a sweet or a drink stays a meal.
+
+    The sweet/snack/beverage word lists exist to keep desserts out of dinner
+    slots, so the failure mode they invite is over-firing: "Paneer Thali with
+    Gulab Jamun" is a thali first and a dessert add-on second. These names are
+    the guard — each one was verified to classify kind=meal before it joined
+    the list. ("Chicken Bucket + Pepsi 750ml" currently comes out
+    kind=beverage via the default tier and is deliberately NOT asserted
+    here; see the run notes for the known gap.)
+    """
+    # NB course is deliberately NOT asserted: "Chole Kulche" is a curry keyword
+    # match (course=curry, paired with its kulche) and still kind=meal — the
+    # kind gate is what keeps it plannable as dinner.
+    for n in ["Paneer Thali with Gulab Jamun",   # sweet add-on after the main
+              "Veg Meals with Sweet",             # sweet word, meal named first
+              "Burger Combo with Coke",           # drink-combo demotion must spare it
+              "Biryani + Raita Combo",            # side add-on named alongside
+              "Misal Pav", "Vada Pav", "Chole Kulche"]:  # bare street meals
+        ci = course.classify(n)
+        assert ci.dish_kind == course.KIND_MEAL, f"{n} kind -> {ci.dish_kind}"
 
 
 if __name__ == "__main__":

@@ -1,0 +1,128 @@
+"""Pairing system for adding desserts/drinks to meal slots.
+
+PASS 4 of the optimizer: After main meals are placed (PASS 1-3), add optional
+pairings like "dessert with dinner always" or "drinks with lunch" within the
+remaining budget.
+
+This is SEPARATE from the curry+bread composition system (course.py) which is
+structural - curries MUST have bread. Pairings are optional extras that enhance
+the meal when budget allows.
+"""
+from catalog import Dish, variant_price
+from appetite import slot_multiplier
+import course as course_rules
+
+
+def _add_pairings(slots, pairing_constraints, pool, budget, current_total, profile):
+    """Add desserts/drinks to slots based on pairing constraints.
+
+    Args:
+        slots: list of PlannedSlot - MUTATED in place with pairing additions
+        pairing_constraints: list of Constraint with dish_kind + slot_type + frequency
+        pool: full catalog (already veg-filtered)
+        budget: total monthly budget
+        current_total: cost so far (from PASS 1-3)
+        profile: AppetiteProfile for portion multipliers
+
+    Returns:
+        new total cost after adding pairings
+    """
+    remaining = budget - current_total
+    if remaining <= 0:
+        return current_total
+
+    # Build pairing pools by kind
+    sweets = [d for d in pool
+              if d.dish_kind == course_rules.KIND_SWEET
+              and d.rating >= 3.5]  # Higher bar for desserts
+    beverages = [d for d in pool
+                 if d.dish_kind == course_rules.KIND_BEVERAGE
+                 and d.rating >= 3.5]
+    snacks = [d for d in pool
+              if d.dish_kind == course_rules.KIND_SNACK
+              and d.rating >= 3.5]
+
+    pairing_pool = {
+        "sweet": sweets,
+        "beverage": beverages,
+        "snack": snacks,
+    }
+
+    # Group constraints by slot type
+    by_slot_type = {}
+    for c in pairing_constraints:
+        if c.slot_type not in by_slot_type:
+            by_slot_type[c.slot_type] = []
+        by_slot_type[c.slot_type].append(c)
+
+    # Track what we've added to avoid duplicates
+    added_cost = 0.0
+    used_dishes = {}  # dish_id -> count this month
+
+    # Process each slot that matches a constraint
+    for slot in slots:
+        if slot.meal_type not in by_slot_type:
+            continue
+
+        constraints_for_this_slot = by_slot_type[slot.meal_type]
+
+        for c in constraints_for_this_slot:
+            # Only "always" frequency for now - could extend to "optional"
+            if c.frequency != "always":
+                continue
+
+            pool_for_kind = pairing_pool.get(c.dish_kind, [])
+            if not pool_for_kind:
+                continue  # No dishes of this kind available
+
+            # Pick the best-rated dish we haven't overused
+            # Sort by: least-used first, then highest-rated, then cheapest
+            candidates = sorted(
+                pool_for_kind,
+                key=lambda d: (
+                    used_dishes.get(d.dish_id, 0),  # variety: least-used first
+                    -d.rating,  # quality: highest-rated
+                    d.price,  # value: cheapest
+                )
+            )
+
+            # Try each candidate until we find one that fits budget
+            for dish in candidates:
+                # Calculate portion-adjusted price for this pairing
+                mult = slot_multiplier(profile, slot.meal_type)
+                variant, price = variant_price(dish, mult * 0.5)  # Half portion for pairings
+
+                if added_cost + price > remaining:
+                    continue  # Too expensive, try next
+
+                # Add this pairing to the slot
+                # Use side2 fields since side/side2 are for bread/rice
+                # NOTE: This is a temporary hack - proper solution is to add
+                # dedicated pairing fields to PlannedSlot
+                if not slot.side_dish_id:
+                    # Use side fields if empty (curry has no bread yet)
+                    slot.side_dish_id = dish.dish_id
+                    slot.side_dish_name = dish.name
+                    slot.side_qty = 1
+                    slot.side_price = price
+                    slot.side_restaurant_name = dish.restaurant_name
+                    slot.side_image_url = dish.image_url or ""
+                elif not slot.side2_dish_id:
+                    # Use side2 fields
+                    slot.side2_dish_id = dish.dish_id
+                    slot.side2_dish_name = dish.name
+                    slot.side2_qty = 1
+                    slot.side2_price = price
+                    slot.side2_restaurant_name = dish.restaurant_name
+                    slot.side2_image_url = dish.image_url or ""
+                else:
+                    # Both side slots full (curry has bread + already has a pairing)
+                    # Skip this pairing
+                    break
+
+                added_cost += price
+                used_dishes[dish.dish_id] = used_dishes.get(dish.dish_id, 0) + 1
+                remaining = budget - current_total - added_cost
+                break  # Found a pairing for this constraint
+
+    return current_total + added_cost

@@ -91,6 +91,28 @@ _FORM_OVERRIDES = (
         "pani puri", "puchka", "dahi puri", "sev puri", "bhel", "cutlet",
         "croquette", "nugget", "fries", "wedges", "spring roll", "wonton",
         "garlic bread", "cheese balls", "popcorn",
+        # PLURALS of the forms above: _contains_word is exact-token matching,
+        # so the singular-only entries missed "Samosas"/"Pakoras"/"Kachoris"/
+        # "Spring Rolls" on real Swiggy menus and they rode the COMPLETE
+        # default into meal slots.
+        "samosas", "pakoras", "pakodas", "kachoris", "spring rolls",
+        # Multi-word snacks whose GENERIC second word would otherwise claim the
+        # dish as a meal form/keyword: "Bread Roll" (stuffed-fried potato roll —
+        # "Kathi Roll"/"Egg Roll" carry no "bread" and stay meals) beats the
+        # "roll" COMPLETE keyword; "Poha Chivda" (poha-flake namkeen) beats the
+        # "poha" COMPLETE form; "Sandwich Dhokla" (layered dhokla) beats the
+        # "sandwich" form via longest-match.
+        "bread roll", "poha chivda", "sandwich dhokla",
+        # Mumbai chaat cutlet family: "Ragda Pattice" ("cutlet" is already a
+        # form). Singular "cheese ball" — the plural form above only matched
+        # "Cheese Balls". Bangalore chaat "Masala Puri", joining the sev/dahi/
+        # pani puri family — the "puri" BREAD keyword would otherwise make it
+        # a 2-pc accompaniment.
+        "pattice", "cheese ball", "masala puri",
+        # Marathi "Kanda Bhaji" (onion fritters) missed the bhajiya/bhajji
+        # spellings. "pav bhaji" is the longer form so it still wins
+        # longest-match and Pav Bhaji stays a COMPLETE meal.
+        "bhaji",
         # CONDIMENTS & ACCOMPANIMENTS live here, not in the keyword table below.
         # Tier order made anything named "Masala X" a curry before the SIDE
         # keywords were ever consulted: "Masala Papad" was classified a curry
@@ -155,6 +177,17 @@ _FORM_OVERRIDES = (
         # The multi-word SIDE forms above ("dessert platter", "snack platter",
         # ...) still beat everything for the non-meal assortments.
         "pav bhaji", "vada pav", "misal", "bhurji", "omelette", "paratha roll",
+        # "Puri Bhaji" is a standalone potato-curry-with-puri breakfast; the
+        # shorter SIDE form "bhaji" (fritters, "Kanda Bhaji") must not claim it
+        # — longest-match makes this the winner, same guard pattern as "pav
+        # bhaji". Meal-with-dessert combos ("Paneer Thali with Gulab Jamun")
+        # must stay meals: the MAIN is the dish, the sweet is an add-on, so at
+        # 16 chars this outranks the 11-char "gulab jamun" SIDE form; the
+        # shorter "thali with" covers other dessert add-ons ("Thali with
+        # Kheer") the same way.
+        "puri bhaji", "thali with", "with gulab jamun",
+        # "Misal Pav" companion spellings from live menus.
+        "missal",
         # Dry Indo-Chinese starters. "Chilli Paneer" is stir-fried and eaten on
         # its own, not a gravy — without this the "paneer" keyword would give it
         # two rotis.
@@ -290,12 +323,20 @@ _STRONG_MEAL_FORMS = (
 # Used to split course=side items into beverage / sweet / snack, and to catch
 # the few desserts that a meal-ish FORM word mislabels as a meal ("Ice Cream
 # Sundae" carries no sweet form word, so it rides the COMPLETE default into a
-# dinner slot). Checked beverage-first: a sweet word inside a drink name
-# ("Mango Shake") must still classify as a beverage.
+# dinner slot). _kind_for checks SWEET first (see its docstring); "Mango
+# Shake" still lands beverage because "shake"/"milkshake" are SIDE forms, so
+# _kind_for never sees it — a drink word with no sweet word in the name is a
+# drink.
 _KIND_DRINK_WORDS = _DRINK_WORDS + (
     "lassi", "chai", "tea", "coffee", "juice", "shake", "milkshake", "soda",
-    "nimbu pani", "falooda", "thandai", "buttermilk", "chaach", "chaas",
+    "nimbu pani", "thandai", "buttermilk", "chaach", "chaas",
     "water", "beverage", "smoothie", "mojito", "jaljeera", "shikanji",
+    # Milk-based drinks that carry no "shake" word — "Rose Milk", "Badam
+    # Milk", "Hot Chocolate" are drinks, not meals. Bare "milk" stays here
+    # ("Milk 500ml" is a beverage); the SWEET table wins "Milk Cake" because
+    # _kind_for below checks sweet BEFORE drink.
+    "rose milk", "badam milk", "flavoured milk", "flavored milk",
+    "hot chocolate", "cold coffee", "milk",
 )
 _KIND_SWEET_WORDS = (
     "gulab jamun", "rasgulla", "rasmalai", "ras malai", "jalebi", "kheer",
@@ -304,13 +345,66 @@ _KIND_SWEET_WORDS = (
     "mithai", "modak", "sheera", "basundi", "double ka meetha", "sundae",
     "cheesecake", "cupcake", "pudding", "malpua", "rabri", "rabdi",
     "shahi tukda", "seviyan", "katli",
+    # Missed by the first pass — all real Swiggy dessert-section names that
+    # rode the COMPLETE default past the price gate into meal slots.
+    "mishti", "pastry", "pastries", "custard", "shrikhand", "motichoor",
+    "ghevar", "puran poli", "mysore pak", "boondi", "falooda", "zarda",
+    "kulfi falooda", "sharabi", "chena", "chhena", "khoya", "mawa",
+    "kaju katli", "kaju pista", "sohan papdi", "soan papdi", "chum chum",
+    "cham cham", "rasbhari", "firni", "bebinca", "dodol", "pipa",
+    "chikki", "gajak", "revdi", "prasad", "prashad", "panjiri",
+    "sweet box", "sweet basket", "mithai box", "dry fruit sweet",
+    # Regional/transliteration variants of listed words plus distinct regional
+    # sweets — all confirmed riding the COMPLETE default into meal slots on the
+    # live sweep. Bengali: sondesh/rosogolla/rasogolla/pantua/ledikeni/chom
+    # chum/kala jamun (dark gulab-jamun family — bare "jamun" stays out so it
+    # can't fire inside "gulab jamun" unlisted contexts)/khaja (flaky dry
+    # sweet)/shahi tukra (tukda spelling). Eid/Hyderabad: sheer khurma,
+    # qubani/khubani ka meetha, sewaiyan. Kannada: obbattu/holige (puran poli
+    # synonyms), pedha spelling. Tamil/Kerala: adirasam, ada pradhaman
+    # (payasam family), pinni (Punjabi ghee-flour sweet).
+    "sondesh", "rosogolla", "rasogolla", "pantua", "ledikeni",
+    "chom chum", "chomchum", "kala jamun", "khaja", "shahi tukra",
+    "sheer khurma", "qubani ka meetha", "khubani ka meetha", "sewaiyan",
+    "obbattu", "holige", "pedha", "adirasam", "ada pradhaman",
+    "pinni",
+    # Bakery desserts the first pass missed: tart, eclair, muffin, doughnut/
+    # donut, tiramisu, red velvet (dessert-section staple that carries neither
+    # "cake" nor "pastry" in the name).
+    "tart", "tarts", "eclair", "muffin", "muffins",
+    "doughnut", "doughnuts", "donut", "donuts", "tiramisu", "red velvet",
+    # "Milk Cake" is a solid kalakand-type sweet, not a drink: bare "milk" in
+    # the drink table must not win it. "milk cake" outranks "milk" because
+    # _kind_for checks drinks first — so guard the drink side instead (see the
+    # milk-word note in _KIND_DRINK_WORDS).
+    "milk cake",
 )
-# The fallback bucket — listed for documentation and for the LLM prompt, not
-# matched: anything SIDE that is neither a drink nor a sweet is a snack.
+# The fallback bucket — matched by the default tier in classify() (an
+# unrecognised name like "Dhokla" or "Masala Bonda" gets KIND_SNACK here, so
+# it cannot ride the COMPLETE default into a meal slot) and by _kind_for()
+# (anything SIDE that is neither a drink nor a sweet is a snack). Also feeds
+# the LLM prompt as documentation.
 _KIND_SNACK_WORDS = (
     "samosa", "pakora", "pakoda", "chaat", "vada", "bhel", "pani puri",
     "golgappa", "kachori", "tikki", "cutlet", "nachos", "chips", "nuggets",
     "fries", "spring roll", "papad", "raita", "chutney", "salad", "soup",
+    # Gujarati/Maharashtrian snack-counter staples that used to default to
+    # COMPLETE/meal and headline lunch slots.
+    "dhokla", "khandvi", "fafda", "bonda", "bhujia", "namkeen", "sev",
+    "farsan", "khakhra", "mathri", "chakli", "murukku", "ribbon pakoda",
+    "toast", "toastie", "garlic bread", "bread sticks", "breadstick",
+    "keema pav", "masala pav", "cheese balls", "corn dogs", "corndog",
+    "popcorn", "peanut butter", "hummus", "dip", "salsa", "mayo",
+    "mayonnaise", "ketchup", "sauce", "macaroni",
+    # Farsan/namkeen-counter words the sweep confirmed riding the COMPLETE
+    # default into meal slots: "khaman" (every Swiggy farsan counter names it
+    # bare — "Nylon Khaman", "Sada Khaman"), "mixture" (the classic namkeen
+    # blend — "Navratna Mixture"), "chivda" (poha-flake namkeen; the form
+    # "poha chivda" already catches the compound), "gathiya" (Bhavnagar sev
+    # snack). Plurals of snack words for the same exact-token reason as the
+    # form table: "corn dogs" was listed but singular "corn dog" was not.
+    "khaman", "mixture", "chivda", "gathiya", "corn dog",
+    "samosas", "pakoras", "kachoris",
 )
 
 # Accompaniment quantity per curry, by course.
@@ -367,15 +461,19 @@ def _kind_for(course: str, name: str) -> str:
 
     BREAD/STAPLE/CURRY/COMPLETE are meal categories by definition — a roti is
     part of a meal whatever else the name says. SIDE is the mixed bag (sweets,
-    snacks, drinks, condiments), so it gets split by the word tables, beverage
-    first: "Mango Shake" names a sweet word but IS a drink.
+    snacks, drinks, condiments), so it gets split by the word tables, SWEET
+    before drink (same precedence as the default tier in classify()): bare
+    "milk" in the drink table must not claim the solid sweet "Milk Cake",
+    while "Mango Shake" still lands beverage because "shake" is a SIDE form
+    and its own phrase outranks "milk" here — a drink word with no sweet word
+    in the name is still a drink.
     """
     if course != SIDE:
         return KIND_MEAL
-    if any(_contains_word(name, w) for w in _KIND_DRINK_WORDS):
-        return KIND_BEVERAGE
     if any(_contains_word(name, w) for w in _KIND_SWEET_WORDS):
         return KIND_SWEET
+    if any(_contains_word(name, w) for w in _KIND_DRINK_WORDS):
+        return KIND_BEVERAGE
     return KIND_SNACK
 
 
@@ -451,15 +549,19 @@ def classify(name: str) -> CourseInfo:
         return CourseInfo(fuzzy, "fuzzy", _kind_for(fuzzy, n))
 
     # 3. The default guess. The course stays COMPLETE (it may fill a meal
-    # slot), but the KIND gets one last look at the name: a dessert whose
-    # name carries no form word we know ("Ice Cream Sundae") must not ride
-    # the default into a dinner slot — the kind gate is what catches it.
+    # slot), but the KIND gets one last look at the name: a dessert or snack
+    # whose name carries no form word we know ("Ice Cream Sundae", "Dhokla",
+    # "Masala Bonda") must not ride the default into a dinner slot — the kind
+    # gate is what catches it. Order: sweet before drink before snack, same
+    # precedence as _kind_for.
     kind = _kind_for(COMPLETE, n)
     if kind == KIND_MEAL:
         if any(_contains_word(n, w) for w in _KIND_SWEET_WORDS):
             kind = KIND_SWEET
         elif any(_contains_word(n, w) for w in _KIND_DRINK_WORDS):
             kind = KIND_BEVERAGE
+        elif any(_contains_word(n, w) for w in _KIND_SNACK_WORDS):
+            kind = KIND_SNACK
     return CourseInfo(COMPLETE, "default", kind)
 
 

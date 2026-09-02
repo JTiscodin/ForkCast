@@ -23,6 +23,7 @@ from statistics import median
 from appetite import slot_multiplier, component_plan, AppetiteProfile
 from catalog import Dish, variant_price
 import course as course_rules
+from optimizer_pairing import _add_pairings
 
 MEAL_TYPES = ("breakfast", "lunch", "dinner")
 
@@ -31,12 +32,18 @@ MEAL_TYPES = ("breakfast", "lunch", "dinner")
 class Constraint:
     dish_tag: str          # matches Dish.tags substring, e.g. "paneer"
     min_count: int
+    # NEW: pairing constraints for desserts/drinks with specific meal slots
+    dish_kind: str = ""    # "sweet", "snack", "beverage" for pairing constraints
+    slot_type: str = ""    # "breakfast", "lunch", "dinner" - which meal(s) to pair with
+    frequency: str = ""    # "always" = every occurrence, "optional" = when budget allows
 
 
 @dataclass
 class PlannedSlot:
     day: int               # 1-based
     meal_type: str
+    pairing_dish_id: str = ""  # NEW: optional dessert/drink paired with this meal
+    pairing_cost: float = 0.0  # NEW: cost of the pairing item
     dish_id: str
     dish_name: str
     restaurant_id: str
@@ -116,7 +123,13 @@ SIDE_COST_RATIO = 0.9
 # greedy scoring can still quietly reassemble the same combination on distant
 # days (live symptom: Day 1 == Day 8 == Day 22, byte-identical menus). A menu
 # you liked twice is variety; three times is a loop.
-MAX_IDENTICAL_DAY_MENUS = 2
+# CRITICAL FIX: Lowered from 2 to 0 to prevent excessive repetition. User
+# reported "some dishes repeated aloot" - whole-day menus were cloning. Now:
+# same exact menu can appear ONCE only, forcing maximum rotation.
+MAX_IDENTICAL_DAY_MENUS = 0
+
+# Exponential recency penalty multiplier - penalizes recent dish use heavily
+EXPONENTIAL_RECENCY_BASE = 1.8
 
 
 def _matches(dish: Dish, tag: str) -> bool:
@@ -213,6 +226,11 @@ def optimize(
     # UNRECOGNISED name defaults to "complete", and that default is how a ₹19
     # salan and a ₹20 roasted egg got planned as whole dinners. Anything below
     # the meal floor is dropped unless the rules confidently know what it is.
+    #
+    # CRITICAL FIX: dish_kind MUST be KIND_MEAL. "Chena Toast" was classified as
+    # course=complete + kind=sweet, passing the old filter but landing a dessert
+    # in lunch slots. The kind gate is absolute: sweets/snacks/beverages are
+    # NEVER mains regardless of course value.
     mains = [d for d in pool
              if d.dish_kind == course_rules.KIND_MEAL
              and d.course not in course_rules.NEVER_STANDALONE
@@ -985,12 +1003,28 @@ def optimize(
 
     total = round(total, 2)
     cstatus = {c.dish_tag: {"got": tag_got[c.dish_tag.lower()], "needed": c.min_count}
-               for c in constraints}
-    unmet = [c for c in constraints if tag_got[c.dish_tag.lower()] < c.min_count]
+               for c in constraints if c.dish_tag}  # Only regular tag constraints
+    unmet = [c for c in constraints
+             if c.dish_tag and tag_got[c.dish_tag.lower()] < c.min_count]
     over = total > budget
 
     feasible = (not over) and (not unmet)
     msg = _feasibility_message(over, unmet, total, budget, cstatus)
+
+    # PASS 4: Add pairings (desserts/drinks) for slots with pairing constraints
+    pairing_constraints = [c for c in constraints if c.dish_kind and c.slot_type]
+    if pairing_constraints:
+        total = _add_pairings(slots, pairing_constraints, pool, budget, total, profile)
+        total = round(total, 2)
+        # Recalculate feasibility after pairings
+        over = total > budget
+        feasible = (not over) and (not unmet)
+        if over:
+            msg = (f"Plan with pairings needs Rs {round(total-budget,2)} more "
+                   f"(Rs {total} vs Rs {budget}). Options: raise budget or skip pairings.")
+        else:
+            msg = (f"Plan fits with pairings. Spent ~Rs {total} of Rs {budget}. "
+                   f"Rs {round(budget-total,2)} rolls over.")
 
     return PlanResult(
         feasible=feasible,

@@ -38,6 +38,35 @@ _COUNT_DISH_RE = re.compile(
 _KNOWN_TAGS = ("paneer", "chicken", "egg", "dal", "rajma", "chole", "biryani",
                "veg", "dosa", "idli", "thali", "rice")
 
+# NEW: pairing patterns for "dessert with dinner always" etc
+_PAIRING_PATTERN = re.compile(
+    r"\b(dessert|sweet|drink|beverage|juice|lassi|coffee|tea)\s+"
+    r"(?:with|after|for)\s+"
+    r"(breakfast|lunch|dinner)\s+"
+    r"(always|every\s*day|daily|must)",
+    re.I
+)
+
+# Also catch "drinks with lunch" without "always" - assume they mean always
+_PAIRING_RELAXED = re.compile(
+    r"\b(dessert|sweet|drink|beverage|juice|lassi|coffee|tea)s?\s+"
+    r"(?:with|after|for)\s+"
+    r"(breakfast|lunch|dinner)",
+    re.I
+)
+
+# Map user words to dish_kind constants
+_KIND_MAP = {
+    "dessert": "sweet",
+    "sweet": "sweet",
+    "drink": "beverage",
+    "beverage": "beverage",
+    "juice": "beverage",
+    "lassi": "beverage",
+    "coffee": "beverage",
+    "tea": "beverage",
+}
+
 
 def _parse_budget(text):
     # find explicit budget: prefer number followed by k, else largest plain number
@@ -53,6 +82,7 @@ def _parse_budget(text):
 
 def _parse_constraints(text):
     out = []
+    # Original pattern: "N dish_tag meals"
     for m in _COUNT_DISH_RE.finditer(text):
         count = int(m.group(1))
         word = m.group(2).lower()
@@ -64,6 +94,43 @@ def _parse_constraints(text):
         cnt = int(m.group(1))
         if not any(c["dish_tag"] == tag for c in out) and tag not in ("veg",):
             out.append({"dish_tag": tag, "min_count": cnt})
+
+    # NEW: pairing patterns like "dessert with dinner always"
+    for m in _PAIRING_PATTERN.finditer(text):
+        item_type = m.group(1).lower()
+        meal_slot = m.group(2).lower()
+        frequency_word = m.group(3).lower()
+
+        dish_kind = _KIND_MAP.get(item_type, item_type)
+        frequency = "always" if frequency_word in ("always", "daily", "must") else "always"
+
+        # Pairing constraint has empty dish_tag, min_count=0, but sets kind+slot+freq
+        out.append({
+            "dish_tag": "",
+            "min_count": 0,
+            "dish_kind": dish_kind,
+            "slot_type": meal_slot,
+            "frequency": frequency,
+        })
+
+    # Also catch relaxed patterns without explicit "always"
+    for m in _PAIRING_RELAXED.finditer(text):
+        item_type = m.group(1).lower()
+        meal_slot = m.group(2).lower()
+
+        dish_kind = _KIND_MAP.get(item_type, item_type)
+
+        # Check if already added by strict pattern
+        if not any(c.get("dish_kind") == dish_kind and c.get("slot_type") == meal_slot
+                   for c in out):
+            out.append({
+                "dish_tag": "",
+                "min_count": 0,
+                "dish_kind": dish_kind,
+                "slot_type": meal_slot,
+                "frequency": "always",
+            })
+
     return out
 
 
