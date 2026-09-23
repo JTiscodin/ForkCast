@@ -13,7 +13,8 @@ from appetite import slot_multiplier
 import course as course_rules
 
 
-def _add_pairings(slots, pairing_constraints, pool, budget, current_total, profile):
+def _add_pairings(slots, pairing_constraints, pool, budget, current_total, profile,
+                  extra_pairing_dishes=None):
     """Add desserts/drinks to slots based on pairing constraints.
 
     Args:
@@ -23,6 +24,9 @@ def _add_pairings(slots, pairing_constraints, pool, budget, current_total, profi
         budget: total monthly budget
         current_total: cost so far (from PASS 1-3)
         profile: AppetiteProfile for portion multipliers
+        extra_pairing_dishes: optional extra Dish candidates (Instamart
+            groceries). Merged into the kind pools ONLY — they never join
+            `pool`, so the main placement/bread/repair passes can't see them.
 
     Returns:
         new total cost after adding pairings
@@ -31,14 +35,18 @@ def _add_pairings(slots, pairing_constraints, pool, budget, current_total, profi
     if remaining <= 0:
         return current_total
 
-    # Build pairing pools by kind
-    sweets = [d for d in pool
+    # Build pairing pools by kind. Groceries join here on equal footing:
+    # same rating bar, same variety rotation — a Rs17 Instamart milk vs a
+    # Rs80 restaurant lassi competes on (least-used, rating, price), and the
+    # better one wins per slot rather than by source.
+    candidates_all = list(pool) + list(extra_pairing_dishes or [])
+    sweets = [d for d in candidates_all
               if d.dish_kind == course_rules.KIND_SWEET
               and d.rating >= 3.5]  # Higher bar for desserts
-    beverages = [d for d in pool
-                 if d.dish_kind == course_rules.KIND_BEVERAGE
-                 and d.rating >= 3.5]
-    snacks = [d for d in pool
+    beverages = [d for d in candidates_all
+                if d.dish_kind == course_rules.KIND_BEVERAGE
+                and d.rating >= 3.5]
+    snacks = [d for d in candidates_all
               if d.dish_kind == course_rules.KIND_SNACK
               and d.rating >= 3.5]
 
@@ -107,6 +115,7 @@ def _add_pairings(slots, pairing_constraints, pool, budget, current_total, profi
                     slot.side_price = price
                     slot.side_restaurant_name = dish.restaurant_name
                     slot.side_image_url = dish.image_url or ""
+                    slot.side_source = getattr(dish, "source", "")
                 elif not slot.side2_dish_id:
                     # Use side2 fields
                     slot.side2_dish_id = dish.dish_id
@@ -115,6 +124,7 @@ def _add_pairings(slots, pairing_constraints, pool, budget, current_total, profi
                     slot.side2_price = price
                     slot.side2_restaurant_name = dish.restaurant_name
                     slot.side2_image_url = dish.image_url or ""
+                    slot.side2_source = getattr(dish, "source", "")
                 else:
                     # Both side slots full (curry has bread + already has a pairing)
                     # Skip this pairing

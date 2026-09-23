@@ -30,7 +30,25 @@ COD_ONLY = True               # only COD supported currently
 
 
 class SwiggyMCPError(Exception):
-    pass
+    """MCP transport/tool failure. `expired=True` marks a dead access token
+    (HTTP 401 / invalid_token / expired JWT) — the caller should prompt for a
+    re-login rather than retry, since no refresh token is persisted."""
+    def __init__(self, message, expired=False):
+        super().__init__(message)
+        self.expired = expired
+
+
+def token_expired(token):
+    """True when the JWT's `exp` claim is in the past (bad padding tolerated)."""
+    try:
+        payload = token.split(".")[1]
+        payload += "=" * (-len(payload) % 4)
+        import base64 as _b64, json as _json
+        claims = _json.loads(_b64.urlsafe_b64decode(payload))
+        import time as _time
+        return float(claims.get("exp", 0)) < _time.time()
+    except Exception:  # noqa: BLE001 — unreadable token = don't guess
+        return False
 
 
 class SwiggyMCPClient:
@@ -47,6 +65,12 @@ class SwiggyMCPClient:
         if not self.token:
             raise SwiggyMCPError(
                 "No OAuth token. Link Swiggy account and set SWIGGY_MCP_TOKEN.")
+        # A structurally-present but already-expired JWT still "builds" fine and
+        # then 401s on the first real call, deep inside plan builds where the
+        # user just sees a generic 502. Checking the exp claim HERE means the
+        # app can refuse to boot live and ask for a login immediately.
+        if token_expired(self.token):
+            raise SwiggyMCPError("JWT has expired", expired=True)
         self._id = 0
         self.timeout = timeout
 
@@ -74,7 +98,13 @@ class SwiggyMCPClient:
                 return _parse_mcp_response(raw)
             except urllib.error.HTTPError as e:
                 body = e.read().decode(errors="replace")
-                raise SwiggyMCPError(f"HTTP {e.code}: {body}") from e
+                # 401 with an invalid/expired token is NOT transient — mark it so
+                # the app can prompt for a fresh login instead of hammering Swiggy
+                # with a dead JWT. (No refresh token is persisted; a full browser
+                # re-login is the only recovery path.)
+                expired = (e.code == 401 or "invalid_token" in body
+                           or "expired" in body.lower())
+                raise SwiggyMCPError(f"HTTP {e.code}: {body}", expired=expired) from e
             except (TimeoutError, OSError) as e:
                 last_err = e
                 continue

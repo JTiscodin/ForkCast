@@ -42,6 +42,7 @@ STATE = {
     "client": None,
     "fetcher": None,
     "needs_auth": False,   # True when mcp desired but no valid token
+    "token_expired": False,  # True when the saved JWT is past its exp claim
     # The addressId every live search/order runs against. Defaults to the
     # SWIGGY_ADDRESS_ID env var; the frontend overrides it with the user's
     # onboarding pick via POST /address (see _set_address).
@@ -56,6 +57,11 @@ def _build_client():
         return SwiggyMCPClient()
     except SwiggyMCPError as e:
         print(f"[auth] no live Swiggy client: {e}")
+        # Distinguish a dead JWT from a missing token: an expired JWT must
+        # prompt a re-login (the .env token is stale), a missing one just
+        # means nobody has connected yet.
+        if getattr(e, "expired", False):
+            STATE["token_expired"] = True
         return None
 
 
@@ -69,6 +75,7 @@ def _init_runtime():
     """
     _CATALOG_CACHE.clear()
     STATE["address_id"] = ADDRESS_ID
+    STATE["token_expired"] = False
     if STATE["mode"] == "mcp":
         client = _build_client()
         if client is None:
@@ -302,6 +309,7 @@ def get_mode():
         "mode": "mcp" if _live() else "mock",
         "live": _live(),
         "needs_auth": STATE["needs_auth"],  # mcp desired but no valid token yet
+        "token_expired": STATE["token_expired"],  # saved JWT past exp — re-login
     }
 
 
@@ -362,6 +370,20 @@ def auth_logout():
     return {"live": False}
 
 
+def _mark_expired_token(e):
+    """A live call died on a dead JWT: flip the auth flags so the frontend's
+    next /mode poll prompts a re-login (and auto-opens the OAuth browser tab)
+    instead of showing a generic 502. Returns True when the error WAS expiry,
+    so callers can tailor the message they raise."""
+    if getattr(e, "expired", False):
+        STATE["needs_auth"] = True
+        STATE["token_expired"] = True
+        STATE["client"] = None          # dead client — /mode reports mock+expired
+        STATE["fetcher"] = CatalogFetcher(mode="mock", address_id=STATE["address_id"])
+        return True
+    return False
+
+
 @app.get("/mcp/addresses")
 def mcp_addresses():
     """Live only: list saved Swiggy addresses to pick an addressId for ordering.
@@ -378,7 +400,12 @@ def mcp_addresses():
     try:
         raw = STATE["client"].call("get_addresses", {})
     except Exception as e:  # noqa: BLE001 - surface as a clean 502 for the UI
-        raise HTTPException(502, f"Swiggy address lookup failed: {e}")
+        if _mark_expired_token(e):
+            raise HTTPException(401, "Swiggy login expired — please reconnect.")
+        # Never echo the raw exception to the client — SwiggyMCPError embeds
+        # the upstream response body, which isn't ours to forward.
+        print(f"[addresses] lookup failed: {e}")
+        raise HTTPException(502, "Swiggy address lookup failed")
     if isinstance(raw, dict) and raw.get("isError"):
         raise HTTPException(502, "Swiggy rejected the address lookup")
     entries = raw.get("addresses") or raw.get("data") or [] if isinstance(raw, dict) else []
@@ -433,6 +460,55 @@ def mcp_tools():
     return STATE["client"].list_tools()
 
 
+@app.get("/im/search")
+def im_search(query: str, offset: int = 0, limit: int = 40):
+    """Live only: search Swiggy Instamart (groceries, quick commerce).
+
+    Same OAuth token as the food server (one token, all Swiggy MCP servers).
+    Returns flat product rows — id (spinId, orderable), name, brand, quantity,
+    price, mrp, rating, image — one per product's cheapest in-stock variation.
+    Read-only by design: update_cart/checkout exist on the Instamart server
+    but stay unwired until deliberately enabled.
+    """
+    if not _live():
+        raise HTTPException(400, "not connected to Swiggy")
+    from instamart import InstamartClient, search as im_search_inner
+    from swiggy_mcp import SwiggyMCPError
+
+    # search_products needs an addressId. Same resolution order as the food
+    # catalog: the env/picked one, else the account's first saved address —
+    # cached in STATE so repeat searches don't re-fetch the address list.
+    aid = STATE["address_id"]
+    if not aid:
+        try:
+            raw = STATE["client"].call("get_addresses", {})
+            entries = raw.get("addresses") or raw.get("data") or []
+            if not entries:
+                raise HTTPException(502, "no saved Swiggy address for Instamart")
+            aid = str(entries[0].get("id") or entries[0].get("addressId"))
+            STATE["address_id"] = aid
+        except HTTPException:
+            raise
+        except Exception as e:  # noqa: BLE001
+            if _mark_expired_token(e):
+                raise HTTPException(401, "Swiggy login expired — please reconnect.")
+            print(f"[im] address lookup failed: {e}")
+            raise HTTPException(502, "Swiggy address lookup failed")
+
+    try:
+        client = InstamartClient(token=STATE["client"].token)
+        products = im_search_inner(
+            client, aid, query,
+            offset=offset, limit=min(max(limit, 1), 40))
+    except Exception as e:  # noqa: BLE001 - clean 4xx/5xx for the UI
+        if _mark_expired_token(e):
+            raise HTTPException(401, "Swiggy login expired — please reconnect.")
+        # Raw exception stays server-side (upstream bodies aren't ours to leak).
+        print(f"[im] search failed: {e}")
+        raise HTTPException(502, "Instamart search failed")
+    return {"query": query, "products": products}
+
+
 @app.post("/intake")
 def intake(body: IntakeIn):
     parsed = parse_intake(body.text)
@@ -483,12 +559,50 @@ def make_plan(body: PlanIn):
         # Normalize at the boundary: constraints can arrive as bare strings from an
         # LLM-authored blueprint, and indexing those as dicts crashed /plan with a
         # 500. Never trust the shape of model-generated input.
-        constraints = [Constraint(c["dish_tag"], c["min_count"])
-                       for c in blueprint_chat._normalize_constraints(body.constraints)]
+        # Pairing constraints (dish_kind/slot_type/frequency, empty tag) survive
+        # normalization; pass them through so PASS 4 can add desserts/drinks.
+        constraints = [
+            Constraint(c["dish_tag"], c["min_count"],
+                       dish_kind=c.get("dish_kind", ""),
+                       slot_type=c.get("slot_type", ""),
+                       frequency=c.get("frequency", ""))
+            for c in blueprint_chat._normalize_constraints(body.constraints)
+        ]
         catalog = get_catalog(body.veg_only, body.high_protein)
+
+        # Pairing constraints ("beverages with lunch") can draw from Instamart
+        # groceries at retail prices alongside restaurant menus — often far
+        # cheaper for the same drink/sweet. Fetch the pool only when the plan
+        # actually has pairing constraints (a plain plan pays zero extra
+        # latency). Instamart failure degrades to restaurant-only pairings —
+        # never blocks the plan.
+        extra_pairings = None
+        pairing_kinds = {c.dish_kind for c in constraints if c.dish_kind and c.slot_type}
+        if pairing_kinds and STATE["mode"] == "mcp" and STATE["client"]:
+            try:
+                from instamart import InstamartClient, pairing_pool
+                aid = STATE["address_id"]
+                if not aid:
+                    # same resolution order as /im/search: first saved address
+                    raw = STATE["client"].call("get_addresses", {})
+                    entries = raw.get("addresses") or raw.get("data") or []
+                    if entries:
+                        aid = str(entries[0].get("id") or entries[0].get("addressId"))
+                        STATE["address_id"] = aid
+                if aid:
+                    im = InstamartClient(token=STATE["client"].token)
+                    extra_pairings = pairing_pool(im, aid, sorted(pairing_kinds))
+                    if extra_pairings:
+                        print(f"[plan] instamart pairing pool: {len(extra_pairings)} items")
+            except Exception as e:  # noqa: BLE001 - degrade, don't block
+                if getattr(e, "expired", False):
+                    raise
+                print(f"[plan] instamart pool unavailable, restaurant-only pairings: {e}")
+
         result = optimize(catalog, prof,
                           body.budget, days=body.days, constraints=constraints,
-                          veg_only=body.veg_only, meals=body.meals)
+                          veg_only=body.veg_only, meals=body.meals,
+                          extra_pairing_dishes=extra_pairings)
         conn, _, plan_svc = svc()
         plan_id = plan_svc.save_plan(body.user_id, body.month, result)
         return {
@@ -510,11 +624,13 @@ def make_plan(body: PlanIn):
         msg = str(e)
         if "locked" in msg or "busy" in msg:
             print(f"[plan] DB busy: {e}\n{_tb.format_exc()}")
-            raise HTTPException(503, f"Database busy — please retry: {e}")
+            raise HTTPException(503, "Database busy — please retry")
         print(f"[plan] DB error: {e}\n{_tb.format_exc()}")
-        raise HTTPException(500, f"Database error: {e}")
+        raise HTTPException(500, "Database error — see server logs")
     except RuntimeError as e:
         # catalog empty (live mode token/network failure) — actionable 502
+        if _mark_expired_token(e):
+            raise HTTPException(401, "Swiggy login expired — please reconnect.")
         print(f"[plan] catalog/runtime error: {e}\n{_tb.format_exc()}")
         raise HTTPException(502, str(e))
     except ValueError as e:
@@ -525,7 +641,7 @@ def make_plan(body: PlanIn):
         raise
     except Exception as e:  # noqa: BLE001
         print(f"[plan] unexpected: {type(e).__name__}: {e}\n{_tb.format_exc()}")
-        raise HTTPException(500, f"{type(e).__name__}: {e}")
+        raise HTTPException(500, "Plan generation failed — see server logs")
     finally:
         if conn is not None:
             try:
@@ -563,10 +679,10 @@ def get_plan(plan_id: int):
     conn, _, plan_svc = svc()
     try:
         plan, slots = plan_svc.get_plan(plan_id)
+    except ValueError as e:
+        raise HTTPException(404, str(e))
     finally:
         conn.close()
-    if not plan:
-        raise HTTPException(404, "plan not found")
     return {"plan": plan, "slots": slots}
 
 
@@ -778,9 +894,12 @@ def _chat_reply(action, extracted, missing):
     appetite = extracted.get("appetite_level")
     cons = extracted.get("constraints", [])
     veg = extracted.get("veg_only")
+    # Pairing constraints (empty dish_tag) have nothing user-readable to show
+    # here; only the named must-have dishes make sense in a sentence.
     cons_txt = ", ".join(
         f"{c['min_count']} {c['dish_tag']}"
-        for c in blueprint_chat._normalize_constraints(cons)) or "no specific"
+        for c in blueprint_chat._normalize_constraints(cons)
+        if c.get("dish_tag")) or "no specific"
 
     if gemini.has_key():
         system = ("You are a friendly budget meal-planning assistant. Reply in ONE or two "

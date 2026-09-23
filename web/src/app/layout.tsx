@@ -46,7 +46,14 @@ export default function RootLayout({
       suppressHydrationWarning
       className={`${manrope.variable} ${geistMono.variable} h-full antialiased`}
     >
-      <body className="min-h-full flex flex-col">
+      <body
+        className="min-h-full flex flex-col"
+        // Browser extensions (ColorZilla's cz-shortcut-listen, password
+        // managers, dark-mode injectors) stamp attributes onto <body> before
+        // React hydrates; that mismatch is benign and not ours to fix, so
+        // suppress the warning on this element only.
+        suppressHydrationWarning
+      >
         <ThemeProvider
           attribute="class"
           defaultTheme="light"

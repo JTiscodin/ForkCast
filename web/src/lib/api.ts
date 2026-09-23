@@ -56,7 +56,13 @@ export const api = {
   base: BASE,
 
   getMode: () =>
-    req<{ mode: string; live: boolean; needs_auth: boolean }>("/mode"),
+    req<{
+      mode: string;
+      live: boolean;
+      needs_auth: boolean;
+      /** Saved Swiggy JWT is past expiry — UI should prompt + auto-open re-login. */
+      token_expired: boolean;
+    }>("/mode"),
 
   // ---- Swiggy in-app OAuth login ----
   authStart: () =>

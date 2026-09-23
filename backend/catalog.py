@@ -31,6 +31,11 @@ class Dish:
                               # dishes may headline a breakfast/lunch/dinner.
                               # Defaulted so existing positional constructions
                               # (tests, helpers) keep working unchanged.
+    source: str = ""          # "" = restaurant (default); "instamart" = grocery
+                              # item from Swiggy Instamart. Only pairing dishes
+                              # carry this today — the mains filter never sees
+                              # them — and it flows onto PlannedSlot
+                              # side_source/side2_source for the UI + order flow.
 
 
 def variant_price(dish: Dish, multiplier: float) -> tuple:

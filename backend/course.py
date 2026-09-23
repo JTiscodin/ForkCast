@@ -126,6 +126,11 @@ _FORM_OVERRIDES = (
         "juice", "shake", "milkshake", "smoothie", "mojito", "soda",
         "jaljeera", "nimbu pani", "shikanji", "thandai", "tea", "coffee",
         "chai", "water", "beverage",
+        # Indian dairy drinks. These were only in the keyword tier, which
+        # "Masala X" beat as a curry keyword: "Masala Chaas" classified as a
+        # curry main and got planned as dinner. The form tier outranks all
+        # ingredient keywords, so the drink wins here.
+        "lassi", "chaas", "chaach", "buttermilk",
         # desserts beyond gulab jamun / ice cream / brownie: "Rasmalai" ₹89
         # sailed through the default-COMPLETE price gate as an entire meal
         "rasmalai", "ras malai", "kulfi", "jalebi", "halwa", "phirni",
@@ -139,6 +144,10 @@ _FORM_OVERRIDES = (
         "modak", "sheera", "sooji halwa", "double ka meetha", "mithai",
         "ice cream", "brownie", "cheesecake", "cupcake", "pudding", "cake",
         "dessert",
+        # cookie-counter forms — see the _KIND_SWEET_WORDS note on the
+        # Chocolate Cookie that rode the COMPLETE default into breakfast.
+        "cookie", "cookies", "macaron", "macarons", "cinnamon roll",
+        "strudel", "flan",
         # NON-MEAL platters. A bare "platter" is deliberately not a form (see
         # the COMPLETE tuple), so these multi-word entries are what catches
         # the assortments outright: "Dessert Platter" is six sweets on a
@@ -373,6 +382,12 @@ _KIND_SWEET_WORDS = (
     # "cake" nor "pastry" in the name).
     "tart", "tarts", "eclair", "muffin", "muffins",
     "doughnut", "doughnuts", "donut", "donuts", "tiramisu", "red velvet",
+    # Bakery/cookie-counter staples. "Dark Chunk Chocolate Cookie (Eggless)"
+    # rode the COMPLETE default (no form word matched) past the price gate and
+    # into breakfast slots. Cookies are sweets; "chocolate" itself stays out
+    # (Hot Chocolate is a drink, Chocolate Cake matches "cake" already).
+    "cookie", "cookies", "macaron", "macarons", "brownie cookie",
+    "rugoelach", "rugelach", "cinnamon roll", "danish", "strudel", "flan",
     # "Milk Cake" is a solid kalakand-type sweet, not a drink: bare "milk" in
     # the drink table must not win it. "milk cake" outranks "milk" because
     # _kind_for checks drinks first — so guard the drink side instead (see the

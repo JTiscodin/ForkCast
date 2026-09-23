@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState, type KeyboardEvent } from "react";
+import { useEffect, useRef, useState, type KeyboardEvent } from "react";
 import gsap from "gsap";
 import { useGSAP } from "@gsap/react";
 import { motion } from "framer-motion";
@@ -24,11 +24,14 @@ export function Onboarding({
   needsAuth = false,
   onConnected,
   onStart,
+  onTokenExpired,
 }: {
   live: boolean;
   needsAuth?: boolean;
   onConnected?: () => void;
   onStart: (name: string, address: SwiggyAddress | null) => Promise<void> | void;
+  /** Fired when a live call 401s on the dead saved JWT — parent auto-relogins. */
+  onTokenExpired?: () => void;
 }) {
   // When Swiggy is desired but not connected, show the connect step first —
   // unless the user chose to skip into demo mode.
@@ -82,28 +85,46 @@ export function Onboarding({
     { scope: rootRef, dependencies: [showConnect], revertOnUpdate: true }
   );
 
-  const loadAddresses = useCallback(() => {
-    // Enter the loading state HERE, not just at mount: `live` can flip
-    // false->true after mount (boot /mode resolution, or an in-app Swiggy
-    // connect), and without this the list renders "no addresses" for the
-    // whole fetch window — up to ~24s, since the backend retries a 12s
-    // socket timeout once.
-    setLoadingAddr(true);
-    setAddrError(null);
-    api
-      .addresses()
-      .then((r) => setAddresses(r.addresses ?? []))
-      .catch((e) => {
-        setAddrError(e instanceof ApiError ? e.message : "Could not load addresses");
-        toast.error(e instanceof ApiError ? e.message : "Could not load addresses");
-      })
-      .finally(() => setLoadingAddr(false));
-  }, []);
-
   useEffect(() => {
     if (!live) return;
-    loadAddresses();
-  }, [live, addrReload, loadAddresses]);
+
+    // Defer the initial state transition to the next task. This avoids a
+    // synchronous setState inside the effect while still clearing any address
+    // selected under a previous Swiggy account before the new fetch begins.
+    let active = true;
+    const timer = window.setTimeout(() => {
+      if (!active) return;
+      setAddresses([]);
+      setPicked(null);
+      setLoadingAddr(true);
+      setAddrError(null);
+      api
+        .addresses()
+        .then((r) => {
+          if (active) setAddresses(r.addresses ?? []);
+        })
+        .catch((e) => {
+          if (!active) return;
+          // A dead JWT is recoverable: the parent kicks the OAuth re-login flow
+          // (browser opens for a fresh token). Don't dead-end onboarding with a
+          // generic error while that's in flight.
+          if (e instanceof ApiError && e.status === 401) {
+            setAddrError("Swiggy login expired — reopening the login page…");
+            onTokenExpired?.();
+            return;
+          }
+          setAddrError(e instanceof ApiError ? e.message : "Could not load addresses");
+          toast.error(e instanceof ApiError ? e.message : "Could not load addresses");
+        })
+        .finally(() => {
+          if (active) setLoadingAddr(false);
+        });
+    }, 0);
+    return () => {
+      active = false;
+      window.clearTimeout(timer);
+    };
+  }, [live, addrReload, onTokenExpired]);
 
   const selected = picked ?? addresses[0] ?? null;
   const setSelected = setPicked;
@@ -211,8 +232,8 @@ export function Onboarding({
                   <div className="flex items-start gap-2 text-sm leading-[1.4] text-foreground">
                     <AlertTriangle className="mt-0.5 size-4 shrink-0 text-danger" strokeWidth={2.4} />
                     <span>
-                      Couldn't load your addresses. You can retry, or continue
-                      and Swiggy's default address will be used.
+                      Couldn&apos;t load your addresses. You can retry, or continue
+                      and Swiggy&apos;s default address will be used.
                     </span>
                   </div>
                   <button
@@ -276,8 +297,8 @@ export function Onboarding({
                     <div className="flex flex-col gap-1 rounded-lg border border-border bg-surface-elevated px-3 py-3 text-sm leading-[1.4] text-muted-foreground">
                       <span>No saved addresses found on your Swiggy account.</span>
                       <span>
-                        Add one in the Swiggy app, or continue and we'll use
-                        Swiggy's default.
+                        Add one in the Swiggy app, or continue and we&apos;ll use
+                        Swiggy&apos;s default.
                       </span>
                     </div>
                   )}

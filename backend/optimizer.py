@@ -42,8 +42,6 @@ class Constraint:
 class PlannedSlot:
     day: int               # 1-based
     meal_type: str
-    pairing_dish_id: str = ""  # NEW: optional dessert/drink paired with this meal
-    pairing_cost: float = 0.0  # NEW: cost of the pairing item
     dish_id: str
     dish_name: str
     restaurant_id: str
@@ -52,6 +50,8 @@ class PlannedSlot:
     rating: float
     variant: str
     portion_mult: float
+    pairing_dish_id: str = ""  # NEW: optional dessert/drink paired with this meal
+    pairing_cost: float = 0.0  # NEW: cost of the pairing item
     restaurant_name: str = ""
     image_url: str = ""
     # --- composition (see course.py) ---
@@ -73,6 +73,13 @@ class PlannedSlot:
     side2_price: float = 0.0
     side2_restaurant_name: str = ""
     side2_image_url: str = ""
+    # Source of the side/side2 entry when it is a PAIRING (dessert/drink) rather
+    # than a composed accompaniment (bread/rice): "" = restaurant accompaniment
+    # or pairing, "instamart" = grocery item from Swiggy Instamart. Lets the UI
+    # badge grocery pairings and lets flows that assume restaurant dishes (the
+    # order executor) treat them as display-only.
+    side_source: str = ""
+    side2_source: str = ""
 
     @property
     def total_price(self) -> float:
@@ -123,10 +130,13 @@ SIDE_COST_RATIO = 0.9
 # greedy scoring can still quietly reassemble the same combination on distant
 # days (live symptom: Day 1 == Day 8 == Day 22, byte-identical menus). A menu
 # you liked twice is variety; three times is a loop.
-# CRITICAL FIX: Lowered from 2 to 0 to prevent excessive repetition. User
-# reported "some dishes repeated aloot" - whole-day menus were cloning. Now:
-# same exact menu can appear ONCE only, forcing maximum rotation.
-MAX_IDENTICAL_DAY_MENUS = 0
+# CRITICAL FIX: The guards below demote-not-ban via `prior_copies >= MAX` —
+# with MAX=0 every completing pick flags (>=0 is always true), making the
+# whole-day variety guard a silent no-op. The flag must fire only on a
+# would-be (MAX+1)-th copy, so 2 means: a menu may appear at most twice,
+# a 3rd copy is demoted behind fresher alternatives. User reported
+# "some dishes repeated aloot" (whole-day menus cloning 3+ times).
+MAX_IDENTICAL_DAY_MENUS = 2
 
 # Exponential recency penalty multiplier - penalizes recent dish use heavily
 EXPONENTIAL_RECENCY_BASE = 1.8
@@ -189,6 +199,7 @@ def optimize(
     max_repeat_per_week: int = 2,
     meals=None,
     variety_guards: bool = True,
+    extra_pairing_dishes=None,
 ) -> PlanResult:
     """Build a plan over `days` x `meals`.
 
@@ -277,7 +288,10 @@ def optimize(
     # ₹10 breads would drag the median down and re-introduce the old bias.
     med = median([d.price for d in mains]) if mains else 0.0
 
-    wanted_tags = [c.dish_tag for c in constraints]
+    # Pairing constraints carry an EMPTY dish_tag — "" is a substring of
+    # everything, so including them here would give every dish the constraint
+    # bonus. Tag-driven logic below must only see real must-have tags.
+    wanted_tags = [c.dish_tag for c in constraints if c.dish_tag]
     slots = []                      # PlannedSlot
     used_count = defaultdict(int)   # dish_id -> times used (whole month)
     last_used = {}                  # dish_id -> most recent day placed
@@ -448,7 +462,9 @@ def optimize(
 
         slot = PlannedSlot(day, meal, dish.dish_id, dish.name,
                            dish.restaurant_id, price, dish.price, dish.rating,
-                           variant, mult, dish.restaurant_name, dish.image_url,
+                           variant, mult,
+                           restaurant_name=dish.restaurant_name,
+                           image_url=dish.image_url,
                            course=dish.course, dish_kind=dish.dish_kind)
         if side:
             slot.side_dish_id = side.dish_id
@@ -636,6 +652,8 @@ def optimize(
     #     REGULAR portion cannot fit what's left, the slot is left for pass 2
     #     and the shortfall is reported honestly instead.
     for c in constraints:
+        if not c.dish_tag:
+            continue  # pairing constraints (desserts/drinks) are PASS 4's job
         tag = c.dish_tag.lower()
         need = c.min_count - tag_got[tag]
         cands_c = sorted(
@@ -917,7 +935,10 @@ def optimize(
         def _can_free(dish):
             # Freeing this slot must not drop any satisfied constraint below
             # its minimum (a same-tag replacement is checked separately).
-            return all(not _matches(dish, c.dish_tag)
+            # Pairing constraints (empty dish_tag) aren't tag-counted — "" would
+            # match every dish and freeze the whole budget-repair pass.
+            return all(not c.dish_tag
+                       or not _matches(dish, c.dish_tag)
                        or tag_got[c.dish_tag.lower()] > c.min_count
                        for c in constraints)
 
@@ -959,8 +980,10 @@ def optimize(
                     cost = meal_cost(cand, slot.meal_type, 1.0)[0]
                     if cost >= slot.total_price:
                         continue
-                    # honour every tag this slot was carrying
-                    if not all(_matches(cand, c.dish_tag)
+                    # honour every tag this slot was carrying (pairing
+                    # constraints have no tag to carry — skip them)
+                    if not all(not c.dish_tag
+                               or _matches(cand, c.dish_tag)
                                or not _matches(cur, c.dish_tag)
                                or tag_got[c.dish_tag.lower()] >= c.min_count
                                for c in constraints):
@@ -1011,10 +1034,14 @@ def optimize(
     feasible = (not over) and (not unmet)
     msg = _feasibility_message(over, unmet, total, budget, cstatus)
 
-    # PASS 4: Add pairings (desserts/drinks) for slots with pairing constraints
+    # PASS 4: Add pairings (desserts/drinks) for slots with pairing constraints.
+    # extra_pairing_dishes (Instamart groceries) are merged into the pairing
+    # pool ONLY — they never join `pool`, so they can't leak into the main
+    # placement, bread rotation, or budget-repair passes.
     pairing_constraints = [c for c in constraints if c.dish_kind and c.slot_type]
     if pairing_constraints:
-        total = _add_pairings(slots, pairing_constraints, pool, budget, total, profile)
+        total = _add_pairings(slots, pairing_constraints, pool, budget, total,
+                              profile, extra_pairing_dishes)
         total = round(total, 2)
         # Recalculate feasibility after pairings
         over = total > budget

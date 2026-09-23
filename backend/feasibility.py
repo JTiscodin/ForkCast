@@ -151,12 +151,22 @@ def analyse(catalog, profile_builder, user_id, appetite_level, budget, days,
     for c in constraints:
         if isinstance(c, Constraint):
             cons.append(c)
-        elif isinstance(c, dict) and c.get("dish_tag"):
-            try:
-                cons.append(Constraint(str(c["dish_tag"]).strip().lower(),
-                                       max(1, int(c.get("min_count") or 1))))
-            except (TypeError, ValueError):
+        elif isinstance(c, dict):
+            # Pairing constraints (dish_kind/slot_type, empty tag) carry the
+            # pairing fields; must-have dishes carry only tag + count.
+            kind = str(c.get("dish_kind") or "").strip()
+            slot = str(c.get("slot_type") or "").strip()
+            tag = str(c.get("dish_tag") or "").strip().lower()
+            if not tag and not (kind and slot):
                 continue
+            try:
+                count = max(1, int(c.get("min_count") or 1))
+            except (TypeError, ValueError):
+                count = 1
+            cons.append(Constraint(
+                tag, 0 if (kind and slot) else count,
+                dish_kind=kind, slot_type=slot,
+                frequency=str(c.get("frequency") or "").strip()))
         elif isinstance(c, str) and c.strip():
             cons.append(Constraint(c.strip().lower(), 1))
 

@@ -92,7 +92,9 @@ CREATE TABLE IF NOT EXISTS meal_slots (
     side2_qty INTEGER DEFAULT 0,
     side2_price REAL DEFAULT 0,
     side2_restaurant_name TEXT,
-    side2_image_url TEXT
+    side2_image_url TEXT,
+    side_source TEXT DEFAULT '',
+    side2_source TEXT DEFAULT ''
 );
 
 CREATE INDEX IF NOT EXISTS idx_slot_plan ON meal_slots(plan_id);
@@ -154,6 +156,11 @@ _MIGRATIONS = [
     ("meal_slots", "side2_price", "REAL DEFAULT 0"),
     ("meal_slots", "side2_restaurant_name", "TEXT"),
     ("meal_slots", "side2_image_url", "TEXT"),
+    # Instamart pairing marker — "" = restaurant, "instamart" = grocery item
+    # (see catalog.Dish.source). Display-only: the order executor never sends
+    # side dishes to the restaurant cart.
+    ("meal_slots", "side_source", "TEXT DEFAULT ''"),
+    ("meal_slots", "side2_source", "TEXT DEFAULT ''"),
 ]
 
 

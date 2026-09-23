@@ -210,6 +210,12 @@ class CatalogFetcher:
             try:
                 resp = self.mcp.call("search_menu", args)
             except Exception as e:  # noqa: BLE001 — resilience over precision here
+                # A dead JWT is NOT a per-query failure to swallow — every
+                # query will 401 the same way, and the user should be prompted
+                # to re-login, not shown "catalog fetch returned nothing".
+                # Duck-typed so the injected client stays swappable.
+                if getattr(e, "expired", False):
+                    raise
                 print(f"[catalog] search_menu '{query}' failed: {type(e).__name__}: {e}")
                 break
             items.extend(_iter_items(resp))

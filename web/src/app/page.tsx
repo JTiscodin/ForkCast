@@ -66,7 +66,10 @@ export default function Home() {
   const [feasibility, setFeasibility] = useState<FeasibilityReport | null>(null);
   // The blueprint the current plan was built from — needed to re-plan when the
   // user applies one of the suggested fixes.
-  const lastBlueprintRef = useRef<Blueprint | null>(null);
+  const [lastBlueprint, setLastBlueprint] = useState<Blueprint | null>(null);
+  // The boot effect is declared before the callback below. Keep a stable ref so
+  // it can invoke the latest callback without re-running boot.
+  const handleTokenExpiredRef = useRef<() => void>(() => {});
 
   // dish modal
   const [activeSlot, setActiveSlot] = useState<MealSlot | null>(null);
@@ -114,6 +117,9 @@ export default function Home() {
         if (cancelled) return;
         setLive(m.live);
         setNeedsAuth(Boolean(m.needs_auth));
+        // Boot with a dead saved JWT: jump straight into the re-login flow —
+        // the onboarding Connect step would otherwise wait for a click.
+        if (m.token_expired && !m.live) handleTokenExpiredRef.current?.();
       })
       .catch(() => {
         if (!cancelled) {
@@ -147,16 +153,111 @@ export default function Home() {
     };
   }, []);
 
-  // re-check mode after an in-app Swiggy connect
+  // Re-check mode after an in-app Swiggy connect. Runtime initialization resets
+  // the backend address, so re-apply the address currently shown in the UI.
   const recheckMode = useCallback(async () => {
     try {
       const m = await api.getMode();
-      setLive(m.live);
-      setNeedsAuth(Boolean(m.needs_auth));
+      if (m.live) {
+        // Runtime initialization resets the backend address. Refresh the account's
+        // current list before re-pinning, so an old account's address is never sent.
+        const current = await api.addresses().catch(() => ({ addresses: [] }));
+        const next = current.addresses.find((item) => item.id === address?.id)
+          ?? current.addresses[0]
+          ?? null;
+        if (next?.id) {
+          await api.setAddress(next.id).catch(() => {});
+          if (mountedRef.current) setAddress(next);
+        }
+      }
+      if (mountedRef.current) {
+        setLive(m.live);
+        setNeedsAuth(Boolean(m.needs_auth));
+      }
+      return m;
     } catch {
-      /* ignore */
+      return null;
     }
+  }, [address]);
+
+  // ---- auto re-login on JWT expiry -------------------------------------
+  // The saved Swiggy JWT is short-lived and no refresh token is persisted, so
+  // it dies mid-session. Keep recovery reachable by returning to onboarding
+  // until the OAuth flow has completed successfully.
+  const reloginRef = useRef(false);
+  const reloginPollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const reloginTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const mountedRef = useRef(true);
+
+  useEffect(() => {
+    return () => {
+      mountedRef.current = false;
+      reloginRef.current = false;
+      if (reloginPollRef.current) clearInterval(reloginPollRef.current);
+      if (reloginTimeoutRef.current) clearTimeout(reloginTimeoutRef.current);
+    };
   }, []);
+
+  const handleTokenExpired = useCallback(() => {
+    if (reloginRef.current) return;
+    reloginRef.current = true;
+    setReady(false);
+    setLive(false);
+    setNeedsAuth(true);
+    toast.info(
+      "Swiggy login expired — opening the login page to refresh it. Finish logging in, then the app reconnects by itself.",
+      { duration: 8000 }
+    );
+
+    const finish = (kind: "connected" | "failed" | "timeout", message?: string) => {
+      if (!reloginRef.current) return;
+      reloginRef.current = false;
+      if (reloginPollRef.current) clearInterval(reloginPollRef.current);
+      if (reloginTimeoutRef.current) clearTimeout(reloginTimeoutRef.current);
+      reloginPollRef.current = null;
+      reloginTimeoutRef.current = null;
+      if (!mountedRef.current) return;
+      if (kind === "connected") {
+        toast.success("Swiggy reconnected.");
+        void recheckMode().then((m) => {
+          if (mountedRef.current && m?.live) setReady(true);
+        });
+      } else {
+        toast.error(message ?? "Re-login failed — click Connect Swiggy to try again.");
+      }
+    };
+
+    reloginTimeoutRef.current = setTimeout(
+      () => finish("timeout", "Login window timed out. Click Connect Swiggy to try again."),
+      90_000,
+    );
+
+    api.authStart().then(() => {
+      if (!reloginRef.current) return;
+      let inFlight = false;
+      reloginPollRef.current = setInterval(async () => {
+        if (!reloginRef.current || inFlight) return;
+        inFlight = true;
+        try {
+          const s = await api.authStatus();
+          if (s.status === "connected" || s.live) finish("connected");
+          else if (s.status === "failed") finish("failed", s.error ?? undefined);
+        } catch {
+          // The timeout above still ends recovery when status repeatedly fails.
+        } finally {
+          inFlight = false;
+        }
+      }, 1500);
+    }).catch(() => {
+      finish("failed", "Could not start the Swiggy re-login. Click Connect Swiggy to try again.");
+    });
+  }, [recheckMode]);
+
+  // The boot effect above invokes this stable ref after mount. Updating it in
+  // an effect avoids mutating refs during render, which React's lint rules ban.
+  useEffect(() => {
+    handleTokenExpiredRef.current = handleTokenExpired;
+  }, [handleTokenExpired]);
 
   const refreshWallet = useCallback(
     async (uid: number) => {
@@ -226,7 +327,7 @@ export default function Home() {
           high_protein: bp.high_protein ?? false,
         });
         setPlan(summary);
-        lastBlueprintRef.current = bp;
+        setLastBlueprint(bp);
         await refreshPlan(summary.plan_id);
         saveSession({ planId: summary.plan_id, approved: false, month: MONTH });
 
@@ -265,6 +366,10 @@ export default function Home() {
           setSlots([]);
           setUserId(null);
           setReady(false);
+        } else if (e instanceof ApiError && e.status === 401) {
+          // Live catalog died on the dead JWT — the backend has already flipped
+          // its expired flags; kick the auto re-login flow.
+          handleTokenExpired();
         } else {
           const msg = e instanceof ApiError ? `Plan build failed (${e.status}): ${e.message}` : "Plan build failed";
           console.error("[plan] makePlan failed:", e);
@@ -274,7 +379,7 @@ export default function Home() {
         setPlanLoading(false);
       }
     },
-    [userId, refreshPlan]
+    [userId, refreshPlan, handleTokenExpired]
   );
 
   // ---- apply a suggested fix from the feasibility panel ----
@@ -282,7 +387,7 @@ export default function Home() {
   // just a re-plan with those fields merged over the blueprint.
   const handleApplyFix = useCallback(
     (option: FeasibilityOption) => {
-      const bp = lastBlueprintRef.current;
+      const bp = lastBlueprint;
       if (!bp) return;
       const { budget, meals, appetite_level } = option.changes;
       void handleGenerate({
@@ -292,7 +397,7 @@ export default function Home() {
         ...(appetite_level ? { appetite_level } : {}),
       });
     },
-    [handleGenerate]
+    [handleGenerate, lastBlueprint]
   );
 
   // ---- approve ----
@@ -428,6 +533,7 @@ export default function Home() {
           needsAuth={needsAuth}
           onConnected={recheckMode}
           onStart={handleStart}
+          onTokenExpired={handleTokenExpired}
         />
       </MotionConfig>
     );
@@ -541,7 +647,7 @@ export default function Home() {
         onOpenChange={setModalOpen}
         onSwap={handleSwap}
         swapping={swappingId === activeSlot?.id}
-        vegOnly={lastBlueprintRef.current?.veg_only ?? false}
+        vegOnly={lastBlueprint?.veg_only ?? false}
       />
     </div>
     </MotionConfig>

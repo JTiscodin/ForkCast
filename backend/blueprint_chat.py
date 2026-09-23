@@ -157,12 +157,31 @@ def _normalize_constraints(raw):
     out, seen = [], set()
     for item in raw:
         tag, count = None, 1
+        pairing = None
         if isinstance(item, str):
             tag = item
         elif isinstance(item, dict):
             tag = item.get("dish_tag") or item.get("tag") or item.get("dish") \
                 or item.get("name")
             count = item.get("min_count") or item.get("count") or item.get("min") or 1
+            # Pairing constraints ("dessert with dinner always"): kind + slot
+            # + frequency carry the actual intent, the tag is empty. Preserve
+            # them — stripping the keys here turned every pairing request into
+            # a no-op the optimizer never saw.
+            if (item.get("dish_kind") and item.get("slot_type")):
+                pairing = {
+                    "dish_tag": "",
+                    "min_count": 0,
+                    "dish_kind": str(item["dish_kind"]),
+                    "slot_type": str(item["slot_type"]),
+                    "frequency": item.get("frequency") or "always",
+                }
+        if pairing is not None:
+            key = (pairing["dish_kind"], pairing["slot_type"])
+            if key not in seen:
+                seen.add(key)
+                out.append(pairing)
+            continue
         if not tag or not str(tag).strip():
             continue
         try:

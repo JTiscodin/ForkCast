@@ -50,7 +50,9 @@ class PlanService:
                      getattr(s, "side2_qty", 0),
                      getattr(s, "side2_price", 0.0),
                      getattr(s, "side2_restaurant_name", ""),
-                     getattr(s, "side2_image_url", ""))
+                     getattr(s, "side2_image_url", ""),
+                     getattr(s, "side_source", ""),
+                     getattr(s, "side2_source", ""))
                     for s in plan_result.slots
                 ]
                 self.conn.executemany(
@@ -60,8 +62,8 @@ class PlanService:
                     "course, side_dish_id, side_dish_name, side_qty, side_price, "
                     "side_restaurant_name, side_image_url, dish_kind, side2_dish_id, "
                     "side2_dish_name, side2_qty, side2_price, side2_restaurant_name, "
-                    "side2_image_url) "
-                    "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)", rows,
+                    "side2_image_url, side_source, side2_source) "
+                    "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)", rows,
                 )
                 self.conn.commit()
                 return plan_id
@@ -80,6 +82,8 @@ class PlanService:
 
     def get_plan(self, plan_id):
         p = self.conn.execute("SELECT * FROM plans WHERE id=?", (plan_id,)).fetchone()
+        if p is None:
+            raise ValueError("plan not found")
         slots = self.conn.execute(
             "SELECT * FROM meal_slots WHERE plan_id=? ORDER BY day, "
             "CASE meal_type WHEN 'breakfast' THEN 0 WHEN 'lunch' THEN 1 ELSE 2 END",
