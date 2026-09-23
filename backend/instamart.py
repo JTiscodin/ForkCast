@@ -19,6 +19,7 @@ grocery prices. Only SEARCH is wired for now — update_cart/checkout touch
 real money and stay unwired until deliberately enabled.
 """
 from swiggy_mcp import SwiggyMCPClient, SwiggyMCPError, SWIGGY_MCP_URL
+from types import SimpleNamespace
 import os
 
 INSTAMART_URL = os.environ.get("SWIGGY_IM_MCP_URL", "https://mcp.swiggy.com/im")
@@ -122,6 +123,16 @@ KIND_QUERIES = {
     "snack": ["namkeen", "chips", "cookies"],
 }
 
+# Health-goal -> extra queries to satisfy the need (plan §11). A diabetic
+# user asking for sweets should surface sugar-free options; a high-protein user's
+# snack/drink should surface protein options.
+_HEALTH_QUERIES = {
+    "diabetic_friendly": "sugar free",
+    "high_protein": "protein",
+    "weight_loss": "low calorie",
+    "low_calorie": "diet",
+}
+
 # Groceries can't be headlined as meals, so their Dish rows must never pass
 # the optimizer's mains gate — kind != "meal" enforces that structurally.
 # Name-classified kind wins; the query bucket is only the fallback for names
@@ -129,7 +140,32 @@ KIND_QUERIES = {
 _IM_KINDS = ("beverage", "sweet", "snack")
 
 
-def pairing_pool(client, address_id, kinds, per_kind=6, per_query=12):
+def _adheres(taste_profile, row, kind):
+    """Reject an Instamart normalized row that violates the user's diet.
+
+    `row` is a flat dict from normalize_products; `kind` is the query bucket.
+    Builds a temporary stand-in with the fields adheres_to_diet reads, then
+    delegates. Unknown rows are allowed (adheres_to_diet is conservative).
+    """
+    from taste_profile import adheres_to_diet
+    from food_classifier import FoodInfo, classify_instamart
+
+    info = classify_instamart(row, kind)
+    name = (row.get("name") or "").lower()
+    dish_kind = info.dish_kind
+    simple = SimpleNamespace(
+        name=name,
+        veg=not any(m in name for m in ("chicken", "mutton", "fish", "egg",
+                                        "meat", "prawn", "keema")),
+        dish_kind=dish_kind,
+        health_tags=(),
+        satiety=info.satiety,
+    )
+    return adheres_to_diet(simple, taste_profile)
+
+
+def pairing_pool(client, address_id, kinds, per_kind=6, per_query=12,
+               taste_profile=None):
     """Build Dish candidates for the optimizer's PASS 4 pairing pools.
 
     Only the kinds the user actually asked for are fetched (a "beverages with
@@ -137,17 +173,34 @@ def pairing_pool(client, address_id, kinds, per_kind=6, per_query=12):
     are normalized, mapped to Dish(source="instamart"), deduped by dish_id,
     and returned flat — the optimizer's kind filter does the bucketing.
 
+    If a taste_profile is supplied, the resulting Dishes are filtered through its
+    hard diet constraints (veg_level, health goals, disliked foods) before being
+    returned, so non-veg / allergenic / health-incompatible items never enter the
+    pairing pool.
+
     Failures are swallowed per-query (returns what it got): an Instamart
     outage must degrade to restaurant-only pairings, not kill the plan.
     """
     from catalog import Dish
     from course import classify
+    from food_classifier import classify_instamart
 
     out, seen = [], set()
     wanted = [k for k in kinds if k in _IM_KINDS]
+    # Health-goals widen the queries so the pool can actually satisfy them
+    # ("sugar free" sweets for a diabetic user).
+    health_queries = []
+    if taste_profile is not None:
+        for goal in getattr(taste_profile, "health_goals", ()):
+            q = _HEALTH_QUERIES.get(goal)
+            if q:
+                health_queries.append(q)
     for kind in wanted:
         added_this_kind = 0
-        for q in KIND_QUERIES.get(kind, []):
+        queries = list(KIND_QUERIES.get(kind, []))
+        # Health-specific queries join per kind when they're snack/sweet/beverage
+        queries += health_queries
+        for q in queries:
             if added_this_kind >= per_kind:
                 break
             try:
@@ -163,6 +216,9 @@ def pairing_pool(client, address_id, kinds, per_kind=6, per_query=12):
                     continue
                 if not r["price"] or r["price"] <= 0:
                     continue
+                # Diet filter BEFORE creating a Dish — reject early.
+                if taste_profile is not None and not _adheres(taste_profile, r, kind):
+                    continue
                 seen.add(did)
                 # Classify the NAME for kind (a "milk" query still surfaces
                 # cookies on promo); the query bucket is only the fallback —
@@ -171,7 +227,8 @@ def pairing_pool(client, address_id, kinds, per_kind=6, per_query=12):
                 name = r["name"] or q
                 ci = classify(name)
                 dish_kind = ci.dish_kind if ci.dish_kind in _IM_KINDS else kind
-                out.append(Dish(
+                info = classify_instamart(r, kind)
+                dish = Dish(
                     dish_id=did,
                     name=name,
                     restaurant_id="instamart",
@@ -194,9 +251,15 @@ def pairing_pool(client, address_id, kinds, per_kind=6, per_query=12):
                     veg=True,
                     variants={"regular": float(r["price"])},
                     image_url=r["image_url"] or "",
-                    course=ci.course,
-                    dish_kind=dish_kind,
+                    course=info.course if info.source == "food_knowledge"
+                          else ci.course,
+                    dish_kind=info.dish_kind if info.source == "food_knowledge"
+                          else dish_kind,
+                    satiety=info.satiety,
+                    serving_unit=info.serving_unit,
+                    main_meal_eligible=info.main_meal_eligible,
                     source="instamart",
-                ))
+                )
+                out.append(dish)
                 added_this_kind += 1
     return out

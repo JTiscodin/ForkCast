@@ -14,7 +14,7 @@ import course as course_rules
 
 
 def _add_pairings(slots, pairing_constraints, pool, budget, current_total, profile,
-                  extra_pairing_dishes=None):
+                  extra_pairing_dishes=None, taste_profile=None):
     """Add desserts/drinks to slots based on pairing constraints.
 
     Args:
@@ -35,11 +35,23 @@ def _add_pairings(slots, pairing_constraints, pool, budget, current_total, profi
     if remaining <= 0:
         return current_total
 
+    # Diet-filter the pairing candidates against taste_profile when given, so
+    # a veg-only / Jain / health-restricted user never has a non-compliant
+    # dessert or drink offered, even when the main meal is fine.
+    if taste_profile is not None:
+        from taste_profile import adheres_to_diet
+        filtered_pool = [d for d in pool if adheres_to_diet(d, taste_profile)]
+        filtered_extra = [d for d in (extra_pairing_dishes or [])
+                        if adheres_to_diet(d, taste_profile)]
+    else:
+        filtered_pool = list(pool)
+        filtered_extra = list(extra_pairing_dishes or [])
+    candidates_all = filtered_pool + filtered_extra
+
     # Build pairing pools by kind. Groceries join here on equal footing:
     # same rating bar, same variety rotation — a Rs17 Instamart milk vs a
     # Rs80 restaurant lassi competes on (least-used, rating, price), and the
     # better one wins per slot rather than by source.
-    candidates_all = list(pool) + list(extra_pairing_dishes or [])
     sweets = [d for d in candidates_all
               if d.dish_kind == course_rules.KIND_SWEET
               and d.rating >= 3.5]  # Higher bar for desserts
@@ -49,6 +61,13 @@ def _add_pairings(slots, pairing_constraints, pool, budget, current_total, profi
     snacks = [d for d in candidates_all
               if d.dish_kind == course_rules.KIND_SNACK
               and d.rating >= 3.5]
+    if taste_profile is not None:
+        from taste_profile import soft_hints
+        _hints = soft_hints(taste_profile)
+        _pref = set(_hints.get("preferred_cuisines", []))
+        _dislike = set(_hints.get("disliked_foods", []))
+    else:
+        _pref, _dislike = set(), set()
 
     pairing_pool = {
         "sweet": sweets,
@@ -84,10 +103,19 @@ def _add_pairings(slots, pairing_constraints, pool, budget, current_total, profi
                 continue  # No dishes of this kind available
 
             # Pick the best-rated dish we haven't overused
-            # Sort by: least-used first, then highest-rated, then cheapest
+            # Sort by: taste preference (preferred cuisine first, disliked
+            # last), least-used first, then highest-rated, then cheapest.
+            def _pref_key(d):
+                c = d.cuisine.lower()
+                if _pref and c in _pref:
+                    return 0
+                if _dislike and any(x in d.name.lower() for x in _dislike):
+                    return 2
+                return 1
             candidates = sorted(
                 pool_for_kind,
                 key=lambda d: (
+                    _pref_key(d),
                     used_dishes.get(d.dish_id, 0),  # variety: least-used first
                     -d.rating,  # quality: highest-rated
                     d.price,  # value: cheapest

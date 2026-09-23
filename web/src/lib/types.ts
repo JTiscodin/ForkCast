@@ -178,6 +178,13 @@ export interface Blueprint {
   cuisines: string[];
   meals: MealType[];
   days: number;
+  // --- taste / diet (gathered in blueprint chat, sent to /plan taste_prefs) ---
+  veg_level?: string;
+  allergies?: string[];
+  health_goals?: string[];
+  spice_preference?: number;
+  disliked_foods?: string[];
+  portion_size?: string;
   // internal _asked_* flags may also be present; ignore on the client
   [key: string]: unknown;
 }

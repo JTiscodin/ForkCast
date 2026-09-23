@@ -40,6 +40,13 @@ EMPTY_BLUEPRINT = {
     "cuisines": [],
     "meals": ["breakfast", "lunch", "dinner"],
     "days": 30,
+    # Taste / diet / health — collected during chat, passed to TasteProfile
+    "veg_level": None,           # veg|nonveg|eggetarian|jain|vegan — explicit granular
+    "allergies": [],             # ["peanut", "dairy", "gluten", ...]
+    "health_goals": [],          # ["diabetic_friendly", "high_protein", "weight_loss", ...]
+    "spice_preference": None,    # 1-5 (1=mild, 5=very hot)
+    "disliked_foods": [],        # specific items or ingredients to avoid
+    "portion_size": None,        # small|medium|large
 }
 
 # Fields we proactively ask about (rich, Claude-style context gathering), in order.
@@ -68,14 +75,22 @@ Return ONLY valid JSON with this shape:
     "constraints": [{"dish_tag": "<lowercase>", "min_count": <int>}],
     "cuisines": [<lowercase cuisine>],
     "meals": [<"breakfast"|"lunch"|"dinner">],
-    "days": <int>
+    "days": <int>,
+    "veg_level": "veg|nonveg|eggetarian|jain|vegan" or null,
+    "allergies": [<allergies/intolerances mentioned, e.g. "peanut", "dairy", "gluten">],
+    "health_goals": [<e.g. "diabetic_friendly", "high_protein", "weight_loss", "low_sodium", "low_calorie">],
+    "spice_preference": <1-5 integer or null>,
+    "disliked_foods": [<foods/ingredients the user says they dislike>],
+    "portion_size": "small|medium|large" or null
   },
   "reply": "<one to two friendly sentences: acknowledge what they said, then ask for ONE missing/next thing. If everything needed is present, warmly say the plan is ready to generate.>",
   "ready": <true only if budget AND appetite_level are both set>
 }
-Merge new info into the existing blueprint; never drop already-known fields.
+Merge new info into the existing blueprint; never drop already-known fields. When the user
+mentions a diet restriction, allergy, health goal, or disliked food, capture it in the
+corresponding field even if the user doesn't phrase it as a choice.
 Ask about at most ONE thing per reply. Prefer asking required fields (budget, appetite) first,
-then diet, cuisines, must-have dishes. Use "Rs" not the rupee symbol. Keep it human and short."""
+then diet, allergies/health, cuisines, must-have dishes. Use "Rs" not the rupee symbol. Keep it human and short."""
 
 
 def _merge_blueprint(prev, patch):
@@ -94,6 +109,20 @@ def _merge_blueprint(prev, patch):
         bp["veg_only"] = bool(patch["veg_only"])
     if patch.get("high_protein") is not None:
         bp["high_protein"] = bool(patch["high_protein"])
+    # Taste / diet fields — explicit values, or keep what we had
+    if patch.get("veg_level") is not None:
+        bp["veg_level"] = str(patch["veg_level"]).lower().strip()
+    for k in ("allergies", "health_goals", "disliked_foods"):
+        v = patch.get(k)
+        if v:
+            bp[k] = [str(x).strip().lower() for x in v if str(x).strip()]
+    if patch.get("spice_preference") is not None:
+        try:
+            bp["spice_preference"] = max(1, min(5, int(patch["spice_preference"])))
+        except (TypeError, ValueError):
+            pass
+    if patch.get("portion_size") is not None:
+        bp["portion_size"] = str(patch["portion_size"]).lower().strip()
     if patch.get("constraints"):
         bp["constraints"] = _normalize_constraints(patch["constraints"])
     for k in ("cuisines", "meals"):
@@ -211,6 +240,8 @@ def _first_missing(bp):
         return "cuisines"
     if not bp.get("constraints") and not bp.get("_asked_constraints"):
         return "constraints"
+    if not bp.get("_asked_taste"):
+        return "taste"
     return None
 
 
@@ -250,6 +281,35 @@ def _fallback_turn(prev_bp, message):
     }
     bp = _merge_blueprint(prev_bp, patch)
 
+    # Taste / diet signal capture — best-effort keyword extraction so the fallback
+    # (no Gemini key) still teaches the taste layer.
+    if any(w in low for w in ("allergic", "allergy", "intolerant")):
+        for a in ("peanut", "nut", "dairy", "milk", "gluten", "wheat",
+                  "soy", "soya", "shellfish", "egg"):
+            if a in low:
+                bp["allergies"] = sorted(set(bp.get("allergies", []) + [a]))
+    if any(w in low for w in ("diabetic", "sugar", "diabetes", "blood sugar")):
+        bp["health_goals"] = list(dict.fromkeys(
+            bp.get("health_goals", []) + ["diabetic_friendly"]))
+    if "jain" in low:
+        bp["veg_level"] = "jain"
+    if bp.get("veg_level") is None and veg_signal is True:
+        bp["veg_level"] = "veg"
+    if bp.get("veg_level") is None and veg_signal is False:
+        bp["veg_level"] = "nonveg"
+    _spice = {"mild": 1, "less spicy": 2, "medium": 3, "spicy": 4, "very spicy": 5, "hot": 5}
+    for word, val in _spice.items():
+        if f"{word} spice" in low or word in low:
+            bp["spice_preference"] = val
+            break
+    if any(w in low for w in ("dislike", "hate", "don't like", "dont like", "not a fan")):
+        # Capture a disliked food from trailing words after the signal
+        import re as _re
+        m = _re.search(r"(?:dislike|hate|don't like|dont like|not a fan of?)\s+([a-z ]{2,30})", low)
+        if m and m.group(1).strip():
+            bp["disliked_foods"] = list(dict.fromkeys(
+                bp.get("disliked_foods", []) + [m.group(1).strip()]))
+
     # crude cuisine capture
     cuisines = [c for c in ("north_indian", "south_indian", "chinese", "hyderabadi")
                 if c.replace("_", " ") in low or c.split("_")[0] in low]
@@ -265,6 +325,13 @@ def _fallback_turn(prev_bp, message):
         bp["_asked_cuisines"] = True
     if bp.get("constraints"):
         bp["_asked_constraints"] = True
+    # Taste is "asked" once the user has given enough info (or the fallback
+    # flags it as such after a natural conversational point).
+    taste_hints = (bp.get("allergies") or bp.get("health_goals")
+                   or bp.get("disliked_foods") or bp.get("spice_preference")
+                   or bp.get("veg_level"))
+    if taste_hints or bp.get("_asked_taste"):
+        bp["_asked_taste"] = True
 
     # READY is decided by the REQUIRED fields only — nice-to-haves never block it.
     ready = _ready(bp)
@@ -283,6 +350,9 @@ def _fallback_turn(prev_bp, message):
     elif ask == "constraints":
         bp["_asked_constraints"] = True
         reply = "Any must-have dishes you'd want regularly, like paneer or biryani?"
+    elif ask == "taste":
+        bp["_asked_taste"] = True
+        reply = "Any dietary restrictions, allergies, or foods you dislike? (e.g. Jain diet, diabetic, allergic to peanuts)"
     else:
         reply = "Perfect — I have what I need. Hit Generate Plan and I'll build your month."
     return bp, reply, ready

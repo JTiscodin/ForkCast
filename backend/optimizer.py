@@ -200,6 +200,7 @@ def optimize(
     meals=None,
     variety_guards: bool = True,
     extra_pairing_dishes=None,
+    taste_profile=None,
 ) -> PlanResult:
     """Build a plan over `days` x `meals`.
 
@@ -242,8 +243,18 @@ def optimize(
     # course=complete + kind=sweet, passing the old filter but landing a dessert
     # in lunch slots. The kind gate is absolute: sweets/snacks/beverages are
     # NEVER mains regardless of course value.
+    from food_classifier import FoodInfo
+    def _meal_eligible(d):
+        """A dish may headline a meal slot only if it's kind=meal AND the
+        food-knowledge layer doesn't explicitly forbid it. The course-rule gates
+        below already block most non-meals; this is the extra guard for items the
+        name-rules got wrong (e.g. a Chhena Toast that course.py defaulted to
+        COMPLETE)."""
+        return (d.dish_kind == course_rules.KIND_MEAL
+                and getattr(d, "main_meal_eligible", True))
+
     mains = [d for d in pool
-             if d.dish_kind == course_rules.KIND_MEAL
+             if _meal_eligible(d)
              and d.course not in course_rules.NEVER_STANDALONE
              and (d.course != course_rules.COMPLETE
                   or course_rules.standalone_meal(d.name, d.price))
@@ -257,7 +268,7 @@ def optimize(
             # it for THIS meal only — same course gates, no rating filter. A
             # neighbourhood where everything is under 3 stars still has to eat.
             relaxed = [d for d in pool
-                       if d.dish_kind == course_rules.KIND_MEAL
+                       if _meal_eligible(d)
                        and d.course not in course_rules.NEVER_STANDALONE
                        and (d.course != course_rules.COMPLETE
                             or course_rules.standalone_meal(d.name, d.price))
@@ -1041,7 +1052,8 @@ def optimize(
     pairing_constraints = [c for c in constraints if c.dish_kind and c.slot_type]
     if pairing_constraints:
         total = _add_pairings(slots, pairing_constraints, pool, budget, total,
-                              profile, extra_pairing_dishes)
+                              profile, extra_pairing_dishes,
+                              taste_profile=taste_profile)
         total = round(total, 2)
         # Recalculate feasibility after pairings
         over = total > budget

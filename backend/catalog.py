@@ -36,6 +36,15 @@ class Dish:
                               # carry this today — the mains filter never sees
                               # them — and it flows onto PlannedSlot
                               # side_source/side2_source for the UI + order flow.
+    satiety: float = 0.5    # 0.0-1.0 filling scale; set when food_knowledge
+                              # knows the item. For pairing context matching.
+    serving_unit: str = ""     # piece|plate|bowl|glass|katori — from food_knowledge
+    spice_level: str = ""      # mild|medium|spicy|hot — from food_knowledge
+    health_tags: tuple = ()    # ("high_protein","diabetic_friendly",…) — food_knowledge
+    main_meal_eligible: bool = True  # False when food_knowledge confirms the item
+                              # can never headline a meal slot (a mithai, a
+                              # snack, a drink). The optimizer's kind=meal gate
+                              # plus this attribute structurally blocks such items.
 
 
 def variant_price(dish: Dish, multiplier: float) -> tuple:

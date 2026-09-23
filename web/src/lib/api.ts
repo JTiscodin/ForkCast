@@ -138,6 +138,8 @@ export const api = {
     meals?: MealType[];
     /** Fetch protein-rich dishes — changes the search, not just a filter. */
     high_protein?: boolean;
+    /** Taste/diet/dietary profile → backend TasteProfile hard filters + re-rank. */
+    taste_prefs?: Record<string, unknown>;
   }) => req<PlanSummary>("/plan", { method: "POST", body: input }),
 
   /**

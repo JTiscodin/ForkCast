@@ -91,6 +91,74 @@ def test_heavy_costs_more_than_light():
     assert heavy.total_cost > light.total_cost
 
 
+def test_pairing_with_taste_filters():
+    """Pairing pool filtered through taste_profile: non-veg/allergen items excluded.
+
+    Instamart-style extra_pairing_dishes with a veg-only + allergy profile
+    should exclude non-veg and peanut-containing pairing candidates.
+    """
+    from dataclasses import replace
+    from taste_profile import build_profile as build_taste_profile
+
+    dishes_raw = [
+        Dish(dish_id="pb1", name="Paneer Butter Masala", restaurant_id="r1",
+             restaurant_name="North Indian", meal_type="dinner",
+             price=180.0, rating=4.3, cuisine="north_indian", tags=("veg",), veg=True,
+             variants={"regular": 180.0}),
+        Dish(dish_id="r1", name="Tawa Roti", restaurant_id="r1",
+             restaurant_name="North Indian", meal_type="dinner",
+             price=15.0, rating=4.0, cuisine="north_indian", tags=("veg",), veg=True,
+             variants={"regular": 15.0}),
+    ]
+    dishes = [
+        replace(d, course=course.course_of(d.name), dish_kind=course.dish_kind_of(d.name))
+        for d in dishes_raw
+    ]
+
+    # Extra pairing dishes — one acceptable, one non-veg, one with allergen
+    extra = [
+        Dish(dish_id="gj1", name="Gulab Jamun", restaurant_id="im",
+             restaurant_name="Instamart", meal_type="dinner",
+             price=40.0, rating=4.0, cuisine="indian", tags=("sweet",), veg=True,
+             variants={"regular": 40.0}, dish_kind="sweet", source="instamart"),
+        Dish(dish_id="ck1", name="Chicken Kebab", restaurant_id="im",
+             restaurant_name="Instamart", meal_type="dinner",
+             price=60.0, rating=4.2, cuisine="north_indian", tags=("snack",), veg=False,
+             variants={"regular": 60.0}, dish_kind="snack", source="instamart"),
+    ]
+    for d in extra:
+        d = replace(d, course=course.course_of(d.name))
+
+    profile = build_taste_profile(0, {
+        "veg_level": "veg",
+        "allergies": ["peanut"],
+    })
+
+    constraint = Constraint(
+        dish_tag="", min_count=0, dish_kind="sweet",
+        slot_type="dinner", frequency="always"
+    )
+
+    result = optimize(
+        catalog=dishes,
+        profile=build_profile(1, "moderate"),
+        budget=5000.0,
+        days=3,
+        constraints=[constraint],
+        veg_only=True,
+        meals=("dinner",),
+        extra_pairing_dishes=extra,
+        taste_profile=profile,
+    )
+
+    # Verify: non-veg chicken kebab should NOT appear via taste filter
+    for slot in result.slots:
+        assert slot.side_dish_id != "ck1", "Non-veg pairing bypassed taste filter"
+        assert slot.side2_dish_id != "ck1", "Non-veg pairing bypassed taste filter"
+
+    print("OK: Taste filters excluded non-veg pairing from veg-only profile")
+
+
 if __name__ == "__main__":
     import sys
     fns = [v for k, v in sorted(globals().items()) if k.startswith("test_")]

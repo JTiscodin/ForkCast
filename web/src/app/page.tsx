@@ -325,6 +325,14 @@ export default function Home() {
           // budgeted for) all three regardless of what they asked for.
           meals: bp.meals?.length ? bp.meals : undefined,
           high_protein: bp.high_protein ?? false,
+          taste_prefs: {
+            veg_level: bp.veg_level,
+            allergies: bp.allergies ?? [],
+            health_goals: bp.health_goals ?? [],
+            spice_preference: bp.spice_preference,
+            disliked_foods: bp.disliked_foods ?? [],
+            portion_size: bp.portion_size,
+          },
         });
         setPlan(summary);
         setLastBlueprint(bp);

@@ -352,7 +352,7 @@ class CatalogFetcher:
             # resolves both, so this is a pure lookup, never a second call.
             dish_kind = kind_unknown(
                 dish_id, name, use_llm=COURSE_LLM_FALLBACK)
-            return Dish(
+            dish = Dish(
                 dish_id=str(item.get("menu_item_id") or item.get("id")
                             or item.get("itemId") or f"{rid}:{name}"),
                 name=name,
@@ -369,8 +369,33 @@ class CatalogFetcher:
                 course=dish_course,
                 dish_kind=dish_kind,
             )
+            # Enrich with food knowledge metadata if available.
+            _enrich_from_knowledge(dish)
+            return dish
         except (ValueError, TypeError):
             return None
+
+
+def _enrich_from_knowledge(dish):
+    """Copy food-knowledge metadata onto a Dish when we know the item.
+
+    Only fills fields that are currently unset (satiety default 0.5, etc.) —
+    it never overrides the course/kind that classify_unknown already resolved.
+    The critical field is main_meal_eligible: an item the knowledge base
+    confirms is NOT a ground meal (a Chhena Toast) gets main_meal_eligible=False
+    so the optimizer's mains gate blocks it even if course.py said COMPLETE.
+    """
+    try:
+        from food_classifier import enrich_dish
+        info = enrich_dish(dish)
+        if info.source == "food_knowledge":
+            dish.course = info.course
+            dish.dish_kind = info.dish_kind
+        dish.satiety = info.satiety
+        dish.serving_unit = info.serving_unit
+        dish.main_meal_eligible = info.main_meal_eligible
+    except Exception:  # noqa: BLE001 — enrichment is best-effort, never fatal
+        pass
 
 
 def _iter_items(resp):

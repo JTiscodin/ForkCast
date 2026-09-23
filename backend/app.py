@@ -21,6 +21,7 @@ from pydantic import BaseModel, field_validator
 from db import init_db, get_conn
 from wallet_service import WalletService
 from appetite import build_profile, AppetiteProfile
+import taste_profile
 from catalog_fetcher import CatalogFetcher
 from optimizer import optimize, Constraint
 from plan_service import PlanService
@@ -232,6 +233,11 @@ class PlanIn(BaseModel):
     # catalog_fetcher.PROTEIN_QUERIES). Filtering can't add dishes that were
     # never fetched, so this has to reach the search, not just the optimizer.
     high_protein: bool = False
+    # Free-form taste/diet preferences — merged into a TasteProfile (taste_profile.py)
+    # and used to hard-filter and re-rank pairing candidates. All keys optional:
+    # veg_level, allergies, health_goals, spice_preference, favorite_cuisines,
+    # disliked_foods, portion_size, notes.
+    taste_prefs: dict = {}
 
     @field_validator("days")
     @classmethod
@@ -578,6 +584,11 @@ def make_plan(body: PlanIn):
         # never blocks the plan.
         extra_pairings = None
         pairing_kinds = {c.dish_kind for c in constraints if c.dish_kind and c.slot_type}
+        taste = taste_profile.build_profile(
+            body.user_id,
+            {"veg_level": "veg" if body.veg_only else "nonveg",
+             **body.taste_prefs},
+        )
         if pairing_kinds and STATE["mode"] == "mcp" and STATE["client"]:
             try:
                 from instamart import InstamartClient, pairing_pool
@@ -591,7 +602,9 @@ def make_plan(body: PlanIn):
                         STATE["address_id"] = aid
                 if aid:
                     im = InstamartClient(token=STATE["client"].token)
-                    extra_pairings = pairing_pool(im, aid, sorted(pairing_kinds))
+                    extra_pairings = pairing_pool(im, aid,
+                                               sorted(pairing_kinds),
+                                               taste_profile=taste)
                     if extra_pairings:
                         print(f"[plan] instamart pairing pool: {len(extra_pairings)} items")
             except Exception as e:  # noqa: BLE001 - degrade, don't block
@@ -602,7 +615,8 @@ def make_plan(body: PlanIn):
         result = optimize(catalog, prof,
                           body.budget, days=body.days, constraints=constraints,
                           veg_only=body.veg_only, meals=body.meals,
-                          extra_pairing_dishes=extra_pairings)
+                          extra_pairing_dishes=extra_pairings,
+                          taste_profile=taste)
         conn, _, plan_svc = svc()
         plan_id = plan_svc.save_plan(body.user_id, body.month, result)
         return {
