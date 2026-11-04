@@ -91,6 +91,44 @@ def test_heavy_costs_more_than_light():
     assert heavy.total_cost > light.total_cost
 
 
+def test_taste_profile_hard_filters_main_dishes():
+    """Main-dish choices must honor the profile, not just pairing choices."""
+    from taste_profile import build_profile as build_taste_profile
+
+    cat = [
+        _d("chicken", "Chicken Biryani", meal_type="lunch", price=100,
+           rating=4.8, veg=False),
+        _d("dal", "Dal Khichdi", meal_type="lunch", price=120,
+           rating=4.0, veg=True),
+    ]
+    profile = build_taste_profile(1, {"veg_level": "veg"})
+
+    result = optimize(cat, build_profile(1, "moderate"), budget=1000,
+                      days=1, meals=("lunch",), taste_profile=profile)
+
+    assert len(result.slots) == 1
+    assert result.slots[0].dish_id == "dal"
+
+
+def test_emergency_pool_respects_main_meal_eligibility():
+    """Fallback fills may not bypass the explicit main-meal eligibility flag."""
+    from dataclasses import replace
+
+    cat = [
+        _d("eligible", "Dal Khichdi", meal_type="lunch", price=100,
+           rating=4.0),
+        replace(_d("ineligible", "Dal Khichdi Special", meal_type="lunch", price=20,
+                   rating=4.5), course=course.COMPLETE,
+                dish_kind=course.KIND_MEAL, main_meal_eligible=False),
+    ]
+
+    result = optimize(cat, build_profile(1, "moderate"), budget=20,
+                      days=1, meals=("lunch",))
+
+    assert len(result.slots) == 1
+    assert result.slots[0].dish_id == "eligible"
+
+
 def test_pairing_with_taste_filters():
     """Pairing pool filtered through taste_profile: non-veg/allergen items excluded.
 

@@ -244,6 +244,11 @@ def optimize(
     # in lunch slots. The kind gate is absolute: sweets/snacks/beverages are
     # NEVER mains regardless of course value.
     from food_classifier import FoodInfo
+    from taste_profile import adheres_to_diet
+
+    def _taste_eligible(d):
+        return taste_profile is None or adheres_to_diet(d, taste_profile)
+
     def _meal_eligible(d):
         """A dish may headline a meal slot only if it's kind=meal AND the
         food-knowledge layer doesn't explicitly forbid it. The course-rule gates
@@ -254,7 +259,8 @@ def optimize(
                 and getattr(d, "main_meal_eligible", True))
 
     mains = [d for d in pool
-             if _meal_eligible(d)
+             if _taste_eligible(d)
+             and _meal_eligible(d)
              and d.course not in course_rules.NEVER_STANDALONE
              and (d.course != course_rules.COMPLETE
                   or course_rules.standalone_meal(d.name, d.price))
@@ -268,7 +274,8 @@ def optimize(
             # it for THIS meal only — same course gates, no rating filter. A
             # neighbourhood where everything is under 3 stars still has to eat.
             relaxed = [d for d in pool
-                       if _meal_eligible(d)
+                       if _taste_eligible(d)
+                       and _meal_eligible(d)
                        and d.course not in course_rules.NEVER_STANDALONE
                        and (d.course != course_rules.COMPLETE
                             or course_rules.standalone_meal(d.name, d.price))
@@ -572,6 +579,8 @@ def optimize(
             d for d in pool
             if d.meal_type == m and d.dish_id not in base_ids
             and d.dish_kind == course_rules.KIND_MEAL
+            and getattr(d, "main_meal_eligible", True)
+            and _taste_eligible(d)
             and d.course not in course_rules.NEVER_STANDALONE
             and (d.course != course_rules.COMPLETE
                  or course_rules.standalone_meal(d.name, d.price))]

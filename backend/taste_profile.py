@@ -120,24 +120,29 @@ def build_profile(user_id: int, raw: dict) -> TasteProfile:
       spice_preference (int 1-5), favorite_cuisines (list),
       disliked_foods (list), portion_size, notes
     """
-    veg = raw.get("veg_level", "veg").lower().strip()
+    raw = raw or {}
+    veg = (raw.get("veg_level") or "veg").lower().strip()
     if veg not in VEG_LEVELS:
         veg = "veg"
+
+    spice_preference = raw.get("spice_preference")
+    if spice_preference is None:
+        spice_preference = 3
 
     profile = TasteProfile(
         user_id=user_id,
         veg_level=veg,
-        allergies=tuple(raw.get("allergies", [])),
+        allergies=tuple(raw.get("allergies") or []),
         health_goals=tuple(g.lower().strip()
-                           for g in raw.get("health_goals", [])
+                           for g in (raw.get("health_goals") or [])
                            if g.strip()),
-        spice_preference=max(1, min(5, int(raw.get("spice_preference", 3)))),
+        spice_preference=max(1, min(5, int(spice_preference))),
         favorite_cuisines=tuple(
-            c.lower().strip() for c in raw.get("favorite_cuisines", []) if c.strip()),
+            c.lower().strip() for c in (raw.get("favorite_cuisines") or []) if c.strip()),
         disliked_foods=tuple(
-            f.lower().strip() for f in raw.get("disliked_foods", []) if f.strip()),
-        portion_size=raw.get("portion_size", "medium").lower().strip(),
-        notes=raw.get("notes", "").strip(),
+            f.lower().strip() for f in (raw.get("disliked_foods") or []) if f.strip()),
+        portion_size=(raw.get("portion_size") or "medium").lower().strip(),
+        notes=(raw.get("notes") or "").strip(),
         _allowed_dietary_flags=VEG_LEVELS.get(veg, ("veg",)),
     )
     return profile
