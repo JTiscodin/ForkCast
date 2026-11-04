@@ -18,7 +18,7 @@ import type {
 } from "./types";
 
 const BASE =
-  process.env.NEXT_PUBLIC_API_URL?.replace(/\/$/, "") || "http://localhost:8000";
+  process.env.NEXT_PUBLIC_API_URL?.replace(/\/$/, "") || "http://localhost:8343";
 
 class ApiError extends Error {
   status: number;

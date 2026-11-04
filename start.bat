@@ -19,6 +19,7 @@ if not exist "web\node_modules" (
 )
 
 echo Frontend : http://localhost:%FRONTEND_PORT%
+set "NEXT_PUBLIC_API_URL=http://localhost:%BACKEND_PORT%"
 start "meal-frontend" cmd /c "cd web && pnpm dev --port %FRONTEND_PORT%"
 
 echo.

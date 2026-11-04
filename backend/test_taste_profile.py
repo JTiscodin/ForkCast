@@ -46,6 +46,28 @@ def test_build_profile_defaults():
     assert p.allergies == ()
 
 
+def test_build_profile_null_optional_preferences_use_defaults():
+    """Explicitly unset UI taste values use the same defaults as omitted keys."""
+    p = build_profile(0, {
+        "veg_level": None,
+        "allergies": None,
+        "health_goals": None,
+        "spice_preference": None,
+        "favorite_cuisines": None,
+        "disliked_foods": None,
+        "portion_size": None,
+        "notes": None,
+    })
+    assert p.veg_level == "veg"
+    assert p.allergies == ()
+    assert p.health_goals == ()
+    assert p.spice_preference == 3
+    assert p.favorite_cuisines == ()
+    assert p.disliked_foods == ()
+    assert p.portion_size == "medium"
+    assert p.notes == ""
+
+
 def test_hard_filters_veg_only():
     """veg_level=veg produces veg_only=True."""
     p = build_profile(0, {"veg_level": "veg"})

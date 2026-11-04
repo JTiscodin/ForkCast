@@ -685,6 +685,10 @@ def plan_feasibility(body: PlanIn):
         constraints=body.constraints,
         meals=body.meals,
         veg_only=body.veg_only,
+        # same diet filters as /plan, or the quoted floor uses dishes /plan rejects
+        taste_profile=taste_profile.build_profile(
+            body.user_id,
+            {"veg_level": "veg" if body.veg_only else "nonveg", **body.taste_prefs}),
     )
 
 
