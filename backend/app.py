@@ -1230,7 +1230,8 @@ def daily_feedback(user_id: int, body: FeedbackIn):
             if t is None:
                 return {"ok": True}
         if t == "never":
-            daily.record(conn, user_id, "never", "dish", card["items"][0]["name"], body.card_id, value=0)
+            daily.record(conn, user_id, "never", "dish",
+                         card["items"][0].get("canonical") or card["items"][0]["name"], body.card_id, value=0)
         elif t in ("up", "down", "not_today"):
             daily.record_card(conn, user_id, card, t, card["position"])
         else:

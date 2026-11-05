@@ -302,6 +302,47 @@ function MealCard({
   );
 }
 
+/** Post-meal rating (spec 1.7): 4-5 stars teach "more like this", 1-2 "less". */
+function RateMeal({ slot, onRate }: { slot: DailySlot; onRate: (cardId: number, stars: number) => void }) {
+  const cardId = slot.ordered!.card_id;
+  const storeKey = `rated:${cardId}`;
+  const [done, setDone] = useState(() => {
+    try {
+      return localStorage.getItem(storeKey) === "1";
+    } catch {
+      return false;
+    }
+  });
+  if (done) return null;
+  const name = slot.cards.find((c) => c.id === cardId)?.items[0].name ?? "your meal";
+  return (
+    <div className="flex flex-wrap items-center gap-2 rounded-2xl bg-card p-3 text-sm shadow-soft">
+      <span className="font-bold">How was {name}?</span>
+      <span className="flex" role="group" aria-label="Rate this meal">
+        {[1, 2, 3, 4, 5].map((n) => (
+          <button
+            key={n}
+            type="button"
+            aria-label={`${n} star${n > 1 ? "s" : ""}`}
+            onClick={() => {
+              onRate(cardId, n);
+              setDone(true);
+              try {
+                localStorage.setItem(storeKey, "1");
+              } catch {
+                /* rating still sent; only the reminder may reappear */
+              }
+            }}
+            className={cn(focusRing, "group/star rounded p-0.5 text-muted-foreground transition hover:text-rating active:scale-90")}
+          >
+            <Star className="size-5 transition group-hover/star:fill-rating" />
+          </button>
+        ))}
+      </span>
+    </div>
+  );
+}
+
 function Nudge({ slot, onLog }: { slot: DailySlot; onLog: (kind: string, text?: string) => void }) {
   const [text, setText] = useState("");
   return (
@@ -392,6 +433,16 @@ export function TodayView({ userId, onEditProfile }: { userId: number; onEditPro
       load();
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Couldn't save");
+    }
+  }
+
+  async function rate(cardId: number, stars: number) {
+    try {
+      await api.feedback(userId, cardId, "rating", stars);
+      toast.success(stars >= 4 ? "Thanks! We'll suggest more like this" : stars <= 2 ? "Noted, we'll steer away from it" : "Thanks for rating");
+      load();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Couldn't save rating");
     }
   }
 
@@ -596,6 +647,7 @@ export function TodayView({ userId, onEditProfile }: { userId: number; onEditPro
             </div>
 
             {s.nudge && !s.ordered && <Nudge slot={s} onLog={(k, t) => logMeal(s.slot, k, t)} />}
+            {s.ordered && hhmm > s.window[1] && <RateMeal slot={s} onRate={rate} />}
 
             {s.cards.length === 0 ? (
               <div className="flex items-center gap-3 rounded-2xl bg-card p-4 text-sm text-muted-foreground shadow-soft">

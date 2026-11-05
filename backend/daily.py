@@ -133,7 +133,8 @@ def record_card(conn, user_id, card, type_, position=None):
     main = card["items"][0]
     base = EVENT_DELTAS.get(type_, 0)
     small = base / 3 if type_ in ("ordered", "off_plan") else base
-    record(conn, user_id, type_, "dish", main["name"], card["id"], position, base)
+    # learn on the standard dish name so one restaurant's rajma chawal teaches all of them
+    record(conn, user_id, type_, "dish", main.get("canonical") or main["name"], card["id"], position, base)
     if type_ in ("ordered", "up", "down", "off_plan"):
         if main.get("cuisine"):
             record(conn, user_id, type_, "cuisine", main["cuisine"], card["id"], position, small)
@@ -475,8 +476,11 @@ def candidates(slot, day, profile, dishes_fn, im_fn, conn=None):
     def carb_qty(d):   # 2 roti or 1 rice per curry; 0 = not an accompaniment
         p = profs.get(d.name)
         if p and p.get("source") != "rules":
-            return {"bread": 2, "rice": 1}.get(p["kind"], 0)
-        return ACC_QTY.get(d.course, 0) if d.dish_kind == "meal" else 0
+            q = {"bread": 2, "rice": 1}.get(p["kind"], 0)
+        else:
+            q = ACC_QTY.get(d.course, 0) if d.dish_kind == "meal" else 0
+        # already a multi-piece pack ("Pack of 3", "(2 Pcs)", "4 Nos"): order it once
+        return 1 if q and re.search(r"pack of\s*[2-9]|\b[2-9]\s*(pcs|pc|pieces|nos)\b", d.name.lower()) else q
 
     acc = {}   # restaurant -> cheapest roti/rice serving, so a curry is a whole meal
     for d in pool:
@@ -532,7 +536,8 @@ def _recent_names(conn, user_id, day, days):
 
 def _pref(item, w):
     n = _norm(item["name"])
-    s = (w.get(("dish", n), 0) + w.get(("cuisine", _norm(item.get("cuisine"))), 0)
+    dish = _norm(item.get("canonical") or item["name"])
+    s = (w.get(("dish", dish), 0) + (w.get(("dish", n), 0) if dish != n else 0) + w.get(("cuisine", _norm(item.get("cuisine"))), 0)
          + w.get(("restaurant", _norm(item.get("restaurant_name"))), 0)
          + w.get(("grocery", n), 0)
          + sum(v for (dim, k), v in w.items() if dim == "ingredient" and k and k in n))
@@ -541,7 +546,7 @@ def _pref(item, w):
 
 def _blocked(item, blocks):
     n = _norm(item["name"])
-    return any((dim == "dish" and k == n) or (dim == "ingredient" and k in n)
+    return any((dim == "dish" and k in (n, _norm(item.get("canonical")))) or (dim == "ingredient" and k in n)
                or (dim == "restaurant" and k == _norm(item.get("restaurant_name")))
                or (dim == "cuisine" and k == _norm(item.get("cuisine")))
                for dim, k in blocks)

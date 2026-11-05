@@ -398,3 +398,23 @@ def test_profile_driven_planning_fixes_name_gaps(conn, monkeypatch):
     names = [[i["name"] for i in d["items"]] for d in drafts]
     assert ["Chef Special Veggie Delight", "Butter Roti"] in names
     assert not any("Masala Maggi" in n for n in names)
+
+
+def test_learning_generalises_across_restaurants_by_canonical_name(conn):
+    a = {"name": "Rajma Chawal", "canonical": "rajma chawal", "cuisine": "north_indian", "restaurant_name": "A"}
+    b = {"name": "Kadchi Plain Rajma-Chawal", "canonical": "rajma chawal", "cuisine": "x", "restaurant_name": "B"}
+    daily.record_card(conn, 1, {"id": 0, "items": [a]}, "ordered")
+    w, blocks = daily.weights(conn, 1)
+    assert daily._pref(b, w) == pytest.approx(3, abs=0.01)   # other restaurant's version learns too
+    daily.record(conn, 1, "never", "dish", "rajma chawal", value=0)
+    _, blocks = daily.weights(conn, 1)
+    assert daily._blocked(b, blocks)
+
+
+def test_bread_sold_as_a_pack_is_ordered_once(conn):
+    base = next(x for x in mock_catalog() if x.meal_type == "dinner" and x.course == "curry" and x.veg)
+    pool = [replace(base, dish_id="cu", name="Dal Makhani", restaurant_id="rz"),
+            replace(base, dish_id="gp", name="Ghee Paratha [Pack of 3]", restaurant_id="rz", price=90, course="bread")]
+    drafts = daily.candidates("dinner", DAY, daily.get_profile(conn, 1), lambda v: pool, lambda q: [])
+    side = next(i for d in drafts for i in d["items"] if i.get("side"))
+    assert side["quantity"] == 1
