@@ -1254,6 +1254,20 @@ def daily_log(user_id: int, body: LogIn):
     return _daily(go)
 
 
+@app.get("/daily/{user_id}/quality")
+def daily_quality(user_id: int):
+    """Audit today's built plan against the Indian-meal rules (plan_quality.py)."""
+    import plan_quality
+
+    def go(conn, deps):
+        v = daily.today(conn, user_id, _date.today(), _dt.now(), deps["dishes_fn"], deps["im_fn"])
+        if v is None:
+            raise HTTPException(404, "no daily profile")
+        issues = plan_quality.check_day(conn, v)
+        return {"ok": not issues, "issues": issues}
+    return _daily(go)
+
+
 @app.get("/daily/{user_id}/memory")
 def daily_memory(user_id: int):
     return _daily(lambda c, d: daily.memory(c, user_id))

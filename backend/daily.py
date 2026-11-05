@@ -18,6 +18,7 @@ import urllib.request
 from datetime import date as _date, datetime, timedelta, timezone
 from pathlib import Path
 
+import dish_profile
 import nutrition
 import taste_profile as tp
 
@@ -413,8 +414,12 @@ GRAVY_WORDS = ("rajma", "chole", "chhole", "chana", "dal", "masala", "curry", "g
                "kadai", "kadhai", "paneer", "sabzi", "biryani", "kofta", "korma", "manchurian", "sambar")
 
 
-def _jain_ok(name):
-    n = name.lower()
+def _jain_ok(item):
+    n = item["name"].lower()
+    if "jain" in n:
+        return True
+    if "onion_garlic" in item:
+        return not item["onion_garlic"]
     return "jain" in n or (any(w in n for w in JAIN_SAFE_WORDS) and not any(w in n for w in GRAVY_WORDS))
 
 
@@ -448,26 +453,56 @@ def _im_safe(name, diet):
     return not (diet == "jain" and any(w in n for w in tp._JAIN_BLOCKED_KEYWORDS))
 
 
-def candidates(slot, day, profile, dishes_fn, im_fn):
-    """-> list of card drafts {items, price, kind} before filtering."""
+def _fits_profile(d, slot, prof):
+    """Slot fit from the dish profile (what the dish IS), plus the hard price/portion bars."""
+    if d.price < MIN_PRICE.get(slot, MEAL_MIN_PRICE) or prof["serves"] > 1 or slot not in prof["slots"]:
+        return False
+    if slot == "snack":
+        return prof["kind"] in ("snack", "meal")   # chai-time namkeen/tiffin, not dessert
+    return prof["kind"] in ("meal", "curry")
+
+
+def candidates(slot, day, profile, dishes_fn, im_fn, conn=None):
+    """-> list of card drafts {items, price, kind} before filtering.
+
+    With a connection, every rule reads the dish profile (dish_profile.py); without
+    one (or for names never profiled) the keyword rules decide.
+    """
     diet = diet_on(profile, day)
     pool = dishes_fn(diet in ("veg", "jain", "vegan"))
+    profs = dish_profile.profiles(conn, [d.name for d in pool]) if conn is not None else {}
+
+    def carb_qty(d):   # 2 roti or 1 rice per curry; 0 = not an accompaniment
+        p = profs.get(d.name)
+        if p and p.get("source") != "rules":
+            return {"bread": 2, "rice": 1}.get(p["kind"], 0)
+        return ACC_QTY.get(d.course, 0) if d.dish_kind == "meal" else 0
+
     acc = {}   # restaurant -> cheapest roti/rice serving, so a curry is a whole meal
     for d in pool:
-        if d.course in ACC_QTY and d.dish_kind == "meal":
+        q = carb_qty(d)
+        if q:
             cur = acc.get(d.restaurant_id)
-            if cur is None or d.price * ACC_QTY[d.course] < cur.price * ACC_QTY[cur.course]:
+            if cur is None or d.price * q < cur.price * carb_qty(cur):
                 acc[d.restaurant_id] = d
     out = []
     for d in pool:
-        if not _fits_slot(d, slot):
+        p = profs.get(d.name)
+        if p and p.get("source") != "rules":
+            fits, needs_carb = _fits_profile(d, slot, p), p["kind"] == "curry"
+        else:
+            fits, needs_carb = _fits_slot(d, slot), d.course == "curry"
+        if not fits:
             continue
-        items = [_dish_item(d)]
-        if d.course == "curry":
+        item = _dish_item(d)
+        if p and p.get("source") != "rules":   # rule guesses must not override the Jain safe-list
+            item.update(canonical=p.get("canonical"), onion_garlic=p["onion_garlic"])
+        items = [item]
+        if needs_carb:
             side = acc.get(d.restaurant_id)
             if side is None:
                 continue
-            items.append({**_dish_item(side), "quantity": ACC_QTY[side.course], "side": True})
+            items.append({**_dish_item(side), "quantity": carb_qty(side), "side": True})
         out.append({"items": items})
     for qa, qb in IM_BUNDLES.get(slot, ()):
         picked = []
@@ -526,7 +561,7 @@ def filter_and_score(conn, user_id, profile, day, slot, drafts, ctx):
         food = [i for i in items if i["source"] == "food"]
         if any(not tp.adheres_to_diet(_as_dish(i), diet_only) for i in food):
             continue
-        if diet_on(profile, day) == "jain" and any(not _jain_ok(i["name"]) for i in food if not i.get("side")):
+        if diet_on(profile, day) == "jain" and any(not _jain_ok(i) for i in food if not i.get("side")):
             continue
         if any(not _im_safe(i["name"], diet_on(profile, day)) for i in items):
             continue
@@ -598,7 +633,7 @@ def _main_name(items):
     """Dedupe key: the headline dish; an Instamart bundle is all its items (no restaurant main)."""
     if items and items[0]["source"] == "instamart":
         return _norm(" + ".join(i["name"] for i in items if not i.get("addon")))
-    return _norm(items[0]["name"]) if items else ""
+    return _norm(items[0].get("canonical") or items[0]["name"]) if items else ""
 
 
 def assign_roles(kept, used_restaurants, used_names=None):
@@ -695,7 +730,7 @@ def build_day(conn, user_id, day, dishes_fn, im_fn, slots=None):
         if _ordered(conn, user_id, day, slot):
             continue   # never replace a slot the user already ordered
         ctx = context(conn, user_id, profile, day)
-        drafts = candidates(slot, day, profile, dishes_fn, im_fn)
+        drafts = candidates(slot, day, profile, dishes_fn, im_fn, conn)
         kept, excluded = filter_and_score(conn, user_id, profile, day, slot, drafts, ctx)
         picks = assign_roles(kept, used, used_names)
         # keep old cards only when NOTHING was fetched (outage); if the rules
@@ -1005,6 +1040,10 @@ def nightly(conn, dishes_fn, im_fn, today_=None):
         try:
             build_day(conn, uid, day, dishes_fn, im_fn)
             done += 1
+            import plan_quality
+            v = today(conn, uid, day, datetime.combine(day, datetime.min.time()), dishes_fn, im_fn)
+            for issue in plan_quality.check_day(conn, v):
+                print(f"[quality] user {uid} {day} {issue['slot']}: {issue['rule']} - {issue['detail']}")
         except Exception as e:  # noqa: BLE001 — one user's failure must not stop the batch
             print(f"[daily] nightly build failed for user {uid}: {e}")
     return done

@@ -103,6 +103,11 @@ def _call(model, key, prompt, system, timeout):
             body = e.read().decode(errors="replace")
         except Exception:  # noqa: BLE001
             pass
+        if e.code in (500, 503):
+            # overloaded/unavailable is transient like a minute quota: try the
+            # next model now, keep this one in rotation
+            print(f"[gemini] {model} HTTP {e.code} (overloaded); trying next model")
+            return "", "minute"
         if e.code != 429:
             print(f"[gemini] {model} HTTP {e.code}: {body[:200]}")
             return "", None

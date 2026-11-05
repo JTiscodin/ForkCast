@@ -1,4 +1,5 @@
 """Daily personalization — spec §4 done criteria, against mock catalog + in-memory DB."""
+import json
 from dataclasses import replace
 from datetime import date, datetime, timedelta, timezone
 
@@ -346,3 +347,54 @@ def test_rules_that_empty_a_slot_replace_stale_cards(conn):
     daily.build_day(conn, 1, DAY, lambda veg: [d for d in dishes_fn(veg) if d.meal_type == "breakfast"], lambda q: [],
                     slots=["dinner"])   # dishes fetched, none fit dinner
     assert not next(s for s in view(conn)["slots"] if s["slot"] == "dinner")["cards"]
+
+
+def _store_profiles(conn, rows):
+    import dish_profile
+    dish_profile.ensure_table(conn)
+    for name, prof in rows.items():
+        conn.execute("INSERT OR REPLACE INTO dish_profile (key, profile, source) VALUES (?,?,?)",
+                     (dish_profile.key_of(name), json.dumps(prof), "llm"))
+    conn.commit()
+
+
+def _prof(kind, slots=("lunch", "dinner"), canonical=None, og=True, serves=1):
+    return {"canonical": canonical, "kind": kind, "slots": list(slots), "diet": "veg",
+            "onion_garlic": og, "serves": serves, "kcal": 400, "protein": 12}
+
+
+def test_quality_gate_flags_each_rule(conn):
+    import plan_quality
+    _store_profiles(conn, {"Aloo Gobi": _prof("curry"), "Masala Maggi": _prof("snack", ["snack"]),
+                           "Rajma Chawal": _prof("meal", canonical="rajma chawal"),
+                           "Kadchi Rajma-Chawal": _prof("meal", canonical="rajma chawal"),
+                           "Family Thali": _prof("meal", serves=3), "Milk Tetra": _prof("drink", ["breakfast"]),
+                           "Tawa Roti": _prof("bread")})
+    food = lambda n, **k: {"source": "food", "name": n, **k}
+    view = {"diet": "veg", "slots": [{"slot": "dinner", "cards": [
+        {"id": 1, "items": [food("Aloo Gobi")]},
+        {"id": 2, "items": [food("Masala Maggi")]},
+        {"id": 3, "items": [food("Rajma Chawal"), {"source": "instamart", "name": "Milk Tetra", "addon": True}]},
+        {"id": 4, "items": [food("Kadchi Rajma-Chawal")]},
+        {"id": 5, "items": [food("Family Thali")]},
+        {"id": 6, "items": [food("Aloo Gobi"), food("Tawa Roti", side=True, quantity=2)]},
+    ]}]}
+    rules = {(i["card_id"], i["rule"]) for i in plan_quality.check_day(conn, view)}
+    assert {(1, "curry_without_carb"), (2, "not_a_meal"), (3, "odd_addon"), (4, "duplicate"),
+            (5, "sharing_portion")} <= rules
+    assert not any(cid == 6 and r == "curry_without_carb" for cid, r in rules)
+
+
+def test_profile_driven_planning_fixes_name_gaps(conn, monkeypatch):
+    """With stored profiles, a dish the keyword rules misread is still planned right."""
+    _store_profiles(conn, {"Chef Special Veggie Delight": _prof("curry"),   # no keyword says curry
+                           "Masala Maggi": _prof("snack", ["snack"]),
+                           "Butter Roti": _prof("bread")})
+    base = next(x for x in mock_catalog() if x.meal_type == "dinner" and x.course == "complete")
+    pool = [replace(base, dish_id="cv", name="Chef Special Veggie Delight", restaurant_id="rx", price=180),
+            replace(base, dish_id="br", name="Butter Roti", restaurant_id="rx", price=30, course="bread"),
+            replace(base, dish_id="mg", name="Masala Maggi", restaurant_id="ry", price=150)]
+    drafts = daily.candidates("dinner", DAY, daily.get_profile(conn, 1), lambda v: pool, lambda q: [], conn)
+    names = [[i["name"] for i in d["items"]] for d in drafts]
+    assert ["Chef Special Veggie Delight", "Butter Roti"] in names
+    assert not any("Masala Maggi" in n for n in names)
