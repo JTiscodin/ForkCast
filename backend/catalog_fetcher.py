@@ -78,6 +78,14 @@ NONVEG_QUERIES = {
     "dinner": ["chicken curry", "mutton", "egg curry", "fish curry"],
 }
 
+# Jain seeds for the veg pool. Restaurant gravies hide onion/garlic that a name
+# filter can't see, so Jain days lean on dishes the restaurant labels "Jain".
+JAIN_QUERIES = {
+    "breakfast": ["jain"],
+    "lunch": ["jain thali"],
+    "dinner": ["jain dal", "jain paneer", "jain combo", "jain khichdi", "jain pav bhaji"],
+}
+
 # High-protein seeds, layered in when the user mentions protein. Kept separate
 # so a plain non-veg request doesn't drag in protein-bowl noise.
 PROTEIN_QUERIES = {
@@ -138,6 +146,9 @@ class CatalogFetcher:
         seeds = {m: list(q) for m, q in SLOT_QUERIES.items()}
         if not veg_only:
             for m, extra in NONVEG_QUERIES.items():
+                seeds.setdefault(m, []).extend(extra)
+        else:
+            for m, extra in JAIN_QUERIES.items():
                 seeds.setdefault(m, []).extend(extra)
         if high_protein:
             bucket = PROTEIN_QUERIES["veg" if veg_only else "nonveg"]

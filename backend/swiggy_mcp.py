@@ -111,9 +111,23 @@ class SwiggyMCPClient:
         raise SwiggyMCPError(f"request failed after retry: {last_err}")
 
     def call(self, tool, arguments):
-        """Standard MCP tools/call. Returns the tool result payload (dict)."""
-        result = self._rpc("tools/call", {"name": tool, "arguments": arguments})
-        return _unwrap_tool_result(result)
+        """Standard MCP tools/call. Returns the tool result payload (dict).
+
+        Swiggy reports tool failures in-band as {"success": false, "error": {...}};
+        raise those so a failed cart update can't pass as a built cart.
+        """
+        result = _unwrap_tool_result(
+            self._rpc("tools/call", {"name": tool, "arguments": arguments}))
+        # two in-band shapes seen live: {success:false,error:{message}} and
+        # {successful:false,statusMessage,errorCodes:[...]}
+        if isinstance(result, dict) and (result.get("success") is False
+                                         or result.get("successful") is False):
+            err = result.get("error") or {}
+            msg = (err.get("message") if isinstance(err, dict) else str(err)) or \
+                result.get("statusMessage") or result.get("message") or "failed"
+            codes = result.get("errorCodes")
+            raise SwiggyMCPError(f"{tool}: {msg}" + (f" {codes}" if codes else ""))
+        return result
 
     def list_tools(self):
         return self._rpc("tools/list", {})
@@ -141,8 +155,8 @@ class SwiggyMCPClient:
             args["restaurantName"] = restaurant_name
         return self.call("update_food_cart", args)
 
-    def get_food_cart(self):
-        return self.call("get_food_cart", {})
+    def get_food_cart(self, address_id):
+        return self.call("get_food_cart", {"addressId": address_id})
 
     def place_food_order(self, address_id, payment_method=None):
         args = {"addressId": address_id}

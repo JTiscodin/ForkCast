@@ -13,6 +13,7 @@ Flow:
   POST /wallet/{user}/{month}/close   month close -> rollover
 """
 import os
+import time as _time
 import config  # noqa: F401 — loads .env before anything reads os.environ
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
@@ -57,6 +58,13 @@ def _build_client():
     try:
         return SwiggyMCPClient()
     except SwiggyMCPError as e:
+        if getattr(e, "expired", False):
+            import swiggy_auth
+            if swiggy_auth.refresh():
+                try:
+                    return SwiggyMCPClient()
+                except SwiggyMCPError as e2:
+                    e = e2
         print(f"[auth] no live Swiggy client: {e}")
         # Distinguish a dead JWT from a missing token: an expired JWT must
         # prompt a re-login (the .env token is stale), a missing one just
@@ -96,6 +104,8 @@ def _init_runtime():
 
 
 _CATALOG_CACHE = {}    # cache_key -> [Dish]
+_CATALOG_AT = {}       # cache_key -> fetch time (live TTL)
+CATALOG_TTL_S = int(os.environ.get("CATALOG_TTL_S", "1800"))
 
 init_db()
 _init_runtime()
@@ -162,12 +172,25 @@ def get_catalog(veg_only=False, high_protein=False):
     key = (("veg" if veg_only else "all")
            + ("+protein" if high_protein else "")
            + f"@{STATE['address_id']}")
-    if key not in _CATALOG_CACHE:
+    # live menus go stale (sold out, closed); refetch after the TTL so the daily
+    # on-open stale check sees it. A failed refetch keeps the old pool.
+    expired = _live() and _time.time() - _CATALOG_AT.get(key, 0) > CATALOG_TTL_S
+    if key not in _CATALOG_CACHE or expired:
         # Pass the CURRENT address explicitly — the fetcher's own address_id
         # was baked in at construction and may predate the user's pick.
-        _CATALOG_CACHE[key] = STATE["fetcher"].fetch(
-            address_id=STATE["address_id"],
-            veg_only=veg_only, high_protein=high_protein)
+        try:
+            fresh = STATE["fetcher"].fetch(
+                address_id=STATE["address_id"],
+                veg_only=veg_only, high_protein=high_protein)
+            # per-query failures (429s) are swallowed upstream and can yield an empty
+            # pool; caching that would blank every menu until the TTL ran out
+            if not fresh and _live():
+                raise RuntimeError("live catalog fetch returned no dishes")
+            _CATALOG_CACHE[key] = fresh
+            _CATALOG_AT[key] = _time.time()
+        except Exception:
+            if key not in _CATALOG_CACHE:
+                raise
     return _CATALOG_CACHE[key]
 
 
@@ -201,7 +224,15 @@ def _executor():
 def svc():
     conn = get_conn()
     return conn, WalletService(conn), PlanService(conn, WalletService(conn),
-                                                  _executor())
+                                                  _executor(), _raw_variant_of)
+
+
+def _raw_variant_of(dish_id):
+    for dishes in _CATALOG_CACHE.values():
+        for d in dishes:
+            if d.dish_id == dish_id:
+                return d.variants.get("_raw")
+    return None
 
 
 # ---------- models ----------
@@ -968,3 +999,319 @@ def close_month(user_id: int, month: str):
         raise HTTPException(400, str(e))
     finally:
         conn.close()
+
+
+# ================= daily personalization (docs/SPEC-daily-personalization.md) =================
+import threading
+from datetime import date as _date, datetime as _dt
+import daily
+import agent
+from typing import Optional
+
+# Canned Instamart rows for mock mode, so bundles + add-ons demo without a token.
+_MOCK_IM = {q: [{"id": f"mock-{q}", "name": n, "price": p, "image_url": "", "rating": 4.3}]
+            for q, n, p in (("curd", "Amul Masti Dahi 400g", 35), ("banana", "Robusta Banana 6pc", 42),
+                            ("eggs", "Farm Eggs 6pc", 54), ("bread", "Brown Bread 400g", 45),
+                            ("poha", "MTR Ready Poha", 60), ("fruit", "Seasonal Fruit Bowl", 79),
+                            ("makhana", "Roasted Makhana 80g", 99), ("chaas", "Amul Chaas 200ml", 15),
+                            ("sprouts", "Moong Sprouts 200g", 35), ("lassi", "Amul Lassi 200ml", 25),
+                            ("milk", "Amul Taaza 500ml", 28), ("dates", "Medjoul Dates 200g", 149),
+                            ("paneer", "Amul Paneer 200g", 90), ("tofu", "Tofu 200g", 85),
+                            ("cucumber", "Fresh Cucumber 500g", 30),
+                            ("roasted chana", "Roasted Chana 200g", 55))}
+
+
+def _im_client():
+    if not _live():
+        return None
+    from instamart import InstamartClient
+    return InstamartClient(token=STATE["client"].token)
+
+
+def _ensure_address():
+    """Live calls need an addressId; until the browser posts one, use the first saved
+    address (as CatalogFetcher/OrderExecutor do). Instamart returns nothing without it."""
+    if _live() and not STATE["address_id"]:
+        try:
+            addrs = STATE["client"].call("get_addresses", {}).get("addresses") or []
+            if addrs:
+                STATE["address_id"] = str(addrs[0].get("id"))
+        except Exception as e:  # noqa: BLE001
+            print(f"[daily] could not resolve an address: {e}")
+
+
+def _daily_deps():
+    _ensure_address()
+    im = _im_client()
+    if im is None:
+        im_fn = lambda q: _MOCK_IM.get((q or "").split(" ")[0], [])  # noqa: E731
+    else:
+        from instamart import search as _ims
+        def im_fn(q):
+            # cached per address+query: menus are rebuilt often and Instamart 429s fast
+            k = (STATE["address_id"], q)
+            hit = _IM_CACHE.get(k)
+            if hit and _time.time() - hit[0] < CATALOG_TTL_S:
+                return hit[1]
+            rows = _ims(im, STATE["address_id"], q, limit=10)
+            _IM_CACHE[k] = (_time.time(), rows)
+            return rows
+    return {"dishes_fn": lambda veg_only: get_catalog(veg_only), "im_fn": im_fn,
+            "stock_fn": _stock if im is not None else None,
+            "food_exec": _executor(), "im_client": im, "address_id": STATE["address_id"]}
+
+
+_IM_CACHE = {}   # (address_id, query) -> (fetched_at, rows)
+
+
+def _stock(item):
+    """Is this exact menu item still orderable? True / False / None (unknown).
+
+    Searches the dish by name and finds the same itemId; any failure or a miss is
+    'unknown' so a flaky search can't trigger a rebuild.
+    """
+    try:
+        resp = STATE["client"].call("search_menu", {"addressId": STATE["address_id"],
+                                                    "query": item["name"]})
+    except Exception:  # noqa: BLE001
+        return None
+    from catalog_fetcher import _iter_items
+    for it in _iter_items(resp):
+        if str(it.get("menu_item_id") or it.get("id")) == str(item["id"]):
+            return str(it.get("inStock", 1)) not in ("0", "False", "false")
+    return None
+
+
+_CITIES = ("Bengaluru", "Bangalore", "Mumbai", "Delhi", "New Delhi", "Gurugram", "Gurgaon", "Noida",
+           "Hyderabad", "Chennai", "Kolkata", "Pune", "Ahmedabad", "Jaipur", "Lucknow", "Chandigarh",
+           "Indore", "Kochi", "Coimbatore", "Nagpur", "Surat", "Bhopal", "Visakhapatnam", "Goa",
+           "Ghaziabad", "Faridabad", "Navi Mumbai", "Thane", "Mysuru", "Vadodara")
+
+
+def _city_from_address():
+    """Swiggy addresses carry no city field; find a known city in the active addressLine."""
+    if not _live():
+        return None
+    try:
+        addrs = STATE["client"].call("get_addresses", {}).get("addresses") or []
+    except Exception:  # noqa: BLE001 — city only drives the soft weather signal
+        return None
+    a = next((x for x in addrs if str(x.get("id")) == str(STATE["address_id"])), addrs[0] if addrs else {})
+    line = (a.get("addressLine") or "").lower()
+    # longest first so "New Delhi" beats "Delhi" and "Navi Mumbai" beats "Mumbai"
+    return next((c for c in sorted(_CITIES, key=len, reverse=True) if c.lower() in line), None)
+
+
+def _daily(fn):
+    """Run fn(conn, deps) with a connection; ValueError -> 400."""
+    conn = get_conn()
+    try:
+        return fn(conn, _daily_deps())
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+    finally:
+        conn.close()
+
+
+class DailyProfileIn(BaseModel):
+    diet_type: Optional[str] = None
+    weekday_overrides: Optional[dict] = None
+    allergies: Optional[list] = None
+    goal: Optional[str] = None
+    slots: Optional[list] = None
+    windows: Optional[dict] = None
+    monthly_budget: Optional[float] = None
+    city: Optional[str] = None
+    mode: Optional[str] = None
+    quiz_picks: list = []      # onboarding taste quiz -> +3 dish each
+
+
+class FeedbackIn(BaseModel):
+    card_id: int
+    type: str                  # up|down|not_today|never|rating
+    value: Optional[float] = None        # rating 1-5
+
+
+class LogIn(BaseModel):
+    slot: str
+    kind: str = "home"         # elsewhere|home|skipped|chat
+    text: str = ""
+
+
+class MemoryEditIn(BaseModel):
+    dimension: str
+    key: str
+    weight: Optional[float] = None
+    delete: bool = False
+    block: Optional[bool] = None
+
+
+class AgentIn(BaseModel):
+    message: str
+
+
+@app.get("/daily/quiz")
+def daily_quiz(diet: str = "veg"):
+    return {"dishes": daily.quiz(diet)}
+
+
+@app.post("/daily/nightly")
+def daily_nightly():
+    return {"users_built": run_nightly()}
+
+
+@app.get("/daily/{user_id}/profile")
+def daily_get_profile(user_id: int):
+    return _daily(lambda c, d: {"profile": daily.get_profile(c, user_id)})
+
+
+@app.post("/daily/{user_id}/profile")
+def daily_save_profile(user_id: int, body: DailyProfileIn):
+    def go(conn, deps):
+        if not conn.execute("SELECT 1 FROM users WHERE id=?", (user_id,)).fetchone():
+            raise ValueError("unknown user")
+        data = body.model_dump(exclude={"quiz_picks"})
+        if not data.get("city") and not (daily.get_profile(conn, user_id) or {}).get("city"):
+            data["city"] = _city_from_address()
+        p = daily.save_profile(conn, user_id, data)
+        for name in body.quiz_picks[:10]:
+            daily.record(conn, user_id, "quiz", "dish", str(name))
+        pulled = daily.pull_history(conn, user_id, deps["im_client"], deps["address_id"])
+        daily.write_memory_md(conn, user_id)
+        # a profile change (weekday diet, allergies…) invalidates unordered menus from today
+        # on; the live/dry-run switch alone changes no card, so it keeps them
+        if set(body.model_dump(exclude_none=True)) - {"mode", "quiz_picks"} or body.quiz_picks:
+            conn.execute("DELETE FROM daily_menu WHERE user_id=? AND date>=? AND id NOT IN ("
+                         "SELECT c.menu_id FROM menu_card c JOIN order_record o ON o.card_id=c.id)",
+                         (user_id, _date.today().isoformat()))
+            conn.commit()
+        return {"profile": p, "history_items": pulled}
+    return _daily(go)
+
+
+@app.get("/daily/{user_id}/today")
+def daily_today(user_id: int, day: str = None):
+    def go(conn, deps):
+        d = _date.fromisoformat(day) if day else _date.today()
+        v = daily.today(conn, user_id, d, _dt.now(), deps["dishes_fn"], deps["im_fn"],
+                        deps["stock_fn"])
+        if v is None:
+            raise HTTPException(404, "no daily profile")
+        return v
+    return _daily(go)
+
+
+@app.post("/daily/{user_id}/regenerate")
+def daily_regenerate(user_id: int, slot: str = None):
+    def go(conn, deps):
+        daily.build_day(conn, user_id, _date.today(), deps["dishes_fn"], deps["im_fn"],
+                        slots=[slot] if slot else None)
+        return {"ok": True}
+    return _daily(go)
+
+
+@app.post("/daily/{user_id}/order/{card_id}")
+def daily_order(user_id: int, card_id: int):
+    return _daily(lambda c, d: daily.order(c, user_id, card_id, d["food_exec"], d["im_client"],
+                                           d["address_id"], confirm=True))
+
+
+@app.post("/daily/{user_id}/feedback")
+def daily_feedback(user_id: int, body: FeedbackIn):
+    def go(conn, deps):
+        card = daily.get_card(conn, body.card_id)
+        if not card or card["user_id"] != user_id:
+            raise ValueError("no such card")
+        t = body.type
+        if t == "rating":
+            if body.value is None or not 1 <= body.value <= 5:
+                raise ValueError("rating must be 1-5")
+            t = "up" if body.value >= 4 else "down" if body.value <= 2 else None
+            if t is None:
+                return {"ok": True}
+        if t == "never":
+            daily.record(conn, user_id, "never", "dish", card["items"][0]["name"], body.card_id, value=0)
+        elif t in ("up", "down", "not_today"):
+            daily.record_card(conn, user_id, card, t, card["position"])
+        else:
+            raise ValueError("type must be up|down|not_today|never|rating")
+        daily.write_memory_md(conn, user_id)
+        return {"ok": True}
+    return _daily(go)
+
+
+@app.post("/daily/{user_id}/log")
+def daily_log(user_id: int, body: LogIn):
+    def go(conn, deps):
+        if body.kind == "skipped":
+            names = []
+        elif body.text:
+            names = daily.parse_food_text(body.text)
+        else:
+            names = ["home meal" if body.kind == "home" else "outside meal"]
+        src = "chat_log" if body.kind == "chat" else "nudge"
+        return daily.log_food(conn, user_id, _date.today(), body.slot, src, names)
+    return _daily(go)
+
+
+@app.get("/daily/{user_id}/memory")
+def daily_memory(user_id: int):
+    return _daily(lambda c, d: daily.memory(c, user_id))
+
+
+@app.post("/daily/{user_id}/memory")
+def daily_memory_edit(user_id: int, body: MemoryEditIn):
+    return _daily(lambda c, d: daily.edit_memory(c, user_id, body.dimension, body.key,
+                                                 body.weight, body.delete, body.block))
+
+
+@app.post("/daily/{user_id}/agent")
+def daily_agent(user_id: int, body: AgentIn):
+    return _daily(lambda c, d: agent.run(c, user_id, body.message, d))
+
+
+def run_nightly():
+    """Refresh token -> recompute weights -> memory MD -> tomorrow's menus."""
+    import swiggy_auth
+    if STATE["mode"] == "mcp" and swiggy_auth.refresh():
+        _init_runtime()
+    conn = get_conn()
+    try:
+        deps = _daily_deps()
+        return daily.nightly(conn, deps["dishes_fn"], deps["im_fn"])
+    finally:
+        conn.close()
+
+
+NIGHTLY_HOUR = int(os.environ.get("DAILY_NIGHTLY_HOUR", "2"))
+
+
+def _scheduler():
+    last = None
+    while True:
+        now = _dt.now()
+        if now.hour == NIGHTLY_HOUR and last != now.date():
+            last = now.date()
+            try:
+                print(f"[daily] nightly batch built {run_nightly()} users")
+            except Exception as e:  # noqa: BLE001 — keep the scheduler alive
+                print(f"[daily] nightly batch failed: {e}")
+        _time.sleep(300)
+
+
+if os.environ.get("DAILY_SCHEDULER", "1") == "1":
+    threading.Thread(target=_scheduler, daemon=True, name="daily-nightly").start()
+
+
+def _warm_catalog():
+    # a cold live catalog is ~80s of search_menu calls; pay it at boot, not on first open
+    _ensure_address()
+    for veg in (True, False):
+        try:
+            get_catalog(veg)
+        except Exception as e:  # noqa: BLE001 — a cold first request still works, just slower
+            print(f"[daily] catalog warm-up failed: {e}")
+
+
+if _live():
+    threading.Thread(target=_warm_catalog, daemon=True, name="catalog-warm").start()

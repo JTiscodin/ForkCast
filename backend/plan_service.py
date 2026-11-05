@@ -16,8 +16,11 @@ from order_executor import OrderExecutor
 
 
 class PlanService:
-    def __init__(self, conn, wallet: WalletService = None, executor: OrderExecutor = None):
+    def __init__(self, conn, wallet: WalletService = None, executor: OrderExecutor = None,
+                 raw_variant_of=None):
         self.conn = conn
+        # dish_id -> Swiggy's raw variant object; live carts need it echoed back
+        self.raw_variant_of = raw_variant_of or (lambda dish_id: None)
         self.wallet = wallet or WalletService(conn)
         self.executor = executor or OrderExecutor(mode="mock")
 
@@ -181,7 +184,8 @@ class PlanService:
             # Charge the whole meal — curry + its bread/rice — not just the main.
             cost = self._slot_total(s)
             order = self.executor.place(s["dish_id"], s["restaurant_id"],
-                                        cost, s["variant"])
+                                        cost, s["variant"],
+                                        raw_variant=self.raw_variant_of(s["dish_id"]))
             self.wallet.debit(user_id, month, cost, meal_slot_id=slot_id,
                               note=f"{s['dish_name']}")
             self._set_slot(slot_id, status="confirmed", order_id=order["order_id"])

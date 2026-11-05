@@ -465,3 +465,15 @@ if __name__ == "__main__":
     passed = sum(_run(name, fn) for name, fn in tests)
     print(f"\n{passed}/{len(tests)} passed")
     raise SystemExit(0 if passed == len(tests) else 1)
+
+
+def test_sabzis_need_bread_or_rice_and_carb_combos_are_meals():
+    # live-menu names that used to be served alone (sabzi) or misread as bread/rice
+    for name in ("Aloo Chhole", "Aloo Gobi", "Jeera Aloo", "Dum Aloo", "Bhindi Fry",
+                 "Baingan Bharta", "Sarson Ka Saag", "Kadhi Pakoda", "Kadhai Chaap"):
+        assert course.classify(name).course == course.CURRY, name
+    for name in ("Chhole Bhature", "Chole Kulche", "Rajma Rice", "Dal Rice",
+                 "Sarson Saag with Makki Roti", "Paneer Butter Masala with Roti"):
+        assert course.classify(name).course == course.COMPLETE, name
+    assert course.classify("Aloo Tikki").course == course.SIDE
+    assert course.classify("Aloo Paratha").course == course.COMPLETE

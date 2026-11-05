@@ -33,3 +33,4 @@ D:/Temp/
 backend/out*.txt
 *.png
 /mealplanner.db
+backend/data/taste/
