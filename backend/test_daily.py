@@ -478,3 +478,13 @@ def test_food_order_history_teaches_once_per_order(conn):
     assert daily.pull_food_orders(conn, 1, Food(), "a1") == 0          # same order not learned twice
     w, _ = daily.weights(conn, 1)
     assert w[("dish", "rajma chawal")] == pytest.approx(2, abs=0.01) and ("dish", "butter roti") in w
+
+
+def test_meals_must_be_filling_and_soda_combos_are_out(conn):
+    base = next(x for x in mock_catalog() if x.meal_type == "lunch" and x.course == "complete" and x.veg)
+    names = ["Anna Idli Sambhar [1 Piece]", "Nachos + Coke Combo", "Rajma Chawal"]
+    drafts = [{"items": [daily._dish_item(replace(base, dish_id=f"m{i}", name=n, restaurant_id=f"rm{i}"))],
+               "price": base.price} for i, n in enumerate(names)]
+    p = daily.get_profile(conn, 1)
+    kept, _ = daily.filter_and_score(conn, 1, p, DAY, "lunch", drafts, daily.context(conn, 1, p, DAY))
+    assert [c["items"][0]["name"] for c in kept] == ["Rajma Chawal"]

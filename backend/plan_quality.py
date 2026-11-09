@@ -28,6 +28,11 @@ def check_day(conn, view):
             if main["source"] == "food":
                 if slot in MAIN_SLOTS and p["kind"] in NOT_A_MEAL:
                     bad(slot, c, "not_a_meal", f"{main['name']} is a {p['kind']}, not a {slot}")
+                min_kcal = {"breakfast": 150, "lunch": 250, "dinner": 250}.get(slot, 0)
+                if c.get("nutrients", {}).get("kcal", min_kcal) < min_kcal:
+                    bad(slot, c, "too_small", f"{main['name']} is ~{c['nutrients']['kcal']:.0f} kcal, too light for {slot}")
+                if any(w in main["name"].lower() for w in ("coke", "pepsi", "cola", "sprite", "fanta", "soda")):
+                    bad(slot, c, "junk_combo", f"{main['name']} comes with a soft drink")
                 if slot == "snack" and p["kind"] in ("sweet", "drink"):
                     bad(slot, c, "not_a_snack", f"{main['name']} is a {p['kind']}, not a chai-time snack")
                 if p["kind"] == "curry" and not any(prof[x["name"]]["kind"] in ("bread", "rice") for x in sides):

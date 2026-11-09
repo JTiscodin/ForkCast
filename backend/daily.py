@@ -403,6 +403,9 @@ MIN_PRICE = {"snack": 30}   # meal slots default to MEAL_MIN_PRICE
 MEAL_MIN_PRICE = 60
 
 
+MIN_MEAL_KCAL = {"breakfast": 150, "lunch": 250, "dinner": 250}   # INDB home servings run small
+from course import _DRINK_WORDS as SODA_WORDS, _contains_word  # noqa: E402  (one shared soda list)
+
 # Instant noodles are a snack in an Indian day, never lunch or dinner.
 SNACK_ONLY_WORDS = ("maggi", "instant noodles", "cup noodles")
 # What an Indian breakfast usually is; nudged ahead of sandwiches/pastries.
@@ -580,6 +583,12 @@ def filter_and_score(conn, user_id, profile, day, slot, drafts, ctx):
         # llm=False: hundreds of candidates; only the few persisted cards get an estimate
         nut, conf, _ = _card_nutrition(conn, items, llm=False)
         c = {**c, "nutrients": {**nut, "confidence": conf}}
+        # a meal must be a meal: one idli is not lunch (measured, not guessed from the name)
+        if nut.get("kcal", 0) < MIN_MEAL_KCAL.get(slot, 0):
+            continue
+        # soft-drink combos ("Nachos + Coke") are junk for a health-aware planner
+        if any(_contains_word(i["name"].lower(), w) for i in items for w in SODA_WORDS):
+            continue
         if hit:
             excluded.append({**c, "allergen_hit": hit})
             continue
