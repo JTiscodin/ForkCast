@@ -23,6 +23,9 @@ def test_user_routes_need_the_owners_token(client):
     h = {"Authorization": "Bearer " + other["token"]}
     assert client.delete(f"/daily/{uid['user_id']}", headers=h).status_code == 403    # wrong user
     assert client.post("/chat", json={"user_id": uid["user_id"], "message": "hi"}, headers=h).status_code == 403
+    # body sent without a JSON content-type is still checked
+    raw = client.post("/chat", content=f'{{"user_id": {uid["user_id"]}, "message": "hi"}}', headers=h)
+    assert raw.status_code == 403
     mine = {"Authorization": "Bearer " + uid["token"]}
     assert client.delete(f"/daily/{uid['user_id']}", headers=mine).status_code == 200
     client.delete(f"/daily/{other['user_id']}", headers=h)

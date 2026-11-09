@@ -40,8 +40,12 @@ def _secret():
     s = os.environ.get("FORKCAST_SECRET")
     if s:
         return s.encode()
-    if not _SECRET_FILE.exists():
-        _SECRET_FILE.write_text(secrets.token_hex(32))
+    try:   # owner-only, created atomically so two workers can't race
+        fd = os.open(_SECRET_FILE, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+        with os.fdopen(fd, "w") as f:
+            f.write(secrets.token_hex(32))
+    except FileExistsError:
+        pass
     return _SECRET_FILE.read_text().strip().encode()
 
 
@@ -100,13 +104,17 @@ def middleware(get_conn):
             conn.close()
         if owner is not None and owner != uid:
             return _deny(403 if owner != -1 else 404, "Not your plan" if owner != -1 else "Not found")
-        if request.headers.get("content-type", "").startswith("application/json"):
-            body = await request.body()   # starlette caches it for the route
+        # any user_id the request carries (query or body, whatever the content-type) must be the caller's
+        claimed = [request.query_params.get("user_id")]
+        body = await request.body()   # starlette caches it for the route
+        if body:
             try:
-                data = json.loads(body or b"{}")
+                data = json.loads(body)
             except ValueError:
-                data = {}
-            if isinstance(data, dict) and "user_id" in data and data["user_id"] != uid:
-                return _deny(403, "Not your account")
+                data = None
+            if isinstance(data, dict):
+                claimed.append(data.get("user_id"))
+        if any(c is not None and str(c) != str(uid) for c in claimed):
+            return _deny(403, "Not your account")
         return await call_next(request)
     return check
