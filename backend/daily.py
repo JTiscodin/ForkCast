@@ -424,6 +424,27 @@ GRAVY_WORDS = ("rajma", "chole", "chhole", "chana", "dal", "masala", "curry", "g
                "kadai", "kadhai", "paneer", "sabzi", "biryani", "kofta", "korma", "manchurian", "sambar")
 
 
+_ALLERGY_ALIASES = {"tree nut": "tree_nut", "nuts": "tree_nut", "cashew": "tree_nut", "almond": "tree_nut",
+                    "milk": "dairy", "lactose": "dairy", "wheat": "gluten", "prawn": "shellfish", "eggs": "egg"}
+
+
+def _allergy_check(items, allergies):
+    """Profiled allergens vs the user's: (blocking allergen, note to restaurant).
+
+    core -> blocked; removable -> kept with a "leave it out" note for the restaurant.
+    """
+    notes = []
+    for a in allergies:
+        want = _ALLERGY_ALIASES.get(a["name"], a["name"].replace(" ", "_"))
+        for i in items:
+            for x in i.get("allergens") or ():
+                if x["name"] == want:
+                    if x["how"] == "core" or i["source"] == "instamart":   # packaged food can't be altered
+                        return a["name"], None
+                    notes.append(f"No {a['name']} please, {'severe ' if a['severe'] else ''}allergy")
+    return None, "; ".join(dict.fromkeys(notes)) or None
+
+
 def _jain_ok(item):
     n = item["name"].lower()
     if "jain" in n:
@@ -509,7 +530,7 @@ def candidates(slot, day, profile, dishes_fn, im_fn, conn=None):
             continue
         item = _dish_item(d)
         if p and p.get("source") != "rules":   # rule guesses must not override the Jain safe-list
-            item.update(canonical=p.get("canonical"), onion_garlic=p["onion_garlic"])
+            item.update(canonical=p.get("canonical"), onion_garlic=p["onion_garlic"], allergens=p.get("allergens"))
         items = [item]
         if needs_carb:
             side = acc.get(d.restaurant_id)
@@ -579,7 +600,12 @@ def filter_and_score(conn, user_id, profile, day, slot, drafts, ctx):
             continue
         if any(not _im_safe(i["name"], diet_on(profile, day)) for i in items):
             continue
-        hit = next((a for a in (tp.allergy_blocked(_as_dish(i), with_allergy) for i in items) if a), None)
+        hit, note = _allergy_check(items, profile["allergies"])
+        if hit is None and not any("allergens" in i for i in items):   # unprofiled: name rules
+            hit = next((a for a in (tp.allergy_blocked(_as_dish(i), with_allergy) for i in items) if a), None)
+        if note:
+            items = [{**items[0], "note": note}] + items[1:]
+            c = {**c, "items": items}
         # llm=False: hundreds of candidates; only the few persisted cards get an estimate
         nut, conf, _ = _card_nutrition(conn, items, llm=False)
         c = {**c, "nutrients": {**nut, "confidence": conf}}
@@ -774,7 +800,9 @@ def build_day(conn, user_id, day, dishes_fn, im_fn, slots=None):
                 reasons.append(add["addon_reason"])
             if c["over_cap"]:
                 reasons.append(f"Above today's soft cap of Rs {ctx['cap']:.0f}")
-            if severe:
+            if items[0].get("note"):
+                reasons.append(f"We'll ask the restaurant: {items[0]['note']}")
+            elif severe and items[0].get("allergens") is None:   # unprofiled: can't tell, so ask
                 reasons.append("Severe allergy: check the pack label" if items[0]["source"] == "instamart"
                                else "Severe allergy: confirm with restaurant")
             nut, conf, sources = _card_nutrition(conn, items)
@@ -953,7 +981,7 @@ def order(conn, user_id, card_id, food_exec, im_client, address_id, confirm=Fals
         f = food[0]
         try:
             r = food_exec.place(f["id"], f["restaurant_id"], _total(food),
-                                raw_variant=f.get("raw_variant"), dry_run=dry,
+                                raw_variant=f.get("raw_variant"), dry_run=dry, note=f.get("note"),
                                 extra_items=[{"id": i["id"], "quantity": _qty(i),
                                               "raw_variant": i.get("raw_variant")} for i in food[1:]])
             results.append(rec(card_id, "food", r.get("order_id"), r["status"] if r["status"] != "confirmed" else "placed",

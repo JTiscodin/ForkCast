@@ -361,7 +361,7 @@ def _store_profiles(conn, rows):
 
 def _prof(kind, slots=("lunch", "dinner"), canonical=None, og=True, serves=1):
     return {"canonical": canonical, "kind": kind, "slots": list(slots), "diet": "veg",
-            "onion_garlic": og, "serves": serves, "kcal": 400, "protein": 12}
+            "onion_garlic": og, "serves": serves, "kcal": 400, "protein": 12, "allergens": []}
 
 
 def test_quality_gate_flags_each_rule(conn):
@@ -488,3 +488,30 @@ def test_meals_must_be_filling_and_soda_combos_are_out(conn):
     p = daily.get_profile(conn, 1)
     kept, _ = daily.filter_and_score(conn, 1, p, DAY, "lunch", drafts, daily.context(conn, 1, p, DAY))
     assert [c["items"][0]["name"] for c in kept] == ["Rajma Chawal"]
+
+
+def test_removable_allergen_becomes_a_restaurant_note_core_is_hidden(conn):
+    daily.save_profile(conn, 1, {"allergies": [{"name": "peanut", "severe": True}]})
+    base = next(x for x in mock_catalog() if x.meal_type == "lunch" and x.course == "complete" and x.veg)
+    mk = lambda n, al: {"items": [{**daily._dish_item(replace(base, dish_id=n, name=n, restaurant_id="r" + n)),
+                                   "allergens": al}], "price": base.price}
+    drafts = [mk("Veg Thali", [{"name": "peanut", "how": "removable"}]),
+              mk("Peanut Chikki Meal", [{"name": "peanut", "how": "core"}]),
+              mk("Dal Rice Meal", [])]
+    p = daily.get_profile(conn, 1)
+    kept, excluded = daily.filter_and_score(conn, 1, p, DAY, "lunch", drafts, daily.context(conn, 1, p, DAY))
+    notes = {c["items"][0]["name"]: c["items"][0].get("note") for c in kept}
+    assert notes == {"Veg Thali": "No peanut please, severe allergy", "Dal Rice Meal": None}
+    assert [e["items"][0]["name"] for e in excluded] == ["Peanut Chikki Meal"]
+
+
+def test_note_reaches_place_food_order():
+    calls = []
+
+    class FakeMCP:
+        def call(self, tool, args):
+            calls.append((tool, args))
+            return {"data": {"pricing": {"to_pay": 200}}} if tool == "get_food_cart" else {"data": {"order_id": "1"}}
+
+    OrderExecutor(mode="mcp", mcp_client=FakeMCP(), address_id="a").place("d", "r", 150, note="No peanut please")
+    assert dict(calls)["place_food_order"]["noteToRestaurant"] == "No peanut please"

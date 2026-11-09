@@ -24,6 +24,7 @@ import gemini
 KINDS = ("meal", "curry", "bread", "rice", "side", "snack", "sweet", "drink")
 SLOTS = ("breakfast", "lunch", "snack", "dinner")
 DIETS = ("veg", "egg", "nonveg")
+ALLERGENS = ("peanut", "tree_nut", "dairy", "gluten", "soy", "egg", "fish", "shellfish", "sesame")
 BATCH = 40
 
 SCHEMA = """CREATE TABLE IF NOT EXISTS dish_profile (
@@ -45,6 +46,7 @@ For EACH numbered item return one JSON object, in order, inside one JSON array. 
 "diet": veg|egg|nonveg.
 "onion_garlic": true if a normal restaurant version is NOT Jain-safe: contains onion, garlic, potato or another root vegetable (carrot, beetroot, ginger) — most gravies, sambar, biryani, pav bhaji, masala dosa (potato filling); false if plain (idli, plain dosa, curd rice, khakhra) or labelled Jain.
 "serves": number of people one portion feeds (1 unless it says serves 2, family, party, bucket).
+"allergens": list of {"name": peanut|tree_nut|dairy|gluten|soy|egg|fish|shellfish|sesame, "how": "core"|"removable"} for allergens a normal restaurant version likely contains; "removable" when the kitchen can simply leave it out (peanuts in poha, cashew garnish, cheese topping), "core" when the dish cannot be made without it (paneer is dairy, naan is gluten). [] if none.
 "kcal": rough integer per portion. "protein": rough grams integer per portion.
 Reply with ONLY the JSON array.
 Items:
@@ -68,7 +70,7 @@ def profiles(conn, names, llm=True):
     for i in range(0, len(uniq), 500):
         chunk = uniq[i:i + 500]
         q = "SELECT key, profile FROM dish_profile WHERE key IN (%s)" % ",".join("?" * len(chunk))
-        found.update({r["key"]: json.loads(r["profile"]) for r in conn.execute(q, chunk)})
+        found.update({r["key"]: pr for r in conn.execute(q, chunk) if "allergens" in (pr := json.loads(r["profile"]))})
     missing = [k for k in uniq if k not in found]
     if missing and llm and gemini.has_key():
         by_key = {k: n for n, k in keys.items()}
@@ -111,6 +113,8 @@ def validate(r):
             "serves": max(1, int(r.get("serves") or 1)),
             "kcal": max(0, int(r.get("kcal") or 0)),
             "protein": max(0, int(r.get("protein") or 0)),
+            "allergens": [{"name": a["name"], "how": "removable" if a.get("how") == "removable" else "core"}
+                          for a in (r.get("allergens") or []) if isinstance(a, dict) and a.get("name") in ALLERGENS],
         }
     except (TypeError, ValueError):
         return None

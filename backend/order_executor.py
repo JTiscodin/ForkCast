@@ -19,7 +19,7 @@ class OrderExecutor:
         self._mock_seq = 0
 
     def place(self, dish_id, restaurant_id, price, portion_variant="regular",
-              raw_variant=None, dry_run=False, extra_items=None):
+              raw_variant=None, dry_run=False, extra_items=None, note=None):
         """Returns {order_id, status, eta_min, amount}. Does NOT touch wallet;
         caller debits ledger on success to keep money logic in one place.
         dry_run builds the real cart and stops before place_food_order.
@@ -31,7 +31,7 @@ class OrderExecutor:
                 res.update(order_id=None, status="dry_run")
             return res
         return self._mcp_place(dish_id, restaurant_id, portion_variant, price,
-                               raw_variant, dry_run, extra_items)
+                               raw_variant, dry_run, extra_items, note)
 
     def track(self, order_id):
         if self.mode == "mock":
@@ -51,7 +51,7 @@ class OrderExecutor:
 
     # ---- live MCP (verified Swiggy Food schema) ----
     def _mcp_place(self, dish_id, restaurant_id, variant, price, raw_variant=None,
-                   dry_run=False, extra_items=None):
+                   dry_run=False, extra_items=None, note=None):
         """Real workflow: update_food_cart -> get_food_cart -> validate -> place.
 
         Swiggy guardrails enforced here (docs):
@@ -92,6 +92,8 @@ class OrderExecutor:
         res = self.mcp.call("place_food_order", {
             "addressId": address_id,
             "paymentMethod": payment,
+            # docs: place_food_order.noteToRestaurant (e.g. "no peanuts, allergy")
+            **({"noteToRestaurant": note} if note else {}),
         })
         data = res.get("data") or {}
         return {
