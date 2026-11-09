@@ -45,7 +45,7 @@ export function AppHeader({
         <LogoMark className="size-9 shrink-0" />
         <div className="min-w-0 leading-tight">
           <h1 className="truncate font-heading text-lg font-extrabold tracking-[-0.02em] text-foreground">
-            Rozana
+            Forkcast
           </h1>
           {/* Tagline is a fixed-width string; hide it below md so the header
               never outgrows a phone viewport (the status pill must survive). */}
@@ -78,7 +78,7 @@ export function AppHeader({
               live ? "bg-success animate-pulse" : "bg-muted-foreground"
             )}
           />
-          {live ? "Live · Swiggy" : "Demo mode"}
+          {live ? "Swiggy connected" : "Demo mode"}
         </span>
       </div>
     </header>

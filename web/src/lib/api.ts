@@ -1,4 +1,4 @@
-// Typed API client for the Budget Meal Planner backend (FastAPI on :8000).
+// Typed API client for the Forkcast backend (FastAPI on :8000).
 import type {
   ParsedIntake,
   PlanSummary,

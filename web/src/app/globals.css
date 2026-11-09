@@ -5,7 +5,7 @@
 @custom-variant dark (&:is(.dark *));
 
 /* =========================================================================
-   ROZANA — SWIGGY FOUNDATION
+   FORKCAST — SWIGGY FOUNDATION
    Tailwind v4 CSS-first config. Light is the default; .dark is explicit.
    The semantic palette stays intentionally flat and high contrast so the
    Orange Thread remains the primary visual signal.

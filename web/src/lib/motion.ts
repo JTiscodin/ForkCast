@@ -1,7 +1,7 @@
 import gsap from "gsap";
 
 /**
- * Shared GSAP motion recipes for the Budget Meal Planner.
+ * Shared GSAP motion recipes for the Forkcast.
  *
  * Pacing follows the Swiggy-style feel: quick (0.4–0.7s), springy-but-subtle,
  * never blocking interaction. Every helper honors prefers-reduced-motion by

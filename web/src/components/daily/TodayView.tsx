@@ -42,6 +42,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { LottiePlayer } from "@/components/ui/LottiePlayer";
+import Image from "next/image";
 import { LogoMark } from "@/components/app/Logo";
 import { BowlIllustration } from "@/components/ui/illustrations";
 import { DishImage } from "@/components/dish/DishImage";
@@ -76,12 +77,17 @@ function greeting(h: number) {
 /**
  * Service attribution required by the Swiggy builders brand guidelines: one badge
  * per service, visible from discovery through confirmation, exact spelling.
- * shortcut: text only; add the official square logo from Swiggy's brand kit beside it.
  */
+const BRAND = {
+  Swiggy: { src: "/brand/swiggy.png", w: 2500, h: 731 },
+  Instamart: { src: "/brand/instamart.png", w: 768, h: 290 },
+} as const;
 function PoweredBy({ service }: { service: "Swiggy" | "Instamart" }) {
+  const b = BRAND[service];
   return (
-    <span className="inline-flex items-center whitespace-nowrap text-[11px] font-semibold text-foreground/75">
-      Powered by {service}
+    <span className="inline-flex items-center gap-1 whitespace-nowrap text-[11px] font-semibold text-foreground/75">
+      Powered by
+      <Image src={b.src} alt={service} width={b.w} height={b.h} className="h-3.5 w-auto" />
     </span>
   );
 }
@@ -673,7 +679,7 @@ export function TodayView({
           className="flex items-center gap-2 rounded-2xl border-2 border-brand-500/30 bg-card p-1.5 pl-4 shadow-soft transition focus-within:border-brand-500"
         >
           <Sparkles className="size-5 shrink-0 text-brand-500" aria-hidden />
-          <input name="ask" aria-label="Ask Rozana" placeholder="Craving something? “spicy under ₹250”, “I had dal at home”…" className="min-w-0 flex-1 bg-transparent py-2 text-[15px] outline-none placeholder:text-muted-foreground" />
+          <input name="ask" aria-label="Ask Forkcast" placeholder="Craving something? “spicy under ₹250”, “I had dal at home”…" className="min-w-0 flex-1 bg-transparent py-2 text-[15px] outline-none placeholder:text-muted-foreground" />
           <button type="submit" className={cn(focusRing, "shrink-0 rounded-xl bg-brand-500 px-4 py-2 text-sm font-extrabold text-white transition hover:bg-brand-600 active:scale-95")}>Ask</button>
         </form>
 
@@ -831,7 +837,7 @@ export function TodayView({
           <motion.div key="scrim" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setChatOpen(false)} className="fixed inset-0 z-[55] bg-black/30" aria-hidden />
         <motion.section
             role="dialog"
-            aria-label="Chat with Rozana"
+            aria-label="Chat with Forkcast"
             initial={{ x: "100%" }}
             animate={{ x: 0 }}
             exit={{ x: "100%" }}
@@ -839,7 +845,7 @@ export function TodayView({
             className="fixed inset-y-0 right-0 z-[60] flex w-full max-w-md flex-col gap-3 border-l border-border bg-card p-4 shadow-layered"
           >
           <div className="flex items-center justify-between gap-2">
-            <h2 className="flex items-center gap-2 font-heading text-lg font-extrabold"><LogoMark className="size-7" /> Ask Rozana</h2>
+            <h2 className="flex items-center gap-2 font-heading text-lg font-extrabold"><LogoMark className="size-7" /> Ask Forkcast</h2>
             <button type="button" aria-label="Close chat" onClick={() => setChatOpen(false)} className={cn(focusRing, "rounded-full p-2 hover:bg-muted")}><X className="size-5" /></button>
           </div>
           <p className="text-xs text-muted-foreground">Ask for a craving, log what you ate at home, or tell me what to stop suggesting. I never place orders; you do.</p>
@@ -901,7 +907,7 @@ export function TodayView({
           onClick={() => setChatOpen(true)}
           className={cn(focusRing, "fixed bottom-5 right-5 z-40 flex items-center gap-2 rounded-full bg-foreground py-3 pl-3 pr-5 font-bold text-background shadow-layered transition hover:scale-[1.03] active:scale-95", cartBar && "bottom-24")}
         >
-          <MessageCircle className="size-5" aria-hidden /> Ask Rozana
+          <MessageCircle className="size-5" aria-hidden /> Ask Forkcast
         </button>
       )}
 

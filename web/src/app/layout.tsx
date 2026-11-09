@@ -29,11 +29,11 @@ const geistMono = Geist_Mono({
 
 export const metadata: Metadata = {
   title: {
-    default: "Rozana — your daily meals, sorted",
-    template: "%s · Rozana",
+    default: "Forkcast — today's meals, sorted",
+    template: "%s · Forkcast",
   },
   description:
-    "Rozana picks breakfast, lunch, snack and dinner for you every day from Swiggy and Instamart, inside your budget, diet and allergies.",
+    "Forkcast picks breakfast, lunch, snack and dinner for you every day from Swiggy and Instamart, inside your budget, diet and allergies.",
 };
 
 export const viewport: Viewport = {
