@@ -27,6 +27,10 @@ import {
   Trash2,
   Wallet,
   Zap,
+  ChefHat,
+  MessageCircle,
+  Sparkles,
+  X,
 } from "lucide-react";
 
 import { api } from "@/lib/api";
@@ -38,6 +42,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { LottiePlayer } from "@/components/ui/LottiePlayer";
+import { LogoMark } from "@/components/app/Logo";
 import { BowlIllustration } from "@/components/ui/illustrations";
 import { DishImage } from "@/components/dish/DishImage";
 import { DietMarker } from "@/components/dish/DishCard";
@@ -236,7 +241,12 @@ function MealCard({
             <span className="sr-only">Instamart add-on: </span>+ {sideLine(addon)}
           </p>
         )}
-        {why && <p className="text-xs text-muted-foreground">{why}</p>}
+        {why && !why.startsWith("We'll ask") && <p className="text-xs text-muted-foreground">{why}</p>}
+        {main.note && (
+          <p className="inline-flex w-fit items-center gap-1 rounded-md bg-rating/10 px-1.5 py-0.5 text-[11px] font-bold text-rating" title={`Sent to the restaurant with your order: ${main.note}`}>
+            <ChefHat className="size-3" aria-hidden /> We&apos;ll ask: {main.note}
+          </p>
+        )}
         {warnings.length > 0 && (
           <div className="flex flex-wrap gap-1.5 pt-0.5">
             {warnings.map((w) => (
@@ -296,6 +306,7 @@ function MealCard({
               </div>
               {summary && (
                 <ul className="rounded-lg bg-muted/60 p-2 text-xs" aria-label="Order summary">
+                  {main.note && <li className="text-rating">Note to restaurant: {main.note}</li>}
                   {summary.orders.map((o) => (
                     <li key={o.platform} className="flex justify-between gap-2">
                       <span>
@@ -431,6 +442,8 @@ export function TodayView({
   const [cartBar, setCartBar] = useState<{ title: string; outcome: OrderOutcome } | null>(null);
   const rootRef = useRef<HTMLDivElement>(null);
   const chatEnd = useRef<HTMLDivElement>(null);
+  const chatInput = useRef<HTMLInputElement>(null);
+  const [chatOpen, setChatOpen] = useState(false);
 
   const load = useCallback(async () => {
     try {
@@ -648,6 +661,22 @@ export function TodayView({
           </div>
         </header>
 
+        {/* Ask bar: chat is the fastest way to bend today's plan, so it sits up top */}
+        <form
+          data-reveal
+          onSubmit={(e) => {
+            e.preventDefault();
+            const v = (e.currentTarget.elements.namedItem("ask") as HTMLInputElement).value.trim();
+            setChatOpen(true);
+            if (v) { send(v); e.currentTarget.reset(); }
+          }}
+          className="flex items-center gap-2 rounded-2xl border-2 border-brand-500/30 bg-card p-1.5 pl-4 shadow-soft transition focus-within:border-brand-500"
+        >
+          <Sparkles className="size-5 shrink-0 text-brand-500" aria-hidden />
+          <input name="ask" aria-label="Ask Rozana" placeholder="Craving something? “spicy under ₹250”, “I had dal at home”…" className="min-w-0 flex-1 bg-transparent py-2 text-[15px] outline-none placeholder:text-muted-foreground" />
+          <button type="submit" className={cn(focusRing, "shrink-0 rounded-xl bg-brand-500 px-4 py-2 text-sm font-extrabold text-white transition hover:bg-brand-600 active:scale-95")}>Ask</button>
+        </form>
+
         {/* "What's on your mind?"-style slot row: round dish photos, jump to the slot */}
         <nav data-reveal aria-label="Meals today" className="-mx-4 flex gap-5 overflow-x-auto px-4 pb-1 sm:gap-8">
           {data.slots.map((s) => {
@@ -760,9 +789,61 @@ export function TodayView({
           </div>
         </section>
 
-        <section className="flex flex-col gap-3 rounded-2xl bg-card p-4 shadow-soft">
-          <h2 className="font-extrabold">Ask or tell me</h2>
-          <div className="flex max-h-72 flex-col gap-2 overflow-y-auto text-sm" aria-live="polite">
+        <section className="flex flex-col gap-2 rounded-2xl bg-card p-4 shadow-soft">
+          <h2 className="font-extrabold">What we know about you</h2>
+          <ul className="flex flex-col gap-1 text-xs text-muted-foreground">
+            {memory.facts.map((f) => (
+              <li key={f}>{f}</li>
+            ))}
+          </ul>
+          <ul className="flex flex-col">
+            {memory.bullets.map((b) => (
+              <li key={b.id} className="group/mem flex items-center justify-between gap-2 rounded-lg px-2 py-1.5 text-sm hover:bg-muted/60">
+                <span className="min-w-0">
+                  <span className={cn("mr-1.5 inline-block size-1.5 rounded-full align-middle", b.blocked ? "bg-danger" : b.weight > 0 ? "bg-rating" : "bg-warning")} aria-hidden />
+                  {b.text}
+                </span>
+                <span className="flex shrink-0 opacity-60 transition-opacity group-hover/mem:opacity-100">
+                  {!b.blocked && (
+                    <>
+                      <Button size="icon" variant="ghost" aria-label={`More ${b.key}`} onClick={() => editMemory(b, { weight: b.weight + 2 })}>
+                        <ThumbsUp />
+                      </Button>
+                      <Button size="icon" variant="ghost" aria-label={`Less ${b.key}`} onClick={() => editMemory(b, { weight: b.weight - 2 })}>
+                        <ThumbsDown />
+                      </Button>
+                    </>
+                  )}
+                  <Button size="icon" variant="ghost" aria-label={`Forget ${b.key}`} onClick={() => editMemory(b, { delete: true })}>
+                    <Trash2 />
+                  </Button>
+                </span>
+              </li>
+            ))}
+          </ul>
+        </section>
+      </aside>
+
+      {/* Chat: a full panel, not a sidebar card — it's how people change today's plan */}
+      <AnimatePresence>
+        {chatOpen && (
+          <>
+          <motion.div key="scrim" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setChatOpen(false)} className="fixed inset-0 z-[55] bg-black/30" aria-hidden />
+        <motion.section
+            role="dialog"
+            aria-label="Chat with Rozana"
+            initial={{ x: "100%" }}
+            animate={{ x: 0 }}
+            exit={{ x: "100%" }}
+            transition={{ type: "spring", stiffness: 380, damping: 38 }}
+            className="fixed inset-y-0 right-0 z-[60] flex w-full max-w-md flex-col gap-3 border-l border-border bg-card p-4 shadow-layered"
+          >
+          <div className="flex items-center justify-between gap-2">
+            <h2 className="flex items-center gap-2 font-heading text-lg font-extrabold"><LogoMark className="size-7" /> Ask Rozana</h2>
+            <button type="button" aria-label="Close chat" onClick={() => setChatOpen(false)} className={cn(focusRing, "rounded-full p-2 hover:bg-muted")}><X className="size-5" /></button>
+          </div>
+          <p className="text-xs text-muted-foreground">Ask for a craving, log what you ate at home, or tell me what to stop suggesting. I never place orders; you do.</p>
+          <div className="flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto text-sm" aria-live="polite">
             {chat.length === 0 && (
               <div className="flex flex-wrap gap-1.5">
                 {["Something spicy under 250", "I had dal and 2 roti at home", "What am I low on?", "Stop suggesting paneer"].map((q) => (
@@ -804,47 +885,25 @@ export function TodayView({
               send();
             }}
           >
-            <Input aria-label="Message" placeholder="Ask for a craving or log a meal" value={msg} onChange={(e) => setMsg(e.target.value)} />
+            <Input ref={chatInput} aria-label="Message" placeholder="Ask for a craving or log a meal" value={msg} onChange={(e) => setMsg(e.target.value)} />
             <Button size="icon" type="submit" aria-label="Send" disabled={thinking}>
               <Send />
             </Button>
           </form>
-        </section>
+        </motion.section>
 
-        <section className="flex flex-col gap-2 rounded-2xl bg-card p-4 shadow-soft">
-          <h2 className="font-extrabold">What we know about you</h2>
-          <ul className="flex flex-col gap-1 text-xs text-muted-foreground">
-            {memory.facts.map((f) => (
-              <li key={f}>{f}</li>
-            ))}
-          </ul>
-          <ul className="flex flex-col">
-            {memory.bullets.map((b) => (
-              <li key={b.id} className="group/mem flex items-center justify-between gap-2 rounded-lg px-2 py-1.5 text-sm hover:bg-muted/60">
-                <span className="min-w-0">
-                  <span className={cn("mr-1.5 inline-block size-1.5 rounded-full align-middle", b.blocked ? "bg-danger" : b.weight > 0 ? "bg-rating" : "bg-warning")} aria-hidden />
-                  {b.text}
-                </span>
-                <span className="flex shrink-0 opacity-60 transition-opacity group-hover/mem:opacity-100">
-                  {!b.blocked && (
-                    <>
-                      <Button size="icon" variant="ghost" aria-label={`More ${b.key}`} onClick={() => editMemory(b, { weight: b.weight + 2 })}>
-                        <ThumbsUp />
-                      </Button>
-                      <Button size="icon" variant="ghost" aria-label={`Less ${b.key}`} onClick={() => editMemory(b, { weight: b.weight - 2 })}>
-                        <ThumbsDown />
-                      </Button>
-                    </>
-                  )}
-                  <Button size="icon" variant="ghost" aria-label={`Forget ${b.key}`} onClick={() => editMemory(b, { delete: true })}>
-                    <Trash2 />
-                  </Button>
-                </span>
-              </li>
-            ))}
-          </ul>
-        </section>
-      </aside>
+          </>
+        )}
+      </AnimatePresence>
+      {!chatOpen && (
+        <button
+          type="button"
+          onClick={() => setChatOpen(true)}
+          className={cn(focusRing, "fixed bottom-5 right-5 z-40 flex items-center gap-2 rounded-full bg-foreground py-3 pl-3 pr-5 font-bold text-background shadow-layered transition hover:scale-[1.03] active:scale-95", cartBar && "bottom-24")}
+        >
+          <MessageCircle className="size-5" aria-hidden /> Ask Rozana
+        </button>
+      )}
 
       {/* Swiggy's green cart bar: the one piece of feedback an order needs */}
       <AnimatePresence>

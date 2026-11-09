@@ -1,5 +1,5 @@
 import type { Metadata, Viewport } from "next";
-import { Manrope, Geist_Mono } from "next/font/google";
+import { Manrope, Geist_Mono, Bricolage_Grotesque } from "next/font/google";
 import { ThemeProvider } from "@/components/theme-provider";
 import { Toaster } from "@/components/ui/sonner";
 import "./globals.css";
@@ -12,6 +12,14 @@ const manrope = Manrope({
   display: "swap",
 });
 
+// Display: Bricolage has the warm, slightly hand-cut feel of a dhaba signboard
+const bricolage = Bricolage_Grotesque({
+  variable: "--font-bricolage",
+  subsets: ["latin"],
+  weight: ["600", "700", "800"],
+  display: "swap",
+});
+
 // Utility: numerals / data / code
 const geistMono = Geist_Mono({
   variable: "--font-geist-mono",
@@ -21,11 +29,11 @@ const geistMono = Geist_Mono({
 
 export const metadata: Metadata = {
   title: {
-    default: "Budget Meal Planner",
-    template: "%s · Budget Meal Planner",
+    default: "Rozana — your daily meals, sorted",
+    template: "%s · Rozana",
   },
   description:
-    "Plan a week of meals on your budget. AI-assisted planning with Swiggy.",
+    "Rozana picks breakfast, lunch, snack and dinner for you every day from Swiggy and Instamart, inside your budget, diet and allergies.",
 };
 
 export const viewport: Viewport = {
@@ -44,7 +52,7 @@ export default function RootLayout({
     <html
       lang="en"
       suppressHydrationWarning
-      className={`${manrope.variable} ${geistMono.variable} h-full antialiased`}
+      className={`${manrope.variable} ${geistMono.variable} ${bricolage.variable} h-full antialiased`}
     >
       <body
         className="min-h-full flex flex-col"

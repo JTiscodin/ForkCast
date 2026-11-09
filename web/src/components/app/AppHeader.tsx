@@ -7,7 +7,8 @@ import { useGSAP } from "@gsap/react";
 import { cn } from "@/lib/utils";
 import type { SwiggyAddress } from "@/lib/types";
 import { DUR, EASE, prefersReducedMotion } from "@/lib/motion";
-import { MapPin, UtensilsCrossed } from "lucide-react";
+import { MapPin } from "lucide-react";
+import { LogoMark } from "./Logo";
 
 gsap.registerPlugin(useGSAP);
 
@@ -41,18 +42,15 @@ export function AppHeader({
       className="flex items-center justify-between border-b border-border bg-surface px-5 py-3 lg:px-8"
     >
       <div className="flex min-w-0 items-center gap-3">
-        {/* brand mark: flat orange tile + meals glyph (icon system, no emoji) */}
-        <div className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-brand-500 text-white">
-          <UtensilsCrossed className="size-5" strokeWidth={2.4} aria-hidden />
-        </div>
+        <LogoMark className="size-9 shrink-0" />
         <div className="min-w-0 leading-tight">
           <h1 className="truncate font-heading text-lg font-extrabold tracking-[-0.02em] text-foreground">
-            Budget Meal Planner
+            Rozana
           </h1>
           {/* Tagline is a fixed-width string; hide it below md so the header
               never outgrows a phone viewport (the status pill must survive). */}
           <p className="hidden text-sm leading-[1.4] text-muted-foreground md:block">
-            Monthly budget · auto meal calendar · Swiggy Cash rollover
+            Your four meals a day, picked from Swiggy
           </p>
         </div>
       </div>

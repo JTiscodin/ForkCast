@@ -5,7 +5,7 @@
 @custom-variant dark (&:is(.dark *));
 
 /* =========================================================================
-   BUDGET MEAL PLANNER — SWIGGY FOUNDATION
+   ROZANA — SWIGGY FOUNDATION
    Tailwind v4 CSS-first config. Light is the default; .dark is explicit.
    The semantic palette stays intentionally flat and high contrast so the
    Orange Thread remains the primary visual signal.
@@ -14,8 +14,8 @@
 @theme inline {
   /* Fonts (variables provided by next/font in layout.tsx) */
   --font-sans: var(--font-manrope), ui-sans-serif, system-ui, sans-serif;
-  --font-display: var(--font-manrope), ui-sans-serif, system-ui, sans-serif;
-  --font-heading: var(--font-manrope), ui-sans-serif, system-ui, sans-serif;
+  --font-display: var(--font-bricolage), var(--font-manrope), ui-sans-serif, system-ui, sans-serif;
+  --font-heading: var(--font-bricolage), var(--font-manrope), ui-sans-serif, system-ui, sans-serif;
   --font-mono: var(--font-geist-mono), ui-monospace, monospace;
 
   /* Swiggy brand and offer accents */

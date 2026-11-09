@@ -233,6 +233,7 @@ export interface CardItem {
   addon_reason?: string;
   side?: boolean;      // a curry's roti/rice from the same restaurant
   quantity?: number;
+  note?: string;       // allergy note sent to the restaurant with the order
 }
 
 export type Nutrients = Record<string, number> & { confidence?: number };
