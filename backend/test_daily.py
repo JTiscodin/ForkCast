@@ -466,3 +466,15 @@ def test_preview_builds_carts_but_records_nothing(conn):
     assert r["mode"] == "preview" and all(o["status"] == "dry_run" for o in r["orders"])
     assert conn.execute("SELECT COUNT(*) FROM order_record").fetchone()[0] == 0
     assert conn.execute("SELECT COUNT(*) FROM consumption_log").fetchone()[0] == 0
+
+
+def test_food_order_history_teaches_once_per_order(conn):
+    class Food:
+        def call(self, tool, args):
+            assert tool == "get_food_orders" and args["orderCount"] == 15 and args["addressId"]
+            return {"data": {"orders": [{"orderId": "o1", "restaurantName": "Haldiram",
+                                         "orderedItems": "1 x Rajma Chawal, 2 x Butter Roti"}]}}
+    assert daily.pull_food_orders(conn, 1, Food(), "a1") == 1
+    assert daily.pull_food_orders(conn, 1, Food(), "a1") == 0          # same order not learned twice
+    w, _ = daily.weights(conn, 1)
+    assert w[("dish", "rajma chawal")] == pytest.approx(2, abs=0.01) and ("dish", "butter roti") in w

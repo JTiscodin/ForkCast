@@ -1029,6 +1029,35 @@ def quiz(diet):
             ("egg" in n.lower() or diet == "nonveg")]
 
 
+def pull_food_orders(conn, user_id, food_client, address_id):
+    """Swiggy Food order history (get_food_orders, docs: addressId + orderCount<=15) ->
+    +2 per dish, +2/3 per restaurant, once per orderId. Also catches orders placed
+    directly in the Swiggy app, the planner's old blind spot."""
+    if food_client is None or not address_id:
+        return 0
+    try:
+        resp = food_client.call("get_food_orders", {"addressId": str(address_id), "orderCount": 15})
+    except Exception as e:  # noqa: BLE001 — history is a best-effort signal
+        print(f"[daily] food order history failed: {e}")
+        return 0
+    orders = ((resp.get("data") or resp) if isinstance(resp, dict) else {}).get("orders") or []
+    learned = 0
+    for o in orders:
+        oid = str(o.get("orderId") or "")
+        if not oid or conn.execute("SELECT 1 FROM feedback_event WHERE user_id=? AND dimension='order' "
+                                   "AND key=?", (user_id, oid)).fetchone():
+            continue
+        record(conn, user_id, "history", "order", oid, value=0)   # seen-marker: learn each order once
+        for item in re.split(r",|\n", o.get("orderedItems") or ""):
+            name = re.sub(r"^\s*\d+\s*[x×]\s*|\s*[x×]\s*\d+\s*$", "", item).strip()
+            if name:
+                record(conn, user_id, "history", "dish", name)
+        if o.get("restaurantName"):
+            record(conn, user_id, "history", "restaurant", o["restaurantName"], value=EVENT_DELTAS["history"] / 3)
+        learned += 1
+    return learned
+
+
 def pull_history(conn, user_id, im_client, address_id):
     """Instamart get_orders + your_go_to_items as cold-start grocery signal."""
     if im_client is None:

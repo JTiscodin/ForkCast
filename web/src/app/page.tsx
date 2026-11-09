@@ -595,7 +595,11 @@ export default function Home() {
               }}
             />
           ) : (
-            <TodayView userId={userId} onEditProfile={() => setView("setup")} />
+            <TodayView
+              userId={userId}
+              onEditProfile={() => setView("setup")}
+              addressLabel={address?.addressTag || address?.addressCategory || undefined}
+            />
           )}
         </div>
       </MotionConfig>

@@ -68,6 +68,19 @@ function greeting(h: number) {
   return h < 12 ? "Good morning" : h < 17 ? "Good afternoon" : "Good evening";
 }
 
+/**
+ * Service attribution required by the Swiggy builders brand guidelines: one badge
+ * per service, visible from discovery through confirmation, exact spelling.
+ * shortcut: text only; add the official square logo from Swiggy's brand kit beside it.
+ */
+function PoweredBy({ service }: { service: "Swiggy" | "Instamart" }) {
+  return (
+    <span className="inline-flex items-center whitespace-nowrap text-[11px] font-semibold text-foreground/75">
+      Powered by {service}
+    </span>
+  );
+}
+
 /** Swiggy's rating mark: white star in a solid green circle. */
 function RatingDot() {
   return (
@@ -142,17 +155,23 @@ function MealCard({
   card,
   locked,
   dryRun,
+  addressLabel,
+  userId,
   onOrder,
   onFeedback,
 }: {
   card: MenuCard;
   locked: boolean;
   dryRun: boolean;
+  addressLabel: string;
+  userId: number;
   onOrder: (c: MenuCard) => Promise<void>;
   onFeedback: (c: MenuCard, type: string) => void;
 }) {
   const [confirming, setConfirming] = useState(false);
   const [busy, setBusy] = useState(false);
+  // live orders confirm against Swiggy's real cart: items, payable, address, payment
+  const [summary, setSummary] = useState<OrderOutcome | null>(null);
   const main = card.items[0];
   const grocery = main.source === "instamart";
   const sides = grocery ? [] : card.items.slice(1).filter((i) => !i.addon);
@@ -202,6 +221,10 @@ function MealCard({
           <span>{Math.round(card.nutrients.protein ?? 0)}g protein</span>
         </p>
         <p className="truncate text-sm text-muted-foreground">{grocery ? "Instamart · delivered in minutes" : main.restaurant_name}</p>
+        <p className="flex flex-wrap gap-x-2">
+          {!grocery && <PoweredBy service="Swiggy" />}
+          {(grocery || addon) && <PoweredBy service="Instamart" />}
+        </p>
         {sides.map((s) => (
           <p key={s.id} className="truncate text-xs text-muted-foreground">
             with {sideLine(s)}
@@ -242,21 +265,49 @@ function MealCard({
                   disabled={busy}
                   onClick={async () => {
                     setBusy(true);
+                    if (!dryRun && !summary) {
+                      try {
+                        setSummary(await api.orderCard(userId, card.id, true));
+                      } catch (e) {
+                        toast.error(e instanceof Error ? e.message : "Couldn't build the cart");
+                      }
+                      setBusy(false);
+                      return;
+                    }
                     await onOrder(card);
                     setBusy(false);
+                    setSummary(null);
                     setConfirming(false);
                   }}
                   className={cn(focusRing, "flex flex-1 items-center justify-center gap-1.5 rounded-lg bg-rating px-3 py-2 text-sm font-extrabold uppercase tracking-wide text-white transition active:scale-95 disabled:opacity-80")}
                 >
                   {busy && <Loader2 className="size-4 animate-spin" aria-hidden />}
-                  {busy ? (dryRun ? "Building cart" : "Placing") : `Confirm ${formatINR(card.price)}`}
+                  {busy
+                    ? dryRun || !summary ? "Building cart" : "Placing"
+                    : summary
+                      ? `Place order ${formatINR(summary.orders.reduce((t, o) => t + (o.status === "failed" ? 0 : o.amount), 0))}`
+                      : `Confirm ${formatINR(card.price)}`}
                 </button>
                 {!busy && (
-                  <button type="button" onClick={() => setConfirming(false)} className={cn(focusRing, "rounded-lg px-3 text-sm font-bold text-muted-foreground hover:text-foreground")}>
+                  <button type="button" onClick={() => { setConfirming(false); setSummary(null); }} className={cn(focusRing, "rounded-lg px-3 text-sm font-bold text-muted-foreground hover:text-foreground")}>
                     Cancel
                   </button>
                 )}
               </div>
+              {summary && (
+                <ul className="rounded-lg bg-muted/60 p-2 text-xs" aria-label="Order summary">
+                  {summary.orders.map((o) => (
+                    <li key={o.platform} className="flex justify-between gap-2">
+                      <span>
+                        {o.platform === "food" ? main.restaurant_name : "Instamart"}{" "}
+                        <PoweredBy service={o.platform === "food" ? "Swiggy" : "Instamart"} />
+                      </span>
+                      <span className="font-bold tabular-nums">{o.status === "failed" ? "unavailable" : `${formatINR(o.amount)} to pay`}</span>
+                    </li>
+                  ))}
+                  <li className="mt-1 text-muted-foreground">Deliver to {addressLabel} · Cash on delivery</li>
+                </ul>
+              )}
               <p className="text-[11px] leading-snug text-muted-foreground" role="note">
                 {dryRun ? "Dry run: builds your real Swiggy cart, nothing is ordered. " : "Places a real order, paid by cash on delivery. "}
                 Replaces your current Swiggy cart. Delivery fees and taxes are added at checkout.
@@ -362,7 +413,15 @@ function Nudge({ slot, onLog }: { slot: DailySlot; onLog: (kind: string, text?: 
   );
 }
 
-export function TodayView({ userId, onEditProfile }: { userId: number; onEditProfile: () => void }) {
+export function TodayView({
+  userId,
+  onEditProfile,
+  addressLabel = "your saved Swiggy address",
+}: {
+  userId: number;
+  onEditProfile: () => void;
+  addressLabel?: string;
+}) {
   const [data, setData] = useState<Today | null>(null);
   const [memory, setMemory] = useState<{ facts: string[]; bullets: MemoryBullet[] }>({ facts: [], bullets: [] });
   const [chat, setChat] = useState<{ role: "you" | "bot"; text: string }[]>([]);
@@ -657,7 +716,7 @@ export function TodayView({ userId, onEditProfile }: { userId: number; onEditPro
             ) : (
               <div className="grid gap-x-5 gap-y-7 sm:grid-cols-2 xl:grid-cols-4">
                 {s.cards.map((c) => (
-                  <MealCard key={c.id} card={c} locked={Boolean(s.ordered)} dryRun={!live} onOrder={order} onFeedback={feedback} />
+                  <MealCard key={c.id} card={c} locked={Boolean(s.ordered)} dryRun={!live} addressLabel={addressLabel} userId={userId} onOrder={order} onFeedback={feedback} />
                 ))}
               </div>
             )}
@@ -805,7 +864,7 @@ export function TodayView({ userId, onEditProfile }: { userId: number; onEditPro
               <span className="block text-xs text-white/85">
                 {cartBar.outcome.orders
                   .filter((o) => o.status !== "failed")
-                  .map((o) => `${o.platform === "food" ? "Restaurant" : "Instamart"} ${formatINR(o.amount)}`)
+                  .map((o) => `${o.platform === "food" ? "Restaurant (Powered by Swiggy)" : "Powered by Instamart"} ${formatINR(o.amount)}`)
                   .join(" + ")}{" "}
                 to pay{cartBar.outcome.mode === "dry_run" ? " · dry run, nothing ordered" : ""}
               </span>

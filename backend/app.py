@@ -1177,6 +1177,7 @@ def daily_save_profile(user_id: int, body: DailyProfileIn):
         for name in body.quiz_picks[:10]:
             daily.record(conn, user_id, "quiz", "dish", str(name))
         pulled = daily.pull_history(conn, user_id, deps["im_client"], deps["address_id"])
+        pulled += daily.pull_food_orders(conn, user_id, STATE["client"] if _live() else None, deps["address_id"])
         daily.write_memory_md(conn, user_id)
         # a profile change (weekday diet, allergies…) invalidates unordered menus from today
         # on; the live/dry-run switch alone changes no card, so it keeps them
@@ -1293,6 +1294,8 @@ def run_nightly():
     conn = get_conn()
     try:
         deps = _daily_deps()
+        for r in conn.execute("SELECT user_id FROM user_profile").fetchall():
+            daily.pull_food_orders(conn, r["user_id"], STATE["client"] if _live() else None, deps["address_id"])
         return daily.nightly(conn, deps["dishes_fn"], deps["im_fn"])
     finally:
         conn.close()
