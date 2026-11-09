@@ -39,7 +39,8 @@ MEMORY_DIR = Path(__file__).parent / "data" / "taste"
 
 # §3.4 starting values
 EVENT_DELTAS = {"ordered": 3, "up": 3, "down": -3, "skip": -0.3,
-                "not_today": -0.5, "off_plan": 2, "quiz": 3, "history": 2}
+                "not_today": -0.5, "off_plan": 2, "quiz": 3, "history": 2,
+                "no_reorder": -0.5}   # passed over a dish you ordered before (spec 1.7 implicit)
 
 # ---------------------------------------------------------------- profile
 
@@ -385,7 +386,12 @@ def _total(items):
 
 def _card_nutrition(conn, items, llm=True):
     """-> (nutrients, min confidence, sources) for a card, quantity-scaled."""
-    looks = [(nutrition.lookup(conn, i["name"], i.get("kind", "meal"), llm=llm), _qty(i)) for i in items]
+    def look(i):   # raw name keeps the piece count; the profiled standard name rescues odd menu names
+        r = nutrition.lookup(conn, i["name"], i.get("kind", "meal"), llm=False)
+        if r["source"] == "default" and i.get("canonical"):
+            r = nutrition.lookup(conn, i["canonical"], i.get("kind", "meal"), llm=False)
+        return r if r["source"] != "default" or not llm else nutrition.lookup(conn, i["name"], i.get("kind", "meal"))
+    looks = [(look(i), _qty(i)) for i in items]
     nut = nutrition.add(*[{k: v * q for k, v in l["nutrients"].items()} for l, q in looks])
     return nut, min(l["confidence"] for l, _ in looks), sorted({l["source"] for l, _ in looks})
 
@@ -591,7 +597,7 @@ def filter_and_score(conn, user_id, profile, day, slot, drafts, ctx):
         c["score"] = round(sum(WEIGHTS[k] * v for k, v in parts.items()), 4)
         if slot == "breakfast" and any(w in main["name"].lower() for w in INDIAN_BREAKFAST_WORDS):
             c["score"] = round(c["score"] + INDIAN_BREAKFAST_BONUS, 4)
-        if "jain" in main["name"].lower():
+        if "jain" in main["name"].lower() and diet_on(profile, day) == "jain":
             c["score"] = round(c["score"] + JAIN_LABEL_BONUS, 4)
         c["repeat"] = _norm(main["name"]) in ctx["recent"]
         c["over_cap"] = c["price"] > ctx["cap"]
@@ -964,7 +970,13 @@ def order(conn, user_id, card_id, food_exec, im_client, address_id, confirm=Fals
         record_card(conn, user_id, card, "ordered", card["position"])
         for other in conn.execute("SELECT * FROM menu_card WHERE menu_id=? AND id!=?",
                                   (card["menu_id"], card_id)).fetchall():
-            record_card(conn, user_id, _card(other), "skip", other["position"])
+            oc = _card(other)
+            record_card(conn, user_id, oc, "skip", other["position"])
+            m = oc["items"][0]
+            key = _norm(m.get("canonical") or m["name"])
+            if conn.execute("SELECT 1 FROM feedback_event WHERE user_id=? AND type='ordered' AND dimension='dish' "
+                            "AND key=?", (user_id, key)).fetchone():
+                record(conn, user_id, "no_reorder", "dish", key, other["id"], other["position"])
     else:
         log = None
     return {"card_id": card_id, "mode": "dry_run" if dry else "live", "orders": results,

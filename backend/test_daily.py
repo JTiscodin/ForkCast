@@ -148,11 +148,12 @@ def test_nudge_after_window_end_until_logged(conn):
 
 def test_nutrition_lookup_and_gaps(conn):
     r = nutrition.lookup(conn, "Ghee Roast Masala Dosa")
-    assert r["canonical"] == "masala dosa" and r["source"] == "ifct"
+    assert r["canonical"] == "masala dosa" and r["source"] in ("indb", "ifct")
     assert nutrition.lookup(conn, "Zzqx special", llm=False)["source"] == "default"
     daily.log_food(conn, 1, DAY, "breakfast", "chat_log", ["boiled egg", "boiled egg"])
     ns = daily.nutrition_state(conn, 1, daily.get_profile(conn, 1), DAY)
-    assert ns["today"]["protein"] == 26 and ns["remaining_slots"] == ["lunch", "dinner"]
+    egg = nutrition.lookup(conn, "boiled egg")["nutrients"]["protein"]
+    assert ns["today"]["protein"] == pytest.approx(2 * egg, abs=0.1) and ns["remaining_slots"] == ["lunch", "dinner"]
     assert 0 < ns["gap"]["protein"] < 1
 
 
@@ -257,7 +258,7 @@ def test_unknown_stock_and_empty_rebuild_keep_cards(conn):
 def test_nutrition_retrieval_handles_menu_spellings():
     for name, canon in (("Hyderabadi Chicken Biriani", "chicken biryani"), ("Murgh Makhni", "butter chicken"),
                         ("Plain Chapathi", "roti"), ("Masala Dossa", "masala dosa")):
-        assert nutrition.lookup(None, name, llm=False)["canonical"] == canon
+        assert canon in nutrition.lookup(None, name, llm=False)["canonical"]
     assert nutrition.lookup(None, "Chicken Lollipop", llm=False)["source"] == "default"
 
 
@@ -418,3 +419,22 @@ def test_bread_sold_as_a_pack_is_ordered_once(conn):
     drafts = daily.candidates("dinner", DAY, daily.get_profile(conn, 1), lambda v: pool, lambda q: [])
     side = next(i for d in drafts for i in d["items"] if i.get("side"))
     assert side["quantity"] == 1
+
+
+def test_indb_nutrients_scale_by_piece_count():
+    one = nutrition.lookup(None, "Idli", llm=False)
+    four = nutrition.lookup(None, "Steamed Idli (4 Pcs)", llm=False)
+    assert one["source"] == "indb" and four["nutrients"]["kcal"] == pytest.approx(4 * one["nutrients"]["kcal"], rel=0.01)
+    assert nutrition.lookup(None, "Masala Dosa", llm=False)["nutrients"]["kcal"] < 400   # one dosa, not two
+    assert nutrition.lookup(None, "Masala Dosa Paneer Fillings Special", llm=False)["canonical"].startswith("masala dosa paneer")
+
+
+def test_passing_over_a_previously_ordered_dish_is_a_no_reorder_signal(conn):
+    v = view(conn)
+    lunch = next(s for s in v["slots"] if s["slot"] == "lunch")
+    first, second = lunch["cards"][0], lunch["cards"][1]
+    daily.record_card(conn, 1, first, "ordered")            # ordered it some earlier day
+    daily.order(conn, 1, second["id"], OrderExecutor(mode="mock"), None, None, confirm=True)
+    events = {r["type"] for r in conn.execute(
+        "SELECT type FROM feedback_event WHERE key=?", (daily._norm(first["items"][0]["name"]),))}
+    assert "no_reorder" in events

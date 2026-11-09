@@ -6,7 +6,9 @@ Every result carries `source` + `confidence`; the UI shows values as "~".
 
 Units: kcal; protein/carbs/fat/fibre/sugar g; iron/calcium/sodium mg; b12/vitd mcg.
 """
+import csv
 import difflib
+import pathlib
 import json
 import re
 
@@ -153,8 +155,68 @@ def retrieve(text, threshold=0.75):
     return best if best_s == 1.0 else None
 
 
+# Indian Nutrient Databank (INDB, 2024; github.com/lindsayjaacks/Indian-Nutrient-Databank-INDB-):
+# 1,014 Indian recipes, per standard serving. Converted to data/indb.csv; no B12 column.
+_INDB_PATH = pathlib.Path(__file__).parent / "data" / "indb.csv"
+_STOP = {"with", "and", "of", "the", "a", "in", "style", "recipe", "home", "made"}
+_PIECE_UNITS = {"idli", "dosa", "piece", "pieces", "roti", "chapati", "paratha", "puri", "poori",
+                "vada", "samosa", "kachori", "slice", "bhatura", "naan", "kulcha", "pav", "laddu", "cutlet"}
+
+
+def _words(text):
+    return set(_canon_text(text).split()) - _STOP
+
+
+def _load_indb():
+    out = []
+    try:
+        with open(_INDB_PATH, encoding="utf-8") as f:
+            for r in csv.DictReader(f):
+                vals = {k: float(r[k] or 0) for k in KEYS if k in r}
+                if not vals.get("kcal"):
+                    continue   # rows the source left without serving data
+                vals.setdefault("b12", 0.0)
+                name = r["food_name"]
+                main = re.sub(r"\(.*?\)", " ", name)
+                for alias in [main] + re.findall(r"\((.*?)\)", name):
+                    w = _words(alias)
+                    # a bracket note like "(with chicken)" is too generic to name a dish alone
+                    if w and (alias is main or len(w) >= 2):
+                        out.append((w, name, vals, (r.get("serving") or "").lower()))
+    except OSError:
+        pass   # data file missing: fall back to the built-in table
+    return out
+
+
+_INDB = None
+
+
+def _indb_match(name):
+    """Most specific INDB recipe whose every word appears in the dish name."""
+    global _INDB
+    if _INDB is None:
+        _INDB = _load_indb()
+    dish = _words(name)
+    best = max((e for e in _INDB if e[0] <= dish), key=lambda e: len(e[0]), default=None)
+    return best
+
+
+def _pieces(name, unit):
+    """Per-piece INDB rows ("1 idli") scale by the count in the menu name ("Idli (4 Pcs)")."""
+    if unit not in _PIECE_UNITS:
+        return 1
+    m = re.search(r"(\d+)\s*(?:pcs|pc|pieces|nos|no|pav|piece)\b", name.lower()) or re.search(r"\((\d+)\)", name)
+    return max(1, min(int(m.group(1)), 12)) if m else 1   # sides carry their own quantity
+
+
 def lookup(conn, name, kind="meal", llm=True):
     """Per-serving nutrients for a dish name -> {nutrients, source, confidence}."""
+    m = _indb_match(name)
+    if m:
+        k = _pieces(name, m[3])
+        # shortcut: INDB is a home serving; restaurant portions run larger, upgrade with a per-kind factor
+        return {"nutrients": {key: round(v * k, 2) for key, v in m[2].items()}, "source": "indb",
+                "confidence": 0.8, "canonical": m[1].lower()}
     n = _canon_text(name)
     for c in _CANON:
         if c in n:
