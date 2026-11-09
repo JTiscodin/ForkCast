@@ -35,6 +35,9 @@ import { clearSession, loadSession, saveSession } from "@/lib/session";
 import { AppHeader } from "@/components/app/AppHeader";
 import { Button } from "@/components/ui/button";
 import { PlateIllustration } from "@/components/ui/illustrations";
+import { TodayView } from "@/components/daily/TodayView";
+import { DailyOnboarding } from "@/components/daily/DailyOnboarding";
+import type { DailyProfile } from "@/lib/types";
 
 // Plan for the CURRENT month — this was hardcoded to "2026-07", so once July
 // passed the app silently planned (and budgeted the wallet) for a past month.
@@ -283,7 +286,7 @@ export default function Home() {
         setUserId(u.user_id);
         setAddress(addr);
         setReady(true);
-        saveSession({ userId: u.user_id, name, address: addr, month: MONTH });
+        saveSession({ userId: u.user_id, token: u.token, name, address: addr, month: MONTH });
         // Tell the backend which addressId to search and order against —
         // without this, live mode silently falls back to the FIRST saved
         // Swiggy address regardless of the pick. Best-effort: on failure
@@ -530,6 +533,19 @@ export default function Home() {
     { scope: artifactRef, dependencies: [hasArtifact] }
   );
 
+  // Daily recommender is the main screen (spec §1.1); the monthly planner stays
+  // reachable under the "Month" tab as budget envelope + history.
+  // undefined = still loading, null = no daily profile yet -> onboarding form
+  const [dailyProfile, setDailyProfile] = useState<DailyProfile | null | undefined>(undefined);
+  const [view, setView] = useState<"today" | "month" | "setup">("today");
+  useEffect(() => {
+    if (!ready || !userId) return;
+    api
+      .dailyProfile(userId)
+      .then((r) => setDailyProfile(r.profile))
+      .catch(() => setDailyProfile(null));
+  }, [ready, userId]);
+
   if (!ready) {
     return (
       // MotionConfig reducedMotion="user" makes every framer-motion animation
@@ -547,15 +563,59 @@ export default function Home() {
     );
   }
 
+  const tabs = (
+    <nav aria-label="Views" className="flex gap-1 border-b border-border px-4 py-2">
+      {(["today", "month"] as const).map((v) => (
+        <Button
+          key={v}
+          size="sm"
+          variant={view === v || (v === "today" && view === "setup") ? "default" : "ghost"}
+          onClick={() => setView(v)}
+          className="capitalize"
+        >
+          {v}
+        </Button>
+      ))}
+    </nav>
+  );
+
+  if (userId && view !== "month") {
+    return (
+      <MotionConfig reducedMotion="user">
+        <div className="flex min-h-dvh flex-col bg-background">
+          <AppHeader live={live} address={address} />
+          {tabs}
+          {dailyProfile === undefined ? null : dailyProfile === null || view === "setup" ? (
+            <DailyOnboarding
+              userId={userId}
+              initial={dailyProfile}
+              onDone={(p) => {
+                setDailyProfile(p);
+                setView("today");
+              }}
+            />
+          ) : (
+            <TodayView
+              userId={userId}
+              onEditProfile={() => setView("setup")}
+              addressLabel={address?.addressTag || address?.addressCategory || undefined}
+            />
+          )}
+        </div>
+      </MotionConfig>
+    );
+  }
+
   return (
     <MotionConfig reducedMotion="user">
-    <div className="relative flex h-dvh flex-col overflow-hidden bg-background">
+    <div className="relative flex min-h-dvh flex-col bg-background lg:h-dvh lg:overflow-hidden">
       <AppHeader live={live} address={address} />
+      {tabs}
 
       <div className="grid min-h-0 flex-1 grid-cols-1 gap-0 lg:grid-cols-[minmax(360px,420px)_1fr]">
         {/* LEFT — chat. ChatPane draws its own hairline divider, so the
             wrapper carries no border (the old 3px orange stripe doubled up). */}
-        <div className="min-h-0 bg-surface">
+        <div className="h-[75dvh] min-h-0 bg-surface lg:h-auto">
           {userId && (
             <ChatPane
               userId={userId}
@@ -570,7 +630,7 @@ export default function Home() {
         </div>
 
         {/* RIGHT — artifact */}
-        <div className="min-h-0 overflow-y-auto">
+        <div className="min-h-0 lg:overflow-y-auto">
           <div
             ref={artifactRef}
             className="mx-auto flex w-full max-w-5xl flex-col gap-6 px-5 py-6 lg:px-8"

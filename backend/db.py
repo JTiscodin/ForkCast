@@ -99,6 +99,103 @@ CREATE TABLE IF NOT EXISTS meal_slots (
 
 CREATE INDEX IF NOT EXISTS idx_slot_plan ON meal_slots(plan_id);
 
+-- ---- daily personalization (docs/SPEC-daily-personalization.md §3.3) ----
+-- Keyed by user_id so a household can be layered on later.
+CREATE TABLE IF NOT EXISTS user_profile (
+    user_id           INTEGER PRIMARY KEY REFERENCES users(id),
+    diet_type         TEXT NOT NULL DEFAULT 'veg',   -- veg|eggetarian|nonveg|jain|vegan
+    weekday_overrides TEXT NOT NULL DEFAULT '{}',    -- {"1":"veg","3":"jain"} (Mon=0)
+    allergies         TEXT NOT NULL DEFAULT '[]',    -- [{"name":"peanut","severe":true}]
+    goal              TEXT NOT NULL DEFAULT 'maintain',  -- lose|maintain|gain|high_protein
+    slots             TEXT NOT NULL DEFAULT '["breakfast","lunch","dinner"]',
+    windows           TEXT NOT NULL DEFAULT '{}',    -- {"lunch":["12:00","15:00"]}
+    monthly_budget    REAL NOT NULL DEFAULT 6000,
+    city              TEXT,
+    mode              TEXT NOT NULL DEFAULT 'dry_run',  -- live|dry_run
+    updated_at        TEXT DEFAULT (datetime('now'))
+);
+
+CREATE TABLE IF NOT EXISTS daily_menu (
+    id           INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id      INTEGER NOT NULL,
+    date         TEXT NOT NULL,
+    slot         TEXT NOT NULL,
+    generated_at TEXT DEFAULT (datetime('now')),
+    refreshed_at TEXT,
+    UNIQUE(user_id, date, slot)
+);
+
+CREATE TABLE IF NOT EXISTS menu_card (
+    id       INTEGER PRIMARY KEY AUTOINCREMENT,
+    menu_id  INTEGER NOT NULL REFERENCES daily_menu(id) ON DELETE CASCADE,
+    role     TEXT NOT NULL,          -- usual|gap|new|budget|chat
+    position INTEGER NOT NULL DEFAULT 0,
+    items    TEXT NOT NULL,          -- json [{source,id,name,restaurant_id,...,raw_variant}]
+    price    REAL NOT NULL,
+    nutrients TEXT NOT NULL DEFAULT '{}',
+    score    REAL NOT NULL DEFAULT 0,
+    reasons  TEXT NOT NULL DEFAULT '[]'
+);
+
+CREATE TABLE IF NOT EXISTS excluded_card (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    menu_id     INTEGER NOT NULL REFERENCES daily_menu(id) ON DELETE CASCADE,
+    items       TEXT NOT NULL,
+    allergen_hit TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS consumption_log (
+    id         INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id    INTEGER NOT NULL,
+    date       TEXT NOT NULL,
+    slot       TEXT NOT NULL,
+    source     TEXT NOT NULL,        -- app_order|chat_log|nudge
+    items      TEXT NOT NULL,        -- json [names]
+    nutrients  TEXT NOT NULL DEFAULT '{}',
+    confidence REAL NOT NULL DEFAULT 0.5,
+    created_at TEXT DEFAULT (datetime('now'))
+);
+
+CREATE TABLE IF NOT EXISTS feedback_event (
+    id        INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id   INTEGER NOT NULL,
+    ts        TEXT NOT NULL DEFAULT (datetime('now')),
+    type      TEXT NOT NULL,          -- ordered|up|down|skip|not_today|never|off_plan|quiz|memory_edit
+    dimension TEXT NOT NULL,          -- dish|cuisine|restaurant|ingredient|...
+    key       TEXT NOT NULL,
+    card_id   INTEGER,
+    position  INTEGER,
+    value     REAL NOT NULL DEFAULT 0  -- weight delta
+);
+
+CREATE TABLE IF NOT EXISTS pref_weight (
+    user_id    INTEGER NOT NULL,
+    dimension  TEXT NOT NULL,
+    key        TEXT NOT NULL,
+    weight     REAL NOT NULL DEFAULT 0,
+    updated_at TEXT DEFAULT (datetime('now')),
+    hard_block INTEGER NOT NULL DEFAULT 0,
+    PRIMARY KEY (user_id, dimension, key)
+);
+
+CREATE TABLE IF NOT EXISTS nutrition_ref (
+    canonical  TEXT PRIMARY KEY,
+    nutrients  TEXT NOT NULL,         -- per serving
+    source     TEXT NOT NULL,         -- ifct|indb|llm|default
+    confidence REAL NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS order_record (
+    id         INTEGER PRIMARY KEY AUTOINCREMENT,
+    card_id    INTEGER NOT NULL,
+    platform   TEXT NOT NULL,         -- food|instamart
+    order_id   TEXT,
+    status     TEXT NOT NULL,         -- placed|dry_run|failed
+    mode       TEXT NOT NULL,
+    amount     REAL NOT NULL DEFAULT 0,
+    created_at TEXT DEFAULT (datetime('now'))
+);
+
 CREATE TABLE IF NOT EXISTS notifications (
     id            INTEGER PRIMARY KEY AUTOINCREMENT,
     meal_slot_id  INTEGER NOT NULL REFERENCES meal_slots(id),

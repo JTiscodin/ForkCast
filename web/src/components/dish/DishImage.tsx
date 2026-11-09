@@ -3,7 +3,7 @@
 import { useState } from "react";
 import Image from "next/image";
 import { cn } from "@/lib/utils";
-import { dishInitials } from "./dish-helpers";
+import { BowlIllustration } from "@/components/ui/illustrations";
 
 /**
  * Robust dish image with graceful fallback.
@@ -41,14 +41,12 @@ export function DishImage({
       <div
         aria-hidden
         className={cn(
-          "flex size-full items-center justify-center bg-muted text-muted-foreground",
+          "flex size-full items-center justify-center bg-gradient-to-br from-brand-100 to-brand-200 text-brand-700",
           rounded,
           fallbackClassName
         )}
       >
-        <span className="text-[0.7em] font-semibold tracking-wide">
-          {dishInitials(alt)}
-        </span>
+        <BowlIllustration className="h-1/2 max-h-24 opacity-80" />
       </div>
     );
   }

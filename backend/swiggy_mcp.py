@@ -18,6 +18,7 @@ mock (MockMCPClient) needs no changes upstream. That's why catalog_fetcher /
 order_executor take an injected client.
 """
 import os
+import time
 import json
 import urllib.request
 import urllib.error
@@ -98,6 +99,16 @@ class SwiggyMCPClient:
                 return _parse_mcp_response(raw)
             except urllib.error.HTTPError as e:
                 body = e.read().decode(errors="replace")
+                # Swiggy's gateway: honour Retry-After on 429 (builders guidelines), once
+                if e.code == 429 and attempt == 0:
+                    try:
+                        wait = float(e.headers.get("Retry-After") or 2)
+                    except ValueError:
+                        wait = 2.0
+                    if wait <= 10:   # longer waits fail fast instead of stalling a request
+                        time.sleep(wait)
+                        continue
+                    raise SwiggyMCPError(f"HTTP 429: rate limited, retry after {wait:.0f}s") from e
                 # 401 with an invalid/expired token is NOT transient — mark it so
                 # the app can prompt for a fresh login instead of hammering Swiggy
                 # with a dead JWT. (No refresh token is persisted; a full browser
@@ -111,9 +122,23 @@ class SwiggyMCPClient:
         raise SwiggyMCPError(f"request failed after retry: {last_err}")
 
     def call(self, tool, arguments):
-        """Standard MCP tools/call. Returns the tool result payload (dict)."""
-        result = self._rpc("tools/call", {"name": tool, "arguments": arguments})
-        return _unwrap_tool_result(result)
+        """Standard MCP tools/call. Returns the tool result payload (dict).
+
+        Swiggy reports tool failures in-band as {"success": false, "error": {...}};
+        raise those so a failed cart update can't pass as a built cart.
+        """
+        result = _unwrap_tool_result(
+            self._rpc("tools/call", {"name": tool, "arguments": arguments}))
+        # two in-band shapes seen live: {success:false,error:{message}} and
+        # {successful:false,statusMessage,errorCodes:[...]}
+        if isinstance(result, dict) and (result.get("success") is False
+                                         or result.get("successful") is False):
+            err = result.get("error") or {}
+            msg = (err.get("message") if isinstance(err, dict) else str(err)) or \
+                result.get("statusMessage") or result.get("message") or "failed"
+            codes = result.get("errorCodes")
+            raise SwiggyMCPError(f"{tool}: {msg}" + (f" {codes}" if codes else ""))
+        return result
 
     def list_tools(self):
         return self._rpc("tools/list", {})
@@ -141,8 +166,8 @@ class SwiggyMCPClient:
             args["restaurantName"] = restaurant_name
         return self.call("update_food_cart", args)
 
-    def get_food_cart(self):
-        return self.call("get_food_cart", {})
+    def get_food_cart(self, address_id):
+        return self.call("get_food_cart", {"addressId": address_id})
 
     def place_food_order(self, address_id, payment_method=None):
         args = {"addressId": address_id}

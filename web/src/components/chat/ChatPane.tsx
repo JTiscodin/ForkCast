@@ -72,7 +72,7 @@ export function ChatPane({
     {
       id: uid("greet"),
       role: "assistant",
-      text: "Hey! I'm your meal planner. Tell me your monthly budget and what you're craving: veg or non-veg, any must-have dishes, how big your appetite runs. I'll build a plan that fits.",
+      text: "Hey! I'm Forkcast. Tell me your monthly budget and what you're craving: veg or non-veg, any must-have dishes, how big your appetite runs. I'll build a plan that fits.",
       kind: "text",
     },
     {
@@ -365,7 +365,7 @@ function ChatHeader() {
       </div>
       <div className="min-w-0">
         <h2 className="font-heading text-sm font-extrabold leading-[1.4] tracking-[-0.02em] text-foreground">
-          Meal Planner
+          Forkcast
         </h2>
         <p className="truncate text-sm leading-[1.4] text-muted-foreground">
           Let&apos;s build your month

@@ -1,136 +1,140 @@
-# Budget-Based Monthly Meal Planner
+# Forkcast
 
-Tell it your monthly food budget + must-haves. It builds a full month's calendar of
-breakfast/lunch/dinner within budget, orders per meal on your yes/no, and rolls
-unused budget into next month as **Swiggy Cash**.
+**Your meals for the day, already picked from Swiggy.**
 
-Built on Swiggy MCP tool schemas (Food). Differentiator vs public Swiggy MCP demos:
-**budget-constrained planning + rollover wallet**, not just conversational ordering.
+Forkcast is a daily meal recommender built on the [Swiggy MCP](https://mcp.swiggy.com/builders).
+Every morning it lays out four short lists (breakfast, lunch, an evening snack and
+dinner) of real dishes from restaurants that deliver to you, plus small Instamart
+add-ons that cover what your day is missing. It stays inside your monthly food budget,
+follows your diet (including rules like "Jain on Thursdays"), keeps your allergies off
+the plate, and learns from what you order, like and skip.
 
-Demo status: **working end-to-end on localhost**, mock catalog + simulated wallet.
+You stay in charge of ordering: one tap builds the real Swiggy cart and shows what
+you'll pay, a second tap places it.
 
----
-
-## Money model (MVP — virtual budget, no custody)
-
-We hold **no real money**. The wallet is a ledger of numbers:
-
-- Budget you set = a number deposited into the month's cycle.
-- Order placed → **debit**.
-- Slot skipped → money simply not spent (stays in balance). No phantom credit.
-- Confirmed order cancelled → **credit** (refund).
-- Month end → leftover **rolls over** into next month as Swiggy Cash.
-
-Real payment (prototype) happens per-order at Swiggy checkout; the ledger only
-*tracks* the budget. Swiggy MCP has no monthly-budget/rollover API — that layer is ours.
+> Status: working prototype on localhost against the live Swiggy Food and Instamart
+> MCP servers. Production access application: [`docs/PRODUCTION-APPLICATION.md`](docs/PRODUCTION-APPLICATION.md).
 
 ---
 
-## Architecture (key rule: LLM never plans the month)
+## What it does
 
-```
-intake (LLM/regex)  → parses "10k budget, 10 paneer, veg only, heavy"
-appetite calculator → portion multiplier per meal slot (Indian pattern: lunch heaviest)
-catalog fetcher     → dishes from mock (demo) or Swiggy MCP (prototype)
-optimizer (Python)  → deterministic greedy fill of 90 slots, budget + constraint aware
-plan service        → persist plan, notification state machine (yes/no/later/other)
-order executor      → mock (demo) or place_food_order (prototype)
-wallet/ledger       → virtual budget + rollover (our DB, not Swiggy's)
-```
-
-The LLM only extracts constraints and handles chat. A deterministic optimizer builds
-the plan — avoids the hallucinated-cart-id failure mode of single over-scoped agents.
-
----
-
-## Files
-
-| File | What |
+| | |
 |---|---|
-| `db.py` | SQLite schema (users, cycles, ledger, plans, slots, notifications) |
-| `wallet_service.py` | deposit/debit/credit/balance/close_cycle + rollover |
-| `appetite.py` | appetite level → per-slot portion multiplier |
-| `catalog.py` | Dish type + mock Indian catalog |
-| `catalog_fetcher.py` | mock ↔ Swiggy MCP adapter (same Dish output) |
-| `optimizer.py` | deterministic 90-slot budget/constraint solver |
-| `intake.py` | NL → constraints (Gemini if key, else regex fallback) |
-| `plan_service.py` | plan persistence + notification state machine |
-| `order_executor.py` | mock ↔ place_food_order/track_food_order |
-| `swap_service.py` | ±price-band alternatives, appetite-aware |
-| `app.py` | FastAPI wiring all of it |
-| `../frontend/index.html` | React calendar UI (single file, CDN, no build) |
+| **Four meals a day** | 3–4 cards per meal, each with a role: *your usual*, *fixes your gap*, *try something new*, *budget pick*. One restaurant appears at most once a day. |
+| **Real meals only** | Every dish is profiled (meal, curry, bread, snack, sweet, drink…). A curry always comes with roti or rice from the same restaurant; a lone idli is never lunch; soft-drink combos are out. |
+| **Budget** | Monthly budget turns into a daily cap that adapts to what you've already spent. |
+| **Diet rules** | Veg, egg, non-veg, Jain, vegan, with per-weekday overrides. Jain filters out onion, garlic and root vegetables. |
+| **Allergies** | Dishes built on an allergen (paneer for dairy, chikki for peanut) are hidden. If the allergen can be left out (peanuts in poha), the dish stays and the order carries a note to the restaurant: *"No peanut please, severe allergy."* |
+| **Nutrition** | Calories, protein, carbs, fat, fibre and micronutrients per card, from the Indian Nutrient Databank. Daily rings and a weekly average show the gaps the next picks try to close. |
+| **Learning** | Thumbs up/down, skips, "not today", ratings, ordering again, and your past Swiggy orders all adjust a taste profile that fades over two weeks, so new habits win over old ones. |
+| **Chat** | "Ask Forkcast": *"something spicy under ₹250"*, *"I had dal and 2 roti at home"*, *"stop suggesting paneer"*. The assistant can search and adjust the plan but cannot place orders. |
+| **Your data** | "What we know about you" lists everything learned; each item can be strengthened, weakened or forgotten, and one button deletes the account and all its data. |
+
+## Ordering safety
+
+- **Dry run is the default.** It builds your real Swiggy cart and stops before ordering.
+- **Live mode** needs a second, explicit confirmation to switch on.
+- Every order shows a summary from Swiggy's live cart (items, amount to pay, address,
+  cash on delivery) before the final tap.
+- Carts at ₹1000 or more are refused, as Swiggy requires. Payment is cash on delivery only.
+- "Powered by Swiggy" / "Powered by Instamart" appears on every card and order step.
 
 ---
 
-## Run
+## How it works
+
+```
+Browser (Next.js 16, web/)
+   │  Bearer token per user
+   ▼
+FastAPI backend (backend/)
+   ├── daily.py           plan builder: candidates → filters → scoring → 4 role cards per meal
+   ├── dish_profile.py    one Gemini-classified profile per dish name, cached forever in SQLite
+   ├── plan_quality.py    audits every built day (not-a-meal, curry without carb, Jain, duplicates…)
+   ├── nutrition.py       INDB lookup → hand table → fuzzy match → LLM estimate
+   ├── agent.py           chat assistant with read/adjust tools (no ordering tool)
+   ├── order_executor.py  update_food_cart → get_food_cart → place_food_order
+   ├── instamart.py       Instamart search / cart / checkout
+   ├── swiggy_mcp.py      JSON-RPC client for mcp.swiggy.com (Retry-After on 429, in-band errors raised)
+   ├── auth.py            per-user signed tokens; every user-scoped route checks ownership
+   └── SQLite             profiles, feedback, taste weights, plans, orders, dish profiles
+```
+
+**Scoring.** Each candidate gets
+`0.35·preference + 0.25·nutrient gap + 0.15·budget fit + 0.15·novelty + 0.10·weather/season`.
+Hard rules (diet, allergies, budget cap, meal size) are filters, not weights.
+
+**Nightly job.** Refreshes the Swiggy token, pulls new Swiggy orders into the taste
+profile, recomputes weights and builds tomorrow's plan, so the morning page loads instantly.
+
+**Why the LLM doesn't plan.** Gemini only classifies dish names and powers chat. The
+plan itself comes from deterministic Python, so it can't make up dishes, cart IDs or prices.
+
+---
+
+## Run it locally
+
+Requirements: Python 3.11+, Node 20+.
+
+```bash
+# backend
+cd backend
+pip install -r requirements.txt
+python -m uvicorn app:app --port 8343
+
+# frontend (new terminal)
+cd web
+npm install
+NEXT_PUBLIC_API_URL=http://localhost:8343 npx next dev --port 6001
+```
+
+Open http://localhost:6001, tap **Connect Swiggy** and sign in on Swiggy's own page.
+Without a Swiggy login, the app runs on a built-in mock catalogue.
+
+### Configuration (`backend/.env`, never committed)
+
+| Variable | Purpose |
+|---|---|
+| `GEMINI_API_KEY` | Dish classification and chat. Without it, keyword rules and a regex parser take over. |
+| `SWIGGY_MODE` | `mcp` for live Swiggy, `mock` for the demo catalogue. |
+| `SWIGGY_MCP_TOKEN` / `SWIGGY_REFRESH_TOKEN` | Written by **Connect Swiggy** (OAuth 2.1 + PKCE). |
+| `SWIGGY_ADDRESS_ID` | Optional: pin a saved Swiggy address. |
+| `FORKCAST_SECRET` | Signs user tokens. If unset, a random secret is generated into `backend/.auth_secret`. |
+| `DAILY_NIGHTLY_HOUR` | Hour the nightly job runs (default 2). |
+
+### Tests
 
 ```bash
 cd backend
-pip install -r requirements.txt
-
-# run tests
-python test_wallet.py
-python test_optimizer.py
-python test_e2e.py
-
-# start API
-python -m uvicorn app:app --reload --port 8000
-
-# open frontend/index.html in a browser (talks to localhost:8000)
+python -m pytest -q
 ```
 
-Optional LLM intake: `set GEMINI_API_KEY=...` (Windows) before starting. Without it,
-the regex fallback handles the common phrasings — demo never blocks on a key.
-
-### Real Swiggy MCP (live ordering)
-
-Default mode is `mock`. To hit the real Swiggy Food MCP:
-
-```bash
-# 1. Link your Swiggy account via OAuth (Claude / MCP Inspector / Postman —
-#    localhost redirect is whitelisted) and copy the access token.
-set SWIGGY_MODE=mcp
-set SWIGGY_MCP_TOKEN=<oauth access token>
-# optional: pin an address, else the first saved address is used
-set SWIGGY_ADDRESS_ID=<addressId from GET /mcp/addresses>
-
-python -m uvicorn app:app --port 8000
-```
-
-Live endpoints: `GET /mode`, `GET /mcp/addresses`, `GET /mcp/tools`.
-
-**Swiggy guardrails enforced** (per official docs): cart total must be < ₹1000,
-only OPEN restaurants used, COD-only, order placed against a saved `addressId`.
-Client: `swiggy_mcp.py` (JSON-RPC 2.0 over MCP Streamable HTTP, Bearer OAuth,
-endpoint `https://mcp.swiggy.com/food`). Verified tool schemas:
-`get_addresses`, `search_restaurants(addressId, query, offset)`,
-`search_menu(addressId, query, restaurantIdOfAddedItem, vegFilter, offset)`,
-`update_food_cart(restaurantId, cartItems, addressId)`, `get_food_cart`,
-`place_food_order(addressId, paymentMethod)`, `track_food_order`.
-
-**Live variant caveat (MVP):** the planner stores a simplified variant name per
-slot, not the full Swiggy `variantsV2`/`variations` blob. Items that *require* a
-variant selection may fall back to Swiggy's default at order time. Storing the raw
-variant object per slot is a prototype TODO.
+Covers the planner rules, allergen handling, the quality gate, nutrition lookups,
+learning signals, order flow against a fake MCP, and auth.
 
 ---
 
-## Improvements over the original spec
+## Repository map
 
-- **Per-slot portion multipliers** (lunch heaviest) instead of one flat number —
-  matches real Indian eating.
-- **Constraint-first optimizer pass** — guarantees "10 paneer" if affordable, not
-  left to greedy luck; exact shortfall message when infeasible.
-- **LLM optional** — deterministic regex fallback makes the demo reproducible and
-  offline-safe.
-- **Corrected money model** — full budget deposited at approval; skipping a planned
-  slot keeps the cash (no double-count), refunds only cancel confirmed orders.
+| Path | What |
+|---|---|
+| `backend/` | FastAPI app, planner, Swiggy clients, tests |
+| `backend/data/indb.csv` | Indian Nutrient Databank recipes (1,014) used for nutrition |
+| `web/` | Next.js app (Today view, setup, chat, month planner) |
+| `docs/SPEC-daily-personalization.md` | Product spec for the daily recommender |
+| `docs/PRODUCTION-APPLICATION.md` | Answers for Swiggy's production access form |
 
-## Prototype TODO (real infra)
+The older **Month** tab (a budget-first monthly calendar with Swiggy Cash rollover) is
+still available; Forkcast's main screen is the daily view.
 
-- Swap mock catalog fetcher → real `search_restaurants`/`search_menu`.
-- Swap mock order executor → real `update_food_cart`/`place_food_order`/`track_food_order`.
-- SQLite → Postgres.
-- APScheduler → real scheduler firing T-30 notifications per slot.
-- Real push/WhatsApp for yes/no/later/other replies.
-- Groq Llama 3.3 70B for the fast notification-reply parsing.
+## Credits
+
+- Food and grocery data: [Swiggy MCP](https://mcp.swiggy.com/builders). Swiggy and
+  Instamart logos are used for attribution only.
+- Nutrition: Indian Nutrient Databank (Vijayakumar et al., *Current Developments in
+  Nutrition*, 2024, [doi:10.1016/j.cdnut.2024.103790](https://doi.org/10.1016/j.cdnut.2024.103790)).
+- Weather: [Open-Meteo](https://open-meteo.com).
+
+Forkcast gives general wellness suggestions, not medical advice. Allergen information
+is estimated per dish: always tell the restaurant about a severe allergy yourself.

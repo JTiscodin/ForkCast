@@ -11,6 +11,7 @@ const KEY = "meal-planner:session:v1";
 
 export interface Session {
   userId: number | null;
+  token?: string;      // per-user API token from POST /user (not the Swiggy token)
   name: string;
   address: SwiggyAddress | null;
   planId: number | null;

@@ -18,7 +18,7 @@ export interface DishCardProps {
  * FSSAI veg/non-veg mark — the classic square-and-dot stamp Swiggy prints
  * beside every dish name (green = veg, brown-red = non-veg). Token-colored.
  */
-function DietMarker({ veg }: { veg: boolean }) {
+export function DietMarker({ veg }: { veg: boolean }) {
   const color = veg ? "var(--diet-veg)" : "var(--diet-nonveg)";
   return (
     <svg

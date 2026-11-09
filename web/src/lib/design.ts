@@ -1,7 +1,7 @@
 import { cn } from "@/lib/utils";
 
 /**
- * Design system helpers for the Budget Meal Planner.
+ * Design system helpers for the Forkcast.
  *
  * These are the canonical, typed constants every component should reach for
  * instead of hand-writing colors/gradients. Class-name strings map to the

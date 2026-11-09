@@ -202,3 +202,91 @@ export interface AdjustResponse {
   blueprint: Blueprint;
   public: Blueprint;
 }
+
+// ---- daily personalization (docs/SPEC-daily-personalization.md) ----
+export type DailySlotName = "breakfast" | "lunch" | "snack" | "dinner";
+export type DietType = "veg" | "eggetarian" | "nonveg" | "jain" | "vegan";
+export type Goal = "lose" | "maintain" | "gain" | "high_protein";
+
+export interface DailyProfile {
+  user_id: number;
+  diet_type: DietType;
+  weekday_overrides: Record<string, DietType>;
+  allergies: { name: string; severe: boolean }[];
+  goal: Goal;
+  slots: DailySlotName[];
+  windows: Record<DailySlotName, [string, string]>;
+  monthly_budget: number;
+  city: string | null;
+  mode: "live" | "dry_run";
+}
+
+export interface CardItem {
+  source: "food" | "instamart";
+  id: string;
+  name: string;
+  restaurant_name: string;
+  price: number;
+  image_url: string;
+  veg: boolean;
+  addon?: boolean;
+  addon_reason?: string;
+  side?: boolean;      // a curry's roti/rice from the same restaurant
+  quantity?: number;
+  note?: string;       // allergy note sent to the restaurant with the order
+}
+
+export type Nutrients = Record<string, number> & { confidence?: number };
+
+export interface MenuCard {
+  id: number;
+  role: "usual" | "gap" | "new" | "budget" | "chat";
+  position: number;
+  items: CardItem[];
+  price: number;
+  nutrients: Nutrients;
+  score: number;
+  reasons: string[];
+  deliveries: number;
+}
+
+export interface DailySlot {
+  slot: DailySlotName;
+  window: [string, string];
+  cards: MenuCard[];
+  excluded: { id: number; items: CardItem[]; allergen_hit: string }[];
+  ordered: { status: string; platform: string; card_id: number } | null;
+  nudge: boolean;
+}
+
+export interface TodayView {
+  date: string;
+  diet: DietType;
+  season: string;
+  weather: { hot?: boolean; rain?: boolean };
+  profile: DailyProfile;
+  budget: { monthly: number; spent: number; remaining: number; days_left: number; daily_cap: number };
+  nutrition: {
+    today: Nutrients;
+    week_avg: Nutrients;
+    days_logged: number;
+    targets: Nutrients;
+    gap: Nutrients;
+  };
+  slots: DailySlot[];
+}
+
+export interface OrderOutcome {
+  mode: "live" | "dry_run";
+  orders: { platform: string; order_id: string | null; status: string; amount: number; eta_min: number | null;
+    error: string | null; fallback_url: string | null }[];
+}
+
+export interface MemoryBullet {
+  id: string;
+  dimension: string;
+  key: string;
+  weight: number;
+  blocked: boolean;
+  text: string;
+}

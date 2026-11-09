@@ -207,6 +207,20 @@ _FORM_OVERRIDES = (
         "aloo paratha", "gobi paratha", "paneer paratha", "mooli paratha",
         "onion paratha", "pyaz paratha", "mix paratha", "stuffed paratha",
         "cheese paratha", "egg paratha", "keema paratha", "methi paratha",
+        # A curry already served with its carb is a whole meal. Live menus spell
+        # these many ways ("Chhole Bhature" lost to the bread form "bhature",
+        # "Rajma Rice" to the staple "rice"); as longer forms these win.
+        "chhole bhature", "chhole kulche", "chole kulche", "chhole chawal",
+        "chhole rice", "chole rice", "rajma rice", "dal rice", "dal chawal",
+        "kadhi rice", "kadhi chawal", "dal roti", "makki di roti", "makki ki roti",
+        "with roti", "with rice", "with naan", "with paratha", "with chawal",
+        "with kulcha", "with bhature", "with puri", "with poori", "with jeera rice",
+        "with makki",
+    )),
+    # Gravies whose name carries a snack form word: "Kadhi Pakoda" is a curry
+    # eaten with rice, not a plate of pakodas (longest form wins).
+    (CURRY, (
+        "kadhi pakoda", "kadhi pakora", "punjabi kadhi",
     )),
 )
 
@@ -269,6 +283,13 @@ _COURSE_KEYWORDS = (
         "rogan josh", "handi", "bhuna", "do pyaza", "lababdar",
         "paneer", "sabzi", "sabji", "curry", "masala", "gravy", "kadai",
         "makhani", "tikka masala", "dal", "chole", "rajma", "kofta",
+        # Everyday sabzis + menu spellings. Unlisted, they defaulted to COMPLETE
+        # and were served alone, with no roti or rice — not how anyone eats them.
+        "chhole", "chholey", "choley", "chana", "aloo chhole", "aloo chole",
+        "aloo gobi", "jeera aloo", "aloo jeera", "dum aloo", "aloo matar",
+        "aloo tamatar", "aloo methi", "aloo palak", "aloo sabzi", "gobi masala",
+        "bhindi", "baingan", "bharta", "lauki", "tinda", "saag", "sarson",
+        "kadhi", "arbi", "karela", "kaddu", "chaap", "soya chaap",
     )),
     # true sides — never a meal
     (SIDE, (

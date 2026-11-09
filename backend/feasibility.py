@@ -38,7 +38,8 @@ _MEAL_LABEL = {
 }
 
 
-def _floor_cost(catalog, profile, days, meals, constraints, veg_only=False):
+def _floor_cost(catalog, profile, days, meals, constraints, veg_only=False,
+                taste_profile=None):
     """Cheapest achievable total for this configuration, constraints honoured.
 
     Two requirements shape this probe, both learned from live failures:
@@ -64,7 +65,7 @@ def _floor_cost(catalog, profile, days, meals, constraints, veg_only=False):
     def attempt(b):
         r = optimize(catalog, profile, b, days=days,
                      constraints=constraints, meals=list(meals),
-                     veg_only=veg_only)
+                     veg_only=veg_only, taste_profile=taste_profile)
         # Guards stay ON deliberately: the quoted floor must be one a REAL
         # plan (variety disciplines included) can honour, or /plan at exactly
         # this budget would still come back over.
@@ -125,7 +126,7 @@ def _floor_cost(catalog, profile, days, meals, constraints, veg_only=False):
 
 
 def analyse(catalog, profile_builder, user_id, appetite_level, budget, days,
-            constraints=None, meals=None, veg_only=False):
+            constraints=None, meals=None, veg_only=False, taste_profile=None):
     """Probe the levers and return concrete, numbered options.
 
     profile_builder: appetite.build_profile - injected so this module stays
@@ -171,7 +172,8 @@ def analyse(catalog, profile_builder, user_id, appetite_level, budget, days,
             cons.append(Constraint(c.strip().lower(), 1))
 
     prof = profile_builder(user_id, appetite_level)
-    floor = _floor_cost(catalog, prof, days, meals, cons, veg_only=veg_only)
+    floor = _floor_cost(catalog, prof, days, meals, cons, veg_only=veg_only,
+                        taste_profile=taste_profile)
     slot_count = days * len(meals)
     shortfall = round(max(0.0, floor - budget), 2)
     feasible = floor <= budget
@@ -215,7 +217,8 @@ def analyse(catalog, profile_builder, user_id, appetite_level, budget, days,
             seen.add(key)
 
             cost = _floor_cost(catalog, profile_builder(user_id, lvl), days,
-                               combo, cons, veg_only=veg_only)
+                               combo, cons, veg_only=veg_only,
+                               taste_profile=taste_profile)
             if cost > budget:
                 continue  # doesn't actually solve anything
 

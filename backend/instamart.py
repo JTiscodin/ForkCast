@@ -15,8 +15,8 @@ Tools on the Instamart server (from a live tools/list):
 Why this module exists: the meal planner orders RESTAURANT meals, but a
 month-long plan also needs staples (milk, curd, eggs, fruit, atta) that
 restaurants sell at a markup or not at all. Instamart covers those at
-grocery prices. Only SEARCH is wired for now — update_cart/checkout touch
-real money and stay unwired until deliberately enabled.
+grocery prices. Cart + checkout are used by the daily order flow (daily.py),
+which honours the dry-run setting before calling checkout.
 """
 from swiggy_mcp import SwiggyMCPClient, SwiggyMCPError, SWIGGY_MCP_URL
 from types import SimpleNamespace
@@ -52,15 +52,19 @@ class InstamartClient(SwiggyMCPClient):
     def get_cart(self):
         return self.call("get_cart", {})
 
-    def update_cart(self, address_id, cart_items, clear_first=True):
-        """cart_items: [{"spinId"|"productId":..., "quantity": n, ...}]"""
-        args = {"addressId": address_id, "cartItems": cart_items}
-        if clear_first:
-            args["clearExistingCart"] = True
-        return self.call("update_cart", args)
+    def update_cart(self, address_id, cart_items):
+        """cart_items: [{"spinId": ..., "quantity": n}]. Schema from the live tools/list:
+        {selectedAddressId, items}; the items list is the whole cart (omitted = removed)."""
+        return self.call("update_cart", {"selectedAddressId": address_id, "items": cart_items})
 
-    def checkout(self, address_id):
-        return self.call("checkout", {"addressId": address_id})
+    def checkout(self, address_id, payment_method="COD"):
+        return self.call("checkout", {"addressId": address_id, "paymentMethod": payment_method})
+
+    def get_orders(self):
+        return self.call("get_orders", {})
+
+    def your_go_to_items(self, address_id):
+        return self.call("your_go_to_items", {"addressId": address_id})
 
 
 # ---- catalog-facing normalization -------------------------------------------

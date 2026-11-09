@@ -211,6 +211,37 @@ def run():
     return access
 
 
+def refresh():
+    """Swap SWIGGY_REFRESH_TOKEN for a new access token (no browser).
+
+    Returns the new access token, or None when no refresh token / client id is
+    saved or the server refuses — the caller then falls back to a full login.
+    """
+    rt = os.environ.get("SWIGGY_REFRESH_TOKEN")
+    client_id = os.environ.get("SWIGGY_CLIENT_ID")
+    if not rt or not client_id:
+        return None
+    try:
+        tok = _post_json(_get_json(WELL_KNOWN)["token_endpoint"], {
+            "grant_type": "refresh_token",
+            "refresh_token": rt,
+            "client_id": client_id,
+            "resource": RESOURCE,
+        }, form=True)
+    except Exception as e:  # noqa: BLE001 — refresh failure means "log in again"
+        print(f"[auth] refresh failed: {e}")
+        return None
+    access = tok.get("access_token")
+    if not access:
+        return None
+    # servers may rotate the refresh token; keep the old one if they don't
+    updates = {"SWIGGY_MCP_TOKEN": access,
+               "SWIGGY_REFRESH_TOKEN": tok.get("refresh_token") or rt}
+    _write_env(updates)
+    os.environ.update(updates)
+    return access
+
+
 if __name__ == "__main__":
     try:
         run()

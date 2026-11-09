@@ -1,4 +1,5 @@
-// Typed API client for the Budget Meal Planner backend (FastAPI on :8000).
+import { clearSession, loadSession } from "./session";
+// Typed API client for the Forkcast backend (FastAPI on :8000).
 import type {
   ParsedIntake,
   PlanSummary,
@@ -15,10 +16,14 @@ import type {
   AdjustResponse,
   MealType,
   FeasibilityReport,
+  DailyProfile,
+  TodayView,
+  OrderOutcome,
+  MemoryBullet,
 } from "./types";
 
 const BASE =
-  process.env.NEXT_PUBLIC_API_URL?.replace(/\/$/, "") || "http://localhost:8000";
+  process.env.NEXT_PUBLIC_API_URL?.replace(/\/$/, "") || "http://localhost:8343";
 
 class ApiError extends Error {
   status: number;
@@ -35,7 +40,10 @@ async function req<T>(
 ): Promise<T> {
   const res = await fetch(BASE + path, {
     method: opts.method ?? "GET",
-    headers: { "Content-Type": "application/json" },
+    headers: {
+      "Content-Type": "application/json",
+      ...(loadSession().token ? { Authorization: `Bearer ${loadSession().token}` } : {}),
+    },
     body: opts.body ? JSON.stringify(opts.body) : undefined,
     cache: "no-store",
   });
@@ -43,9 +51,17 @@ async function req<T>(
     let detail = res.statusText;
     try {
       const j = await res.json();
-      detail = j.detail ?? detail;
+      // FastAPI 422 detail is a list of {loc, msg}; flatten it so toasts stay readable
+      detail = Array.isArray(j.detail)
+        ? j.detail.map((d: { loc?: unknown[]; msg?: string }) => `${d.loc?.slice(-1)[0] ?? ""}: ${d.msg}`).join("; ")
+        : (j.detail ?? detail);
     } catch {
       /* ignore */
+    }
+    if (res.status === 403 && /sign in again/i.test(detail)) {
+      // our session token is missing or no longer valid: start onboarding fresh
+      clearSession();
+      if (typeof window !== "undefined") window.location.reload();
     }
     throw new ApiError(res.status, detail);
   }
@@ -75,7 +91,7 @@ export const api = {
     req<{ live: boolean }>("/auth/swiggy/logout", { method: "POST" }),
 
   createUser: (name: string, area?: string) =>
-    req<{ user_id: number }>("/user", { method: "POST", body: { name, area } }),
+    req<{ user_id: number; token: string }>("/user", { method: "POST", body: { name, area } }),
 
   addresses: () =>
     req<{ addresses: SwiggyAddress[] }>("/mcp/addresses"),
@@ -207,6 +223,46 @@ export const api = {
     req<{ rolled_over: number }>(`/wallet/${user_id}/${month}/close`, {
       method: "POST",
     }),
+
+  // ---- daily personalization ----
+  dailyProfile: (user_id: number) =>
+    req<{ profile: DailyProfile | null }>(`/daily/${user_id}/profile`),
+  saveDailyProfile: (user_id: number, body: Partial<DailyProfile> & { quiz_picks?: string[] }) =>
+    req<{ profile: DailyProfile; history_items: number }>(`/daily/${user_id}/profile`, {
+      method: "POST",
+      body,
+    }),
+  quiz: (diet: string) => req<{ dishes: string[] }>(`/daily/quiz?diet=${diet}`),
+  today: (user_id: number) => req<TodayView>(`/daily/${user_id}/today`),
+  regenerate: (user_id: number, slot?: string) =>
+    req<{ ok: boolean }>(`/daily/${user_id}/regenerate${slot ? `?slot=${slot}` : ""}`, {
+      method: "POST",
+    }),
+  deleteAccount: (user_id: number) => req<{ deleted: number }>(`/daily/${user_id}`, { method: "DELETE" }),
+  orderCard: (user_id: number, card_id: number, preview = false) =>
+    req<OrderOutcome>(`/daily/${user_id}/order/${card_id}${preview ? "?preview=true" : ""}`, { method: "POST" }),
+  feedback: (user_id: number, card_id: number, type: string, value?: number) =>
+    req<{ ok: boolean }>(`/daily/${user_id}/feedback`, {
+      method: "POST",
+      body: { card_id, type, value },
+    }),
+  logMeal: (user_id: number, slot: string, kind: string, text = "") =>
+    req<{ nutrients: Record<string, number> }>(`/daily/${user_id}/log`, {
+      method: "POST",
+      body: { slot, kind, text },
+    }),
+  memory: (user_id: number) =>
+    req<{ facts: string[]; bullets: MemoryBullet[] }>(`/daily/${user_id}/memory`),
+  editMemory: (
+    user_id: number,
+    body: { dimension: string; key: string; weight?: number; delete?: boolean; block?: boolean }
+  ) =>
+    req<{ facts: string[]; bullets: MemoryBullet[] }>(`/daily/${user_id}/memory`, {
+      method: "POST",
+      body,
+    }),
+  agent: (user_id: number, message: string) =>
+    req<{ reply: string }>(`/daily/${user_id}/agent`, { method: "POST", body: { message } }),
 };
 
 export { ApiError };

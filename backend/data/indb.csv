@@ -1,0 +1,1015 @@
+food_name,serving,kcal,protein,carbs,fat,fibre,iron,calcium,sodium,sugar,vitd
+Hot tea (Garam Chai),tea cup,33.98,0.82,5.43,1.12,0.0,0.05,29.9,6.56,5.42,0.0
+Instant coffee,tea cup,104.2,2.88,16.44,3.36,0.0,0.27,93.9,22.12,16.27,0.0
+Espreso coffee,tea cup,81.7,2.77,10.49,3.39,0.0,0.23,92.1,22.15,10.36,0.0
+Iced tea,tall glass,33.1,0.09,8.64,0.04,0.0,0.07,3.77,0.75,8.64,0.0
+Raw mango drink (Aam panna),tall glass,96.44,0.42,24.29,0.07,1.64,0.36,19.0,214.33,20.11,3.92
+Fruit Punch (with fresh juices),tall glass,196.6,0.76,51.06,0.18,0.33,0.56,27.59,14.33,50.33,0.27
+Fruit Punch (with squashes),tall glass,116.3,0.36,30.12,0.08,0.85,0.31,16.6,11.35,29.58,0.27
+Lemonade,glass,72.64,0.12,19.13,0.04,0.06,0.17,6.42,99.62,19.11,0.03
+Lem-o-gin,glass,76.76,0.29,19.81,0.1,0.46,0.31,7.84,100.37,19.21,0.34
+Cumin infused water (Jeere/Zeere ka pani),glass,30.8,0.57,6.32,0.37,1.57,1.07,36.75,642.49,4.95,1.94
+Coco pine cooler,tall glass,141.54,2.4,24.71,4.32,1.11,0.54,76.98,100.25,23.87,0.29
+Summer cooler,tall glass,110.95,1.85,26.87,0.18,0.97,1.37,40.22,7.78,25.78,0.69
+Hot cocoa,cup,172.09,6.42,17.64,8.72,0.0,0.6,217.1,46.23,17.2,0.0
+Cold coffee with ice cream,tall glass,204.56,4.73,33.9,6.36,0.02,0.37,160.68,41.74,33.71,0.0
+Banana milkshake (Kele milkshake),tall glass,225.63,6.37,31.6,8.19,0.88,0.46,216.42,47.02,27.49,0.08
+Mango milkshake (Aam milkshake),tall glass,202.28,6.14,25.71,8.34,0.94,0.55,221.6,47.19,25.41,1.86
+Pineapple milkshake (Ananas milkshake),tall glass,203.09,6.05,27.79,8.12,0.0,0.41,218.4,51.23,27.7,0.0
+Orange milkshake (Narangi milkshake),tall glass,183.44,5.96,22.71,8.06,0.0,0.34,215.4,46.73,22.62,0.0
+Egg nog,tall glass,294.82,14.5,24.72,15.51,0.06,1.31,309.97,123.37,24.47,0.65
+Sweet Lassi (Meethi lassi),tall glass,157.8,5.7,28.8,3.0,0.0,0.14,202.0,81.0,28.8,0.0
+Lassi (salted),tall glass,79.76,5.73,7.86,3.04,0.08,0.15,202.24,276.81,7.8,0.03
+Cheese and chilli sandwich,triangle,121.6,3.79,15.28,5.45,1.16,0.55,63.44,243.91,1.33,0.13
+Egg sandwich (Ande ka sandwich),triangle,145.12,4.41,14.8,8.02,0.95,0.73,55.89,234.3,0.95,0.16
+Cucumber sandwich (Kheere ka sandwich),triangle,114.57,2.92,15.65,4.86,1.49,0.62,53.36,220.31,1.0,0.38
+Cheese and pineapple sandwich (Cheese aur ananas ka sandwich),triangle,143.68,4.57,16.22,7.13,1.3,0.58,111.35,318.87,2.29,0.09
+Cheese and tomato sandwich (Cheese aur tamatar ke sandwich),triangle,141.73,4.61,15.68,7.15,1.15,0.58,111.38,320.21,1.66,1.54
+Chicken sandwich,triangle,147.53,7.64,14.78,6.84,0.95,0.69,52.17,226.98,0.93,0.37
+Peanut and tomato sandwich (Moongfali aur tamatar ka sandwich),triangle,177.04,5.79,17.34,9.8,2.45,0.96,57.12,221.73,1.71,2.43
+Rainbow sandwich,triangle,130.44,3.7,16.39,6.0,1.01,0.58,82.28,292.92,1.93,0.06
+Club sandwich,triangle,206.79,6.42,16.26,13.29,1.59,0.76,101.65,405.68,1.77,1.68
+Vegetarian club sandwich,triangle,164.37,4.52,16.31,9.39,1.7,0.64,101.47,253.07,1.72,2.71
+Pin wheel sandwich,triangle,86.84,2.44,3.9,6.95,0.26,0.38,18.89,104.36,0.41,0.13
+Carrot apple sandwich (Gajar aur seb ka sandwich),triangle,208.22,5.15,28.25,8.87,3.56,1.75,114.8,294.55,5.15,0.44
+Salami sandwich,triangle,189.78,6.46,15.99,11.52,1.46,0.82,54.61,492.09,1.48,0.32
+Vegetable and mayonnaise sandwich,triangle,166.83,3.06,15.85,10.52,1.61,0.62,54.32,234.06,1.6,1.22
+Egg and tomato sandwich (Ande aur tamatar ka sandwich),triangle,132.15,4.56,15.41,6.25,1.05,0.78,56.95,251.84,1.24,0.9
+Sweet open sandwich,triangle,144.11,2.94,23.15,4.81,1.39,0.68,50.26,121.11,7.22,0.08
+Mushroom and cheese sandwich (toasted),triangle,172.27,5.9,15.92,9.85,1.73,0.64,130.56,345.85,1.6,5.2
+Cheese and tomato sandwich (toasted) (Cheese aur tamatar ke sandwich (toasted)),triangle,170.12,5.17,16.22,9.81,1.35,0.62,128.19,346.89,2.03,3.02
+Pea potato sandwich (toasted) (Matar aloo ka sandwich),toasted triangle,146.56,4.09,22.37,4.82,2.56,0.98,57.02,233.41,1.18,1.55
+Paneer pea sandwich (toasted) (Paneer matar ka sandwich),toasted triangle,221.79,11.02,21.38,10.64,1.88,1.12,243.61,238.98,5.68,1.53
+Chicken sandwich (toasted),toasted triangle,143.1,10.33,16.09,4.54,1.4,0.85,85.49,280.05,1.82,0.62
+Pea keema sandwich (toasted) (Matar aur keema ka sandwich),toasted triangle,145.39,9.36,17.14,4.75,2.08,1.28,59.91,245.52,1.64,1.55
+Classic club sandwich,triangle,448.86,15.06,41.33,25.84,3.63,2.44,240.77,620.2,4.15,2.83
+Sesame toast,toasted triangle,309.18,1.19,6.96,30.83,0.82,0.45,27.13,80.4,0.91,0.64
+Cracked wheat porridge (Meetha daliya),bowl,328.71,10.65,35.75,16.44,2.5,1.3,305.8,64.05,20.62,0.0
+Semolina porridge (Suji/Rava daliya),bowl,280.49,10.43,34.44,11.35,1.94,0.99,301.68,64.51,20.95,1.64
+Oatmeal Porridge,bowl,289.96,10.33,34.89,12.82,1.56,1.12,305.8,64.25,20.68,0.0
+Cornflakes with milk,bowl,326.17,9.98,41.56,14.23,2.16,1.18,296.0,73.8,27.73,0.0
+Rice flakes (Chiwda/Aval),bowl,312.58,10.06,43.28,11.09,1.04,1.71,286.76,62.28,20.24,0.0
+Wheat flakes,bowl,312.58,10.06,43.28,11.09,1.04,1.71,286.76,62.28,20.24,0.0
+Murmura (Puffed rice),bowl,315.02,10.06,43.56,11.24,0.77,1.74,288.53,62.61,20.33,0.0
+Puffed wheat (Murmure/Moori),bowl,315.02,10.06,43.56,11.24,0.77,1.74,288.53,62.61,20.33,0.0
+Boiled egg (Ubla anda),egg,68.49,6.69,0.18,4.59,0.17,0.97,26.8,258.12,0.0,0.55
+Fried Egg,egg,129.17,6.69,0.18,11.33,0.17,0.98,26.8,258.12,0.0,0.55
+Poached egg,egg,69.37,6.71,0.21,4.59,0.17,0.98,27.01,651.32,0.03,0.55
+Scrambled egg (Ande ki bhurji),egg,109.18,7.2,0.95,8.55,0.17,0.99,45.22,262.26,0.76,0.55
+Baked egg,egg,221.04,12.0,15.57,12.78,1.04,1.5,165.69,528.52,1.68,0.55
+Plain omelette/omlet,omelette,389.55,13.82,0.92,36.81,0.17,1.93,69.21,323.44,0.74,0.97
+Stuffed egg omelette/omlet,omelette,533.21,22.54,6.03,46.57,1.97,2.4,235.56,700.03,4.11,9.24
+Pancake,pancake,85.97,2.4,8.66,4.57,0.28,0.29,33.6,60.75,1.4,0.7
+Keema pancake,pancake,194.58,9.94,10.55,12.41,0.93,1.02,45.22,138.42,2.42,2.38
+Vegetable pancake,pancake,146.64,4.53,14.33,7.7,2.9,0.92,50.24,136.71,2.44,4.96
+Jam and fruit pancake,pancake,106.57,2.49,13.63,4.61,0.79,0.34,35.56,61.23,5.16,0.74
+Khoa and coconut pancake,pancake,193.51,4.97,19.44,10.88,1.18,0.8,111.86,71.86,11.72,0.77
+Brown stock,cup,103.65,9.47,1.22,6.73,0.46,1.44,83.43,216.78,0.68,0.2
+Vegetable stock,cup,73.13,1.25,3.99,5.72,1.59,0.49,21.11,206.67,1.84,1.65
+Chicken stock,cup,112.33,13.86,1.38,5.68,0.39,0.69,13.42,220.23,0.74,1.02
+Clear tomato soup (Tamatar ka soup),soup bowl,318.41,19.06,13.72,48.61,7.81,4.55,115.5,20422.28,5.71,24.4
+Lentil soup,soup bowl,121.31,37.57,15.35,45.46,10.02,8.79,157.9,40553.26,4.11,7.52
+Chicken consomme (Clear chicken soup),soup bowl,108.31,25.91,2.68,27.15,3.54,4.12,80.15,20226.27,1.22,0.98
+Cream of tomato soup,soup bowl,452.28,21.32,18.16,60.65,6.36,4.41,183.14,20628.69,8.36,24.06
+Cream of green peas soup,soup bowl,522.23,29.11,27.58,60.38,12.05,6.06,208.39,20423.76,6.58,16.88
+Cream of spinach soup,soup bowl,465.12,24.12,15.94,61.58,8.05,9.72,327.4,20493.62,5.23,1.17
+Cream of mixed vegetable soup,soup bowl,216.16,24.81,17.87,32.79,7.77,4.94,236.5,20495.35,7.6,13.04
+Cream of mushroom soup,soup bowl,439.83,24.9,14.04,58.13,5.01,6.79,264.63,19786.8,7.24,16.15
+Chicken sweet corn soup,soup bowl,68.46,34.99,3.95,30.44,1.13,9.25,221.2,29506.4,0.64,0.46
+Minestrone soup,soup bowl,98.17,21.41,8.55,25.51,4.42,4.18,123.24,20423.74,2.34,7.46
+Egg drop soup,soup bowl,84.64,41.08,3.5,42.95,2.58,12.49,318.18,39460.88,1.92,0.46
+Chinese cabbage and meat ball soup,soup bowl,2254.25,24.25,6.65,263.32,2.63,7.07,191.17,19779.29,1.74,6.32
+French onion soup,soup bowl,195.69,40.14,15.04,50.65,3.57,12.39,373.79,39422.96,5.29,0.71
+Hot and sour soup,soup bowl,123.85,12.25,6.98,5.16,2.36,1.68,41.98,641.6,2.58,3.53
+Talaumein soup,soup bowl,131.48,37.36,15.39,47.18,7.16,8.22,156.24,40920.77,2.83,4.69
+Cold cucumber soup (Thanda kheere ka soup),soup bowl,90.13,5.61,8.6,3.74,1.65,0.6,187.26,227.65,6.28,0.87
+Cold summer garden soup,soup bowl,151.0,26.31,8.12,43.23,5.7,6.53,134.88,30453.25,1.41,0.86
+Chapati/Roti,chapati,72.83,2.12,12.83,1.28,2.27,0.82,6.2,0.42,0.36,2.69
+Plain parantha/paratha,parantha,166.31,2.82,17.11,9.4,3.03,1.1,8.26,34.6,0.48,3.58
+Potato parantha/paratha (Aloo ka parantha/paratha),parantha,191.43,3.45,22.33,9.54,3.9,1.42,16.23,118.76,1.08,3.75
+Radish parantha/paratha (Mooli ka parantha/paratha),parantha,183.58,3.3,20.55,9.53,4.33,1.39,23.76,127.07,1.31,3.72
+Cauliflower parantha/paratha (Phoolgobhi ka parantha/paratha),parantha,181.39,3.8,19.19,9.64,4.77,1.62,22.41,193.57,1.17,4.21
+Dal parantha/paratha,parantha,205.73,5.2,23.03,10.01,4.96,1.88,18.32,119.75,1.09,3.88
+Sprouted moong parantha/paratha,parantha,175.32,3.29,18.64,9.53,3.44,1.49,15.59,118.07,1.13,3.7
+Pea parantha/paratha (Matar ka parantha/paratha),parantha,206.68,6.06,23.31,9.53,6.08,1.93,25.46,119.19,1.39,9.08
+Keema parantha/paratha,parantha,238.16,9.41,18.36,13.91,3.44,1.8,19.36,140.67,0.99,3.7
+Paneer parantha/paratha,parantha,223.6,6.79,20.68,12.43,3.4,1.44,108.54,121.18,3.21,3.71
+Besan and spinach parantha/paratha (Besan aur palak ka parantha/paratha),parantha,178.12,4.56,17.6,9.94,3.62,1.53,27.21,145.78,1.08,2.38
+Poori,poori,921.31,1.69,10.27,96.93,1.82,0.75,4.97,39.63,0.29,2.15
+Spinach poori (Palak poori),poori,923.74,1.92,10.47,97.01,2.09,1.06,13.53,47.89,0.32,2.17
+Methi poori,poori,923.03,1.89,10.38,96.99,2.1,1.05,19.0,45.98,0.34,2.27
+Dal stuffed poori,poori,932.65,2.47,12.04,97.03,2.33,0.98,8.18,152.26,0.35,2.49
+Potato stuffed poori (Aloo ki poori),poori,925.87,1.81,11.21,96.97,1.96,0.84,6.64,83.28,0.31,2.16
+Tandoori parantha/paratha,parantha,164.42,2.83,17.11,9.19,3.03,1.09,8.34,0.63,0.48,3.58
+Boiled rice (Uble chawal),plate,351.57,7.81,77.16,0.55,3.74,0.72,8.11,3.16,0.67,0.0
+Plain pulao,plate,431.7,7.2,67.17,14.23,5.19,1.25,39.28,596.59,3.53,0.87
+Mixed vegetable pulao,plate,495.61,11.94,76.68,14.59,11.69,2.64,85.96,823.84,5.93,8.56
+Mushroom pulao,plate,445.44,9.04,68.16,14.44,6.74,1.4,48.52,796.95,3.58,11.14
+Sprouted moong pulao,plate,460.81,8.93,71.35,14.72,7.28,2.65,66.32,624.76,5.84,1.55
+Paneer pulao,plate,4875.84,16.63,73.38,501.14,5.19,2.18,277.28,605.61,9.31,0.93
+Peanut pulao,plate,691.73,19.03,75.81,34.05,10.38,2.97,66.28,602.7,5.74,4.42
+Navratan pulao,plate,479.19,11.35,67.71,17.31,6.99,2.01,109.14,612.02,4.61,4.59
+Green chickpeas pulao (Choliya pulao/Hare chane ka pulao),plate,620.7,17.45,98.67,17.25,11.29,3.41,67.78,608.59,8.88,0.87
+Mutton biryani/biriyani,plate,396.43,15.33,46.75,16.05,5.02,2.69,142.52,545.81,4.97,4.22
+Vegetable biryani/biriyani,plate,526.55,9.53,55.96,28.67,9.98,2.61,101.07,554.25,6.46,8.55
+"Lemon rice (Pulihora, Elumichai sadam, Chitranna)",plate,562.69,13.58,69.01,25.15,8.05,2.46,40.54,597.18,2.48,4.13
+Sweet rice (Meethe chawal),plate,749.13,7.29,148.12,15.88,3.93,1.18,39.56,11.12,86.26,0.75
+Curd rice (Dahi bhaat/Dahi chawal/ Perugu annam/Daddojanam/Thayir saadam),plate,423.11,12.44,71.18,9.33,4.61,1.28,219.44,461.05,8.46,3.42
+Tamarind rice (Chintapandu pulihora/Puliyodharai/Puli sadam/Huli anna),plate,476.86,9.53,83.19,10.91,6.54,3.69,65.11,207.61,14.89,9.02
+Spanish rice,plate,357.22,9.11,67.64,4.86,6.04,2.0,41.18,210.12,2.74,9.1
+Chinese fried rice,plate,423.65,14.24,47.08,19.09,8.13,3.47,121.9,872.57,5.17,2.41
+Macroni cheese pie,casserole dish,408.65,14.01,50.52,17.92,0.96,1.29,292.21,480.23,8.15,6.04
+Vegetable chowmein,plate,388.6,9.19,46.27,19.05,5.58,2.98,84.86,774.32,5.89,1.78
+Chicken chowmein,plate,521.04,21.8,45.8,28.35,5.66,3.07,89.87,992.1,5.62,2.67
+Cheese noodle ring,plate,531.34,24.74,55.47,24.32,5.04,3.12,394.72,961.79,11.3,8.93
+Spaghetti and cheese balls in tomato sauce,plate,4908.38,23.26,75.46,502.89,5.72,3.06,391.98,1005.54,17.72,24.41
+Penne platter,plate,463.9,13.18,54.58,22.78,2.85,2.35,176.96,741.01,11.77,4.0
+Pasta hot pot,plate,1040.71,48.53,96.46,53.76,6.68,6.82,459.58,1921.95,49.83,13.75
+Chicken lasagne,plate,964.64,53.78,71.53,53.31,0.54,3.32,617.31,1227.35,14.11,2.2
+Fettuccine with spinach sauce,plate,458.85,11.02,43.29,27.8,2.75,4.55,190.59,545.45,4.2,0.53
+Naan,naan,152.3,4.28,27.52,2.65,1.02,0.69,46.79,173.38,2.97,2.32
+Bhatura,bhatura,1154.61,2.37,15.62,120.18,0.55,0.48,17.64,41.2,1.01,1.35
+Idli,idli,34.47,1.16,7.06,0.08,0.58,0.17,2.01,25.27,0.07,0.21
+Masala dosa,dosa,345.08,6.89,41.02,16.44,5.29,1.65,32.67,401.04,2.78,3.1
+Semolina dosa (Suji/Rava dosa),dosa,166.69,5.36,24.11,5.22,2.97,1.02,85.19,148.56,3.21,3.69
+Onion tomato uttapam,uttapam,644.32,2.66,15.78,63.18,1.76,0.51,8.11,200.16,1.11,2.02
+Paneer kaathi roll,kaathi roll,424.15,10.26,29.82,29.01,3.57,2.1,150.8,327.87,4.89,3.83
+Makki ki roti,roti,224.37,2.97,20.56,14.32,4.41,0.95,12.55,200.79,0.59,10.09
+Washed moong dal (Dhuli moong ki dal),bowl,138.51,7.42,16.36,4.66,3.24,1.77,23.49,417.27,0.33,0.77
+Washed urad dal (Dhuli urad ki dal),bowl,181.52,7.43,17.29,8.82,4.52,2.13,30.3,420.95,0.95,2.96
+Split bengal gram with bottle gourd (Channa dal with ghiya/lauki),bowl,204.25,7.78,19.8,10.05,7.59,2.75,39.97,416.76,2.92,5.12
+Dry washed urad,bowl,178.59,9.81,22.43,5.01,5.81,2.7,38.78,423.58,1.04,3.87
+Mixed dal,bowl,184.44,7.46,17.25,9.24,4.81,2.33,32.75,421.03,1.01,1.77
+Whole moong (Moong ki dal),bowl,183.83,7.7,17.87,8.78,6.91,2.34,46.49,424.02,2.01,5.92
+Whole masoor (Masoor ki dal),bowl,185.05,7.8,18.4,8.62,6.79,3.24,41.76,423.54,2.29,10.28
+Whole moth (Moth ki dal),bowl,188.27,6.87,19.65,8.96,6.33,3.24,64.96,428.18,2.25,7.91
+Whole urad (Urad ki dal),bowl,182.54,7.51,17.13,8.9,7.87,2.66,44.35,427.96,1.92,9.67
+Moti mahal dal (Urad rajmah mix dal),bowl,295.72,11.27,25.06,16.22,9.69,3.02,109.33,451.96,4.89,14.05
+Black channa curry/Bengal gram curry (Kale chane ki curry),bowl,168.7,6.79,16.93,7.93,9.58,2.92,64.61,430.07,2.82,7.0
+Chickpeas curry (Safed channa curry),bowl,195.99,7.31,23.96,8.21,5.67,2.18,36.71,429.3,5.74,6.42
+Lobia curry,bowl,178.67,7.27,21.44,6.74,5.48,2.65,44.13,426.21,3.01,6.69
+Soyabean curry,bowl,195.8,12.5,8.11,12.22,8.8,3.35,78.11,422.95,3.19,27.36
+Kidney bean curry (Rajmah curry),bowl,172.36,7.14,19.64,6.92,6.99,2.72,57.41,425.24,2.98,14.44
+Sambar,bowl,249.32,8.62,27.19,11.27,9.06,3.18,77.79,410.41,8.51,8.51
+Besan kadhi with pakodies,bowl,2366.79,9.65,20.91,249.9,4.76,2.25,143.95,356.79,5.15,2.27
+Khatta channa,bowl,318.15,9.89,33.2,16.59,8.26,3.05,64.04,806.22,7.46,9.91
+Sprouted moong dal chat,plate,83.3,3.46,15.4,0.82,3.45,2.25,42.41,223.34,4.02,6.86
+Potato cauliflower (Aloo gobhi),bowl,186.61,3.33,10.53,14.28,5.3,1.87,40.2,447.74,0.77,1.84
+Potato capsicum (Shimla mirch aloo),bowl,189.24,2.12,13.14,14.07,3.05,1.3,24.79,418.97,0.81,0.92
+Cabbage and peas (Pattagobhi aur matar),bowl,106.21,5.39,10.37,4.4,6.63,1.83,75.64,421.83,1.61,7.14
+Carrot and fenugreek leaves (Gajar methi),bowl,118.11,4.0,7.96,7.26,8.45,5.18,245.74,501.51,4.02,3.44
+Potato fenugreek (Aloo methi),bowl,276.04,4.59,17.3,20.51,5.98,5.17,220.17,453.29,1.11,2.27
+Brinjal bhartha (Baingan ka bhartha),bowl,212.17,4.5,14.33,14.6,10.67,1.57,58.17,430.59,5.92,8.74
+Dry potato (Sookhe aloo),bowl,109.08,1.71,15.2,4.42,1.98,0.88,18.18,211.49,0.35,0.22
+Beans with coconut (Nariyal aur sem/phali; Beans thoran),bowl,196.84,3.92,6.57,17.04,8.35,2.01,77.64,406.23,3.08,5.46
+Cauliflower with coconut (Nariyal ke saath phoolgobhi),bowl,197.56,3.95,5.97,17.29,7.88,1.99,52.9,427.77,2.55,4.93
+Carrot and cabbage with coconut (Nariyal ke saath pattagobhi aur gajar),bowl,212.74,3.63,9.97,17.2,9.02,1.68,97.04,438.2,4.7,4.5
+Raw turnip with coconut,bowl,197.61,2.7,8.64,17.15,4.17,1.23,75.74,412.05,6.58,3.61
+Raw papaya with coconut (Papaya thoran),bowl,198.51,2.3,8.34,17.08,6.45,1.23,50.46,404.6,5.71,11.41
+Stuffed okra (Bharwa bhindi),bowl,104.25,2.3,4.26,8.46,4.58,1.3,96.01,232.09,0.53,7.51
+Stuffed round gourd (Bharwa tinde),bowl,180.72,2.74,9.98,14.27,5.22,1.46,50.18,447.21,4.86,12.33
+Stuffed capsicum (Bharwa shimla mirch),capsicum,114.13,1.68,10.36,7.16,2.52,0.77,19.04,218.29,1.52,0.66
+Stuffed brinjal (Bharwa baingan),brinjal,51.5,0.85,2.19,4.28,2.27,0.42,13.49,117.88,0.51,0.55
+Stuffed tomatoes (Bharwa tamatar),tomato,126.49,4.45,8.39,8.21,2.98,0.84,80.16,224.73,3.63,11.05
+Pea potato curry (Aloo matar),bowl,279.89,9.66,27.01,14.22,10.01,2.82,58.52,429.4,5.17,19.74
+Pea paneer curry (Matar paneer),bowl,373.94,18.32,25.77,21.49,9.15,2.99,291.76,436.36,10.8,19.71
+Pea mushroom curry (Matar mushroom),bowl,258.74,10.73,20.55,14.31,10.71,2.68,62.95,431.2,5.06,29.91
+Pea curry (Matar ki sabzi),bowl,285.63,12.51,25.5,14.17,12.31,3.33,67.88,429.17,5.5,26.1
+Pea vadi curry,bowl,292.93,13.32,25.57,14.59,12.31,3.45,67.88,429.57,5.53,26.1
+Paneer curry,bowl,357.15,15.78,16.99,25.06,2.83,1.63,382.52,437.21,12.72,6.83
+Lotus stem curry (Kamal kakdi curry),bowl,223.25,3.09,18.69,14.67,6.36,3.46,53.8,439.16,4.22,6.93
+Gravy for kofta,bowl,174.88,2.43,8.78,14.41,2.73,1.05,55.21,435.66,5.19,6.67
+Pea kofta curry (Matar kofta curry),bowl,4649.16,15.69,32.53,494.78,13.3,4.37,108.04,648.34,6.89,26.04
+Spinach kofta curry (Palak kofta curry),bowl,4609.49,8.75,28.74,495.73,7.45,6.69,236.33,842.51,6.6,7.12
+Paneer kofta curry,bowl,4703.08,16.72,22.92,505.16,2.81,2.42,417.03,853.23,13.89,6.77
+Lotus stem kofta curry (Kamal kakdi kofta curry),bowl,4632.43,7.0,36.67,495.47,7.4,4.77,141.17,794.16,6.42,6.93
+Raw banana kofta curry (Kela kofta curry),bowl,4561.33,4.52,24.76,494.33,4.3,2.06,67.09,642.79,16.74,6.73
+Cauliflower kofta curry (Phoolgobhi kofta curry),bowl,4559.31,7.38,18.61,495.14,7.09,2.84,87.18,666.01,5.9,7.72
+Cabbage kofta curry (Pattagobhi kofta curry),bowl,4562.95,6.96,20.5,494.94,6.43,2.42,110.23,662.2,6.35,6.88
+Ghiya/Lauki Kofta Curry,bowl,4555.07,6.34,19.32,494.95,5.95,2.35,82.98,652.06,5.87,7.28
+Spinach paneer kofta curry (Palak paneer kofta curry),bowl,4620.94,10.88,22.44,498.74,5.69,5.17,287.52,757.71,8.85,6.97
+Vegetarian egg kofta curry,bowl,4649.08,9.84,31.57,498.26,4.72,2.87,210.36,710.57,8.81,6.95
+Baked vegetables,bowl,269.19,11.1,25.52,13.42,7.07,1.88,242.6,377.22,7.75,10.59
+Cauliflower musallam (Phoolgobhi musallam),bowl,127.05,4.09,9.69,7.66,6.6,1.8,53.15,266.42,3.69,6.54
+Baked vegetables with spinach,bowl,329.47,13.63,29.35,17.06,9.85,4.91,333.0,520.29,8.84,11.07
+Baked potato with skin,bowl,106.41,2.69,8.71,6.66,0.94,0.39,70.58,277.84,1.3,0.16
+Shepherd's pie (vegetarian),bowl,367.11,13.64,32.57,19.77,6.03,2.06,231.65,319.92,7.53,6.98
+Baked brinjal in tomato sauce,bowl,166.44,6.81,17.79,7.0,10.08,1.38,113.05,343.22,9.46,31.18
+Dum aloo,bowl,4575.57,4.68,22.33,496.27,4.55,2.39,110.61,1232.89,4.75,1.87
+Spinach paneer (Palak paneer),bowl,229.55,11.92,13.09,14.07,5.63,5.47,334.65,493.09,7.54,6.83
+Methi chaman,bowl,4763.38,15.44,27.83,509.84,5.27,6.29,606.6,550.23,17.95,1.71
+Sarson ka saag,bowl,124.26,4.25,7.53,8.29,5.22,3.44,190.14,234.05,1.07,6.18
+Jackfruit sabzi (Kathal ki sabzi),bowl,2258.72,2.49,12.28,244.13,3.7,0.98,35.57,212.9,9.35,7.86
+Avial,bowl,417.34,8.25,28.39,29.94,18.24,3.39,106.88,273.05,12.82,7.49
+Al yakhani,bowl,342.3,6.63,10.78,30.49,2.95,1.07,241.0,478.47,8.26,1.59
+Shahi paneer,bowl,405.86,13.13,17.22,32.01,3.64,1.61,325.15,558.48,13.0,12.71
+Paneer in butter sauce,bowl,228.3,10.95,15.21,13.81,2.35,1.33,267.46,237.46,11.74,6.71
+Methi malai paneer,bowl,377.04,14.2,15.76,28.54,2.85,1.49,355.73,427.67,11.6,3.43
+Chilli paneer,bowl,2308.28,6.24,9.82,249.41,1.49,1.06,127.37,264.34,4.46,1.23
+Paneer makhana korma,bowl,4709.2,19.68,28.12,502.34,1.27,3.36,442.46,467.43,11.18,1.25
+Kadhai Paneer,bowl,343.56,13.78,23.35,21.66,6.58,2.05,291.18,459.16,17.62,12.98
+Roghan josh,bowl,329.44,22.56,11.63,21.29,4.9,4.17,265.1,482.2,6.28,6.51
+Spinach mutton (Palak mutton),bowl,390.38,27.91,16.76,22.89,10.85,11.55,470.83,588.57,6.88,7.16
+Pea keema curry (Matar keema ki sabzi),bowl,457.3,29.0,21.46,27.98,10.18,4.64,122.42,510.16,6.25,20.2
+Keema kofta curry,kofta,63.82,4.04,2.33,4.29,0.62,0.52,20.61,128.72,0.88,0.97
+Kashmiri mutton koftas (Gushtaba),gushtaba,296.19,19.26,9.25,20.57,1.9,2.58,159.72,395.57,6.46,0.98
+Mutton yakhni,bowl,241.73,19.2,1.96,17.88,1.56,3.85,205.71,234.51,0.29,1.01
+Chicken yakhni,bowl,249.63,26.88,1.96,15.38,1.56,2.35,71.2,245.55,0.29,2.67
+Mutton do piaza,bowl,603.07,30.88,13.61,47.41,6.34,5.38,390.24,390.25,9.56,1.99
+Mutton chops,chop,2320.31,14.09,5.17,249.34,0.6,2.22,126.49,178.43,1.46,0.24
+Shammi kebab,kabab,1173.95,7.73,6.06,124.31,1.8,1.28,22.45,92.92,0.54,0.42
+Scotch egg,piece,2318.05,13.87,6.53,248.7,1.23,2.05,51.47,310.52,1.01,0.77
+Shepherd's pie (with minced meat),dish,267.88,13.98,15.12,16.66,1.96,1.58,39.96,370.09,3.19,0.36
+Chicken curry,bowl,320.38,29.24,8.38,18.77,3.49,2.15,67.66,267.77,4.44,8.92
+Tandoori chicken,chicken,2092.02,234.33,33.66,114.3,7.27,12.96,638.65,2276.49,22.82,16.66
+Butter chicken,large piece,377.04,30.06,10.31,23.94,3.64,2.54,69.57,72.14,6.52,11.59
+Chicken kebab,kabab,903.73,4.59,1.38,97.74,0.26,0.34,4.28,86.43,0.29,0.48
+Chilli chicken,bowl,769.13,37.03,11.06,64.07,3.84,2.54,50.19,865.49,3.6,8.18
+Fried chicken with tomato sauce (Fried chicken tamatar ki chutney kay saath),piece,154.73,14.2,3.1,9.42,1.4,0.79,19.91,133.11,1.43,5.56
+Fish curry (Machli curry),bowl,282.23,22.25,9.58,16.99,4.79,2.77,132.22,469.12,5.12,8.46
+Fried fish (Indian style) (Tali hui machli),piece,2327.95,15.36,19.11,243.49,2.15,1.98,39.29,554.77,1.4,1.03
+Fried fish and Chips (English Style) (Tali hui machli aur chips),fillet,4547.58,23.45,19.33,486.29,1.99,1.83,45.79,507.49,1.18,3.98
+Tomato fish,bowl,4740.81,23.18,30.75,502.43,6.93,2.3,62.53,885.34,13.07,25.39
+Baked fish with cheese sauce,bowl,403.14,30.55,14.38,24.84,0.27,0.92,409.08,741.02,11.38,0.99
+Fish tikka,piece,41.65,5.68,1.39,1.47,0.42,0.5,11.35,178.72,0.42,0.21
+Tandoori fish,piece,224.23,26.15,5.55,10.85,1.36,1.08,87.08,289.56,3.75,4.05
+"Paneer, apple and pineapple salad",bowl,245.07,10.01,21.52,13.06,4.25,2.17,265.61,455.27,16.4,4.32
+Russian salad,bowl,363.43,13.49,20.57,24.8,8.13,3.88,110.53,319.96,5.25,7.88
+Pasta salad,bowl,410.7,8.96,27.39,30.03,2.06,1.76,144.0,328.61,5.6,4.13
+Deviled egg,egg,157.45,7.93,3.56,12.33,1.84,2.41,58.85,187.37,1.32,6.52
+Hawain salad,bowl,682.64,16.63,55.91,44.28,15.32,4.36,237.74,252.89,20.42,7.67
+Mixed pulse and vegetable salad,bowl,141.23,8.05,23.72,1.42,5.03,3.61,87.73,217.12,2.31,4.7
+Sprouted moong salad,bowl,77.03,4.66,11.17,1.51,1.93,2.96,111.16,237.12,4.35,3.72
+Tossed salad,bowl,214.69,3.49,16.88,14.39,7.33,2.93,110.39,264.28,5.31,3.63
+Mixed vegetable salad with curd sauce,bowl,129.86,9.11,15.15,3.23,8.16,2.9,141.13,251.3,4.65,10.8
+Potato salad (Aloo ka salaad),bowl,212.18,3.3,26.41,10.38,3.12,2.35,60.45,295.03,9.3,0.6
+Waldroff salad,bowl,349.42,3.63,27.16,24.78,4.6,2.63,72.21,33.08,20.29,6.66
+Coleslaw,bowl,116.99,1.89,8.53,8.11,3.57,0.96,56.43,45.55,5.53,1.13
+Fruit salad (Phalon ka salaad),bowl,237.53,2.78,48.52,3.7,4.79,2.45,78.83,21.6,29.74,3.39
+Tomato onion raita (Tamatar aur pyaaz ka raita),bowl,104.83,6.64,12.58,3.27,1.73,0.45,214.3,293.52,10.62,5.07
+Peanut raita (Mungfali ka raita),bowl,184.48,10.54,11.41,11.02,2.32,0.9,214.18,289.3,8.72,1.5
+Sprouted moong raita,bowl,92.97,7.06,9.35,3.34,0.24,1.32,212.88,288.85,8.53,0.08
+Bottle gourd raita (Ghiya/Lauki ka raita),bowl,85.96,6.07,8.79,3.15,1.3,0.35,211.09,287.58,8.01,0.45
+Cucumber raita (Kheere ka raita),bowl,90.27,6.16,9.69,3.17,1.31,0.45,211.57,290.02,7.97,0.71
+Carrot and spinach raita (Gajar aur palak ka raita),bowl,100.96,7.12,10.37,3.53,2.48,1.84,253.3,321.21,8.76,0.55
+Mint raita (Pudinay ka raita),bowl,81.21,5.9,8.0,3.1,0.36,0.39,207.48,287.19,7.83,0.15
+Potato raita (Aloo ka raita),bowl,118.85,6.65,16.14,3.22,1.18,0.53,208.61,289.11,8.01,0.19
+Boondi raita,bowl,2261.74,7.21,13.03,242.8,1.51,0.78,161.16,326.19,6.18,0.03
+Sweet raita (Meetha raita),bowl,190.55,6.22,34.43,3.42,1.96,0.41,209.11,82.53,29.49,0.79
+Dahi vadas/Dahi bhalla,vada,1150.16,5.1,9.45,121.27,1.66,0.84,84.46,136.08,3.06,1.14
+Gunjia,gunjia,1166.18,5.21,9.92,122.81,1.98,0.87,84.16,136.13,3.58,1.08
+Saunth/Sonth chutney with tamarind/imli,teaspoon,25.05,0.18,5.94,0.03,0.17,0.48,9.69,43.25,5.54,0.67
+Rice kheer (Chawal ki kheer),bowl,300.94,9.21,40.31,11.92,0.69,0.68,303.13,65.13,32.16,0.26
+Makhana kheer,bowl,299.94,9.21,35.82,13.92,0.32,0.78,310.49,65.08,32.09,0.26
+Vermicelli kheer (Semiya/Seviyan ki kheer),bowl,279.08,7.8,36.9,11.61,1.15,0.69,243.58,52.34,29.73,0.36
+Semolina kheer (Suji/Rava kheer),bowl,260.87,7.9,36.6,9.69,1.17,0.77,244.24,52.21,29.68,0.86
+Paneer kheer,bowl,304.78,13.1,29.03,15.55,0.2,0.76,418.7,68.92,28.55,0.07
+Cabbage kheer (Pattagobhi ki kheer),bowl,212.47,7.3,24.75,9.66,1.3,0.6,261.4,57.67,23.62,0.13
+Carrot kheer (Gajar ki kheer),bowl,217.16,7.14,25.67,9.8,1.87,0.7,254.73,72.61,24.51,0.59
+Cauliflower kheer (Phoolgobhi ki kheer),bowl,249.49,9.25,26.74,12.03,1.68,0.92,309.76,76.7,25.85,0.57
+Moong dal kheer,bowl,312.82,11.97,40.11,12.06,1.6,1.14,306.77,66.23,32.1,0.35
+Phirni,bowl,337.0,10.12,46.75,12.61,1.04,0.66,303.48,65.22,31.31,0.04
+Semolina halwa (Suji ka halwa),bowl,360.18,3.45,39.37,21.36,2.96,1.05,18.79,2.04,22.31,2.33
+Shahi suji halwa,bowl,375.84,3.42,43.68,21.36,2.91,0.97,18.32,2.15,26.75,2.31
+Carrot halwa (Gajar ka halwa),bowl,289.71,5.22,31.1,16.33,4.45,1.28,179.46,67.05,28.28,1.56
+Egg halwa (Ande ka halwa),bowl,289.25,7.58,38.2,12.94,0.47,1.39,34.52,80.14,36.53,0.64
+Potato halwa (Aloo ka halwa),bowl,239.69,2.41,46.11,5.51,2.59,1.0,22.36,6.68,27.53,0.52
+Pumpkin halwa (Kaddu ka halwa),bowl,295.0,2.06,42.8,13.66,4.61,0.98,37.74,12.54,41.3,1.68
+Moong dal halwa,bowl,333.68,7.97,38.37,16.86,2.53,1.44,105.31,10.67,24.41,0.98
+Caramel custard (steamed),bowl,282.06,11.53,34.84,11.3,0.0,1.19,204.43,101.08,34.76,0.42
+Baked custard,bowl,226.9,11.53,20.14,11.3,0.0,1.16,203.03,100.38,20.06,0.42
+Soft Custard (stirred),bowl,272.41,12.51,27.92,12.64,0.0,1.22,239.08,304.82,27.83,0.42
+Chocolate ice cream,ice-cream cup,659.28,16.58,57.17,41.72,0.0,1.76,312.53,136.48,56.87,0.42
+Mango ice cream,ice-cream cup,573.13,15.52,50.78,34.74,2.35,1.8,306.29,132.84,50.2,5.06
+Fruit Ice cream (Phalon ka Ice cream),ice-cream cup,550.82,14.05,51.56,33.35,1.07,1.17,299.88,124.59,45.07,0.0
+Caramel ice cream,ice-cream cup,471.03,11.71,40.19,30.27,0.23,0.95,237.03,90.84,39.42,0.34
+Lemon souffle,souffle cup,399.36,16.47,31.83,23.75,0.0,1.34,141.75,120.22,27.67,0.42
+Orange souffle,souffle cup,410.61,16.59,34.65,23.73,0.55,1.58,144.05,120.1,30.03,0.56
+Vanilla souffle,souffle cup,408.58,16.78,32.15,24.35,0.0,1.26,153.56,123.39,27.97,0.42
+Chocolate souffle,souffle cup,416.5,17.33,32.43,25.0,0.0,1.57,157.4,123.34,27.91,0.42
+Pineapple souffle,souffle cup,396.21,16.29,31.34,23.68,0.0,1.23,135.8,119.53,27.18,0.42
+Apple mousse,bowl,390.28,15.36,46.59,15.6,5.83,1.74,123.22,105.07,38.54,3.71
+Rich chocolate mousse,cup,396.29,16.75,22.81,25.65,0.0,2.04,114.92,108.84,21.68,0.42
+Mango mousse,cup,348.68,8.95,25.5,23.62,2.47,0.97,143.35,54.75,24.81,4.7
+Orange and pineapple cream,bowl,90.18,1.28,10.66,4.84,0.92,0.36,31.19,9.06,10.13,0.13
+Charlotte rousse,bowl,476.36,10.01,86.22,12.1,2.55,1.34,88.42,142.81,51.8,1.47
+Triffle pudding,bowl,341.84,8.57,53.3,11.5,0.34,1.38,142.38,78.75,40.59,1.05
+Snow flakes pudding,bowl,302.78,14.87,25.67,15.8,0.11,1.33,322.22,125.92,25.49,0.64
+Kulfi,kulfi,265.87,8.67,30.53,12.69,0.33,0.53,302.15,64.74,28.06,0.04
+Steamed orange pudding,large slice,298.77,2.52,44.62,12.93,0.63,0.59,22.73,85.01,28.51,1.35
+Meringue and rice pudding,bowl,252.96,10.83,32.71,9.07,0.37,0.82,191.37,98.92,24.36,0.39
+Cheese pudding,large slice,343.59,13.61,23.23,22.15,0.06,1.05,272.57,45.6,22.46,0.33
+Chocolate pudding,large slice,351.2,5.88,49.03,15.7,0.87,1.0,106.97,283.92,34.27,0.1
+Bread and butter pudding,plate,206.85,6.88,24.17,9.7,1.2,1.11,129.99,118.61,14.59,0.4
+Queen of pudding,large slice,432.99,17.94,53.26,17.52,0.87,1.73,254.94,278.81,38.34,0.78
+Pineapple upside down pudding,large slice,344.4,4.21,47.75,15.92,1.07,0.91,34.81,99.57,29.62,1.48
+Date and nut pie,bowl,728.66,8.88,105.91,30.09,9.34,3.49,78.4,8.75,70.47,14.28
+Stewed apple with custard,piece,263.29,3.6,52.05,5.16,2.86,0.51,139.59,47.24,43.83,1.46
+Apple snowballs,piece,263.42,2.23,63.79,0.81,3.24,0.46,24.46,33.21,50.35,2.01
+Hot orange souffle,bowl,219.56,8.38,22.9,10.92,0.36,1.26,65.65,71.73,18.21,0.87
+Hot chocolate souffle,bowl,321.05,9.51,37.22,15.77,0.17,1.53,85.47,76.83,32.49,0.82
+Hot vanilla souffle,bowl,245.99,8.76,27.76,11.57,0.17,1.18,80.58,75.97,23.17,0.82
+Plain burfi (Burfi),burfi,177.85,4.28,13.45,12.18,0.07,0.65,154.96,13.79,13.25,0.04
+Coconut burfi (Nariyal ki burfi),burfi,265.38,5.0,18.25,19.65,1.99,1.03,154.82,15.68,17.88,0.03
+Bottle gourd burfi (Ghiya/Lauki burfi),burfi,199.03,4.23,17.68,12.75,0.53,0.67,155.68,13.09,17.25,0.22
+Chocolate burfi,burfi,110.28,4.22,10.78,5.81,0.0,0.69,151.6,12.78,10.52,0.03
+Cashewnut burfi (Kaju burfi/Kaju katli),burfi,120.9,1.57,10.87,8.16,0.32,0.51,3.71,1.21,9.01,0.32
+Gram flour burfi (Besan burfi),burfi,161.6,4.29,17.85,8.58,1.31,0.56,61.57,4.99,10.9,0.09
+Semolina ladoo with khoya (Suji/Rava aur khoye ke ladoo ),ladoo,126.12,1.97,15.55,6.43,1.38,0.51,31.31,4.24,9.79,0.73
+Semolina ladoo with coconut (Suji/Rava aur nariyal ke ladoo ),ladoo,168.94,2.06,18.52,9.83,2.43,0.67,9.72,3.3,9.94,1.08
+Gram flour ladoo (Besan ladoo),ladoo,168.11,3.15,22.07,8.02,1.56,0.53,8.93,1.93,13.31,0.28
+Sesame ladoo (Til ke ladoo),ladoo,109.16,2.94,11.96,5.4,2.12,2.46,173.75,5.1,10.62,7.9
+Chenna murki,bowl,227.74,9.43,32.46,7.39,0.0,0.5,240.5,10.27,32.03,0.06
+Milk cake,slice,365.98,8.65,26.22,25.64,0.18,0.56,301.45,71.74,25.56,0.0
+Ghujia/Lavang latika,gunjia,818.71,1.98,13.85,84.03,0.55,0.47,33.01,3.49,6.48,0.68
+Gulab Jamun with khoya,gulab jamun,918.46,3.18,40.89,83.43,0.12,0.61,105.5,23.65,37.81,0.3
+Mal pua,malqura,847.94,2.55,26.28,81.75,0.92,0.49,44.97,9.5,17.61,0.96
+Shahi tukre,tukra,193.43,2.82,42.25,2.59,0.52,0.38,77.93,72.4,35.36,0.01
+Potato pakora/pakoda (Aloo pakoda),plate,4567.65,12.84,40.76,484.55,6.92,2.55,44.43,427.53,1.46,0.15
+Onion pakora/pakoda (Pyaaz ke pakode),plate,4550.25,12.81,36.5,484.55,7.51,2.44,53.63,428.64,5.91,0.58
+Cauliflower pakora/pakoda (Phoolgobhi ke pakode),plate,4530.17,13.33,30.48,484.71,8.52,2.86,56.94,448.82,1.58,1.06
+Mixed vegetable pakora/pakoda,plate,4544.85,13.08,34.56,484.67,7.6,3.07,64.41,440.82,2.59,0.5
+Spinach pakora/pakoda (Palak pakoda),plate,4521.57,12.47,29.67,484.62,6.5,3.27,69.73,441.26,1.3,0.1
+Methi pakora/pakoda (Methi ke pakode),plate,4525.58,13.08,29.72,484.69,7.51,4.37,146.41,443.05,1.56,0.94
+Egg pakora/pakoda (Ande ke pakode),plate,4579.22,18.25,28.85,488.94,5.55,3.0,61.53,485.74,1.2,0.42
+Bread pakora/pakoda,plate,4653.42,16.83,58.07,485.62,7.29,2.99,129.81,664.24,3.0,0.0
+Paneer pakora/pakoda,plate,4644.45,21.15,35.73,491.86,5.74,2.75,280.54,851.75,7.01,0.06
+Potato bonda (Aloo bonda),bonda,1134.09,1.95,8.13,121.5,1.49,0.67,12.17,237.51,0.48,1.46
+Potato samosa (Aloo ka samosa),samosa,813.76,2.41,12.97,83.42,1.68,0.7,10.75,108.66,0.41,2.42
+Minced meat samosa (Keema ka samosa),samosa,837.51,5.97,8.28,86.67,0.52,0.74,9.04,119.55,0.68,0.74
+Paneer and pea samosa (Paneer matar ka samosa),samosa,841.31,5.42,11.53,85.84,1.37,0.72,87.07,105.44,2.28,2.86
+Mathri,kachori,702.18,1.53,10.75,72.47,0.52,0.37,4.56,56.43,0.26,1.03
+Khasta kachori,kachori,717.57,2.53,12.9,72.76,0.98,0.59,7.89,91.17,0.34,1.34
+Vegetable cutlet,cutlet,2247.57,4.21,15.82,240.91,3.15,1.36,45.75,288.37,1.17,2.5
+Flattened rice cutlet (Chirwa cutlet/Chivda cutlet/Poha cutlet),cutlet,2325.01,5.82,24.5,244.81,2.84,1.95,30.37,253.98,0.89,0.92
+Peanut cutlet (Mungfali ke cutlet),cutlet,2367.67,8.9,19.23,250.75,4.09,1.91,48.71,285.43,1.73,1.98
+Fish cutlet (Machli ka cutlet),cutlet,2284.43,9.66,10.92,244.64,1.88,1.24,36.42,262.86,1.0,0.95
+Paneer potato cutlet (Paneer aloo cutlet),cutlet,2309.88,8.48,17.95,245.09,1.41,1.32,155.69,294.18,3.51,0.23
+Spinach chickpeas cutlet (Palak channa dal cutlet),cutlet,2255.6,4.72,16.17,241.28,3.05,1.86,37.05,259.41,0.53,0.38
+Cheese toast,toast,1138.78,2.88,7.95,121.96,0.46,0.45,63.6,175.52,0.76,0.05
+Vegetable burger,burger,2678.94,16.81,70.53,260.88,8.75,3.62,134.39,870.63,9.68,3.78
+Cheese pizza,piece,327.1,7.59,40.15,16.3,2.55,1.43,126.53,521.43,4.48,2.5
+Vegetable seekh kebab,kabab,1136.38,2.59,8.76,121.28,0.96,0.59,53.74,137.65,1.22,0.23
+Masala vada,vada,2228.2,4.55,10.96,240.5,2.88,1.4,20.1,201.05,0.64,1.71
+Peanut sago vada (Sabudana mungfali vada),vada,2291.54,3.1,21.82,243.93,1.9,1.17,15.36,217.85,0.59,0.84
+Vegeterian scotch egg,piece,2277.34,7.23,15.51,243.12,1.93,1.54,50.78,311.79,0.78,2.04
+Paneer shaslik/tikka,plate,411.69,22.43,35.01,19.71,5.41,2.96,543.33,453.54,20.21,13.16
+Peanut brittle (Moongfali ki chikki),piece,78.91,1.71,11.69,2.74,0.65,0.79,16.75,3.94,10.82,0.5
+Spring roll,spring roll,587.39,1.7,8.06,60.85,0.63,0.46,8.96,125.07,0.56,0.84
+Dry mango chutney (Sookhe aam ki chutney),tablespoon,82.58,0.67,19.16,0.19,1.04,1.1,19.96,121.3,17.14,0.63
+Peanut chutney (Mungfali ki chutney),tablespoon,54.26,2.48,2.07,4.0,1.2,0.42,7.31,99.82,0.58,0.83
+Coconut chutney (Nariyal ki chutney),tablespoon,67.37,0.91,2.1,6.33,1.71,0.32,3.98,108.49,0.96,0.09
+Mint and coriander chutney (Pudinay aur dhaniye ki chutney),tablespoon,26.98,0.74,5.57,0.13,1.14,1.25,28.25,102.99,4.18,1.79
+Custard tart,tart,161.73,2.67,20.55,7.69,0.65,0.35,41.2,42.83,6.67,1.09
+Lemon tart,tart,165.14,3.33,16.7,9.5,0.44,0.53,13.08,41.42,5.81,1.16
+Jam tart,tart,130.54,1.6,16.71,6.28,0.41,0.27,4.43,25.45,5.33,1.01
+Orange cream tart,tart,142.32,1.86,19.8,6.3,0.46,0.42,9.99,26.6,7.28,1.02
+Pineapple tart,tart,150.83,1.77,22.09,6.34,0.67,0.38,9.28,29.24,8.56,1.03
+Cheese and mushroom tart,tart,165.5,3.7,14.41,10.28,0.79,0.4,67.9,142.85,2.12,2.62
+Cottage cheese pie,pie,813.33,25.35,70.32,47.06,7.51,3.12,367.72,351.54,12.32,17.45
+Minced meat pie,pie,783.93,26.11,64.1,46.14,8.23,3.77,64.17,452.38,5.02,17.77
+Apple cinnamon pie,slice,458.28,5.94,59.65,21.62,3.13,1.16,28.59,106.53,21.17,4.31
+Lemon meringue pie,slice,352.07,6.08,55.07,12.8,0.69,1.05,26.34,133.54,33.21,1.89
+Chocolate meringue pie,slice,395.69,9.17,53.06,16.9,0.69,1.7,103.14,148.82,27.7,1.89
+Cream puffs,puff,160.19,3.4,11.58,11.2,0.28,0.42,27.45,71.47,4.3,0.77
+Chocolate eclairs,éclair,405.21,7.17,44.38,22.84,0.55,1.15,57.9,145.35,29.35,1.56
+Cheese balls,piece,402.95,1.31,2.84,42.92,0.11,0.19,17.75,71.39,0.37,0.28
+Minced meat patties,patty,345.0,8.93,19.81,25.41,1.0,1.21,24.97,327.42,1.14,2.09
+Cheese patties,patty,336.84,7.67,23.11,23.57,1.29,0.85,131.42,306.92,4.09,2.85
+Hot cheese souffle,bowl,525.53,27.25,16.04,39.26,0.36,2.46,502.02,851.55,8.64,1.58
+Hot potato souffle,bowl,460.78,20.2,31.41,28.04,2.41,2.89,208.45,356.48,6.53,1.81
+Hot fish souffle,bowl,524.16,41.17,13.54,33.9,0.36,2.58,213.39,406.85,6.14,2.31
+Hot spinach souffle,bowl,413.6,21.56,16.62,28.72,3.93,6.63,320.46,415.37,6.5,1.97
+Plain cream cake,piece,188.47,3.29,25.13,8.61,0.38,0.55,22.34,92.65,14.77,1.03
+Apple cake (Seb ka cake),piece,197.25,3.36,26.85,8.75,0.83,0.61,26.51,93.13,15.99,1.32
+Marble cake,piece,189.78,3.38,25.12,8.72,0.38,0.6,21.22,74.22,14.77,1.03
+Chocolate cake,piece,197.59,3.54,26.57,8.94,0.38,0.64,24.22,142.43,16.24,1.03
+Orange cake,piece,186.18,3.18,25.13,8.44,0.43,0.55,15.47,54.88,14.77,1.03
+Fruit Loaf,slice,181.14,3.0,25.98,7.44,0.49,0.53,25.54,89.73,13.71,1.07
+Banana cake (Kele ka cake),slice,258.3,3.83,26.52,15.46,0.76,0.76,15.62,78.12,15.28,1.11
+Chocolate chiffon cake,slice,227.06,4.2,27.59,11.51,0.51,0.78,30.71,137.38,17.67,2.57
+Christmas cake,slice,388.57,5.72,50.32,17.59,1.55,1.37,42.69,67.56,28.6,1.7
+Strawberry and vanilla cake with butter icing,slice,431.68,4.53,51.56,23.75,0.92,0.82,32.82,124.96,37.78,2.03
+Eggless cake,slice,193.93,4.95,28.13,7.16,0.41,0.37,129.84,189.31,16.89,1.01
+Swiss roll,swiss roll,159.31,4.62,30.57,2.38,0.34,0.75,15.25,32.83,20.84,1.05
+Pineapple pastry,pastry,189.99,5.53,26.5,7.19,0.66,0.79,39.21,40.42,17.19,1.17
+Black forest pastry,pastry,217.78,5.68,32.15,7.89,0.5,0.86,41.17,49.83,19.91,1.37
+Coconut finger,finger,196.52,5.07,30.43,6.34,1.34,0.93,17.19,33.51,20.41,1.05
+Pineapple cake,slice,1003.28,25.72,120.6,47.93,3.88,3.31,251.65,192.25,82.89,5.19
+Chocolate walnut cookies (Chocolate aur akhrot ke cookies),cookie,110.01,1.7,12.2,6.12,0.4,0.35,9.35,72.62,5.85,1.81
+Chocolate chip cookies,cookie,93.03,1.27,12.68,4.24,0.23,0.27,5.42,60.88,6.62,0.58
+Sweet plain biscuit,biscuit,54.47,0.84,7.19,2.53,0.15,0.13,6.13,18.97,3.11,0.38
+Chocolate biscuit,biscuit,57.49,0.89,7.81,2.59,0.15,0.17,6.28,19.23,3.66,0.38
+Coconut biscuit (Nariyal ke biscuit),biscuit,81.56,1.08,8.04,5.09,0.68,0.25,7.09,19.83,3.89,0.38
+Sweet and salty biscuit (Meethay aur namkeen biscuit),biscuit,43.74,0.66,4.83,2.4,0.18,0.11,3.99,44.47,0.77,0.37
+Peanut biscuit,biscuit,71.3,1.5,8.31,3.63,0.44,0.24,8.99,35.96,3.78,0.58
+Pin wheel biscuit,biscuit,80.41,1.07,10.84,3.71,0.23,0.22,8.49,26.18,4.62,0.56
+Saffron biscuit (Kesar biscuit),biscuit,50.51,0.67,6.58,2.42,0.21,0.14,2.83,0.62,2.47,0.43
+Masala biscuit,biscuit,63.64,0.98,7.3,3.35,0.35,0.21,8.69,115.51,1.1,1.0
+Ice box cookies,cookie,51.87,0.79,7.77,2.0,0.18,0.14,2.56,62.26,3.7,0.43
+Ginger bread man,biscuit,108.45,1.96,17.9,3.27,0.47,0.63,11.27,142.02,8.65,0.92
+Danish cookies,biscuit,59.71,0.67,7.29,3.13,0.17,0.12,2.01,25.26,2.73,0.42
+Short bread cookies,biscuit,77.82,1.06,11.38,3.16,0.28,0.2,2.8,25.47,4.09,0.67
+Coffee biscuit,biscuit,71.63,1.19,8.0,3.96,0.27,0.22,8.41,19.35,3.73,1.41
+Melting moments,biscuit,72.86,0.95,9.29,3.62,0.31,0.2,5.06,19.82,4.16,0.38
+Ginger biscuit (Adarak ke biscuit),biscuit,56.24,0.8,7.87,2.46,0.2,0.3,3.49,10.72,3.64,0.38
+Soyabean muthias,muthia,1126.44,3.3,4.97,121.39,1.97,0.8,16.32,105.02,0.22,5.26
+Soyabean tikki,tikki,1156.34,5.85,7.26,122.59,3.65,1.72,48.41,146.94,0.58,8.78
+Soyabean namak paras,plate,2294.25,7.25,12.72,245.78,3.87,1.76,33.19,197.16,0.6,11.48
+Peanut burfi (Moongfali ki burfi),burfi,116.63,1.97,10.19,7.8,0.87,0.31,5.33,1.43,9.12,0.59
+Spinach peanut namak paras (Palak moongfali namak paras),plate,2339.85,5.23,20.92,248.19,2.56,2.12,42.22,231.26,0.89,2.31
+Gram flour and semolina chilla/cheela/savory pancake (Besan suji chilla/cheela),cheela,1142.14,3.12,11.49,120.46,2.1,1.01,18.26,112.7,0.38,0.85
+Rice moong dal cheela (Chawal aur moong dal ka cheela),cheela,1163.47,3.99,16.22,120.15,1.73,0.75,7.28,208.16,0.22,0.26
+Split bengal gram sweet rice (Channa dal sweet rice),plate,418.47,9.14,90.36,1.42,4.9,3.89,66.82,18.44,42.7,0.58
+Sweet poori (Meethi poori),poori,1193.69,3.23,21.75,121.44,2.35,1.72,52.22,3.91,10.9,3.31
+Wheat flour and moong dal burfi (Atta aur moong dal ki burfi),piece,115.78,2.58,15.75,4.83,1.58,0.61,6.61,1.38,8.17,1.29
+Spinach burfi (Palak burfi),piece,105.57,2.36,11.12,5.94,1.02,0.92,81.61,24.2,10.56,0.12
+Sweet split chickpea roti (Sweet channa dal roti/Puranpoli),roti,195.67,5.08,33.44,4.23,4.36,2.33,28.45,6.43,13.2,3.6
+Sprouted moong daliya,plate,352.54,8.86,46.68,14.88,9.87,4.09,71.49,621.66,5.27,1.17
+Sprouted moong poha,plate,368.51,10.7,50.9,13.17,5.99,4.64,54.32,422.5,3.68,4.46
+Pearl millet ladoo (Bajra ladoo),ladoo,151.84,4.57,24.22,3.83,2.85,2.24,56.4,5.82,13.03,2.8
+Paushtik ladoo,ladoo,170.06,2.68,21.12,8.74,1.6,0.57,7.23,2.13,13.34,1.02
+Paushtik roti,roti,64.1,3.08,11.42,0.65,2.46,1.13,22.65,73.42,0.87,1.48
+Semolina carrot vada (Suji gajar vada),vada,1138.48,2.54,10.61,120.56,1.74,0.59,43.08,119.08,1.98,1.19
+Dhokla,piece,86.5,5.37,12.26,2.11,1.98,0.55,49.23,150.25,1.91,0.07
+Kashmiri tea (Kehwa),tea cup,63.93,0.45,13.43,1.3,0.4,0.17,8.19,0.75,13.2,0.25
+Steeped hot coffee,tea cup,32.13,0.78,6.08,0.67,0.0,0.12,21.0,5.69,5.98,0.0
+Hot chocolate,tea cup,171.46,6.53,17.18,8.78,0.0,0.63,216.46,68.66,16.89,0.0
+Cold coffee (with cream),tall glass,207.32,4.84,30.02,8.24,0.0,0.36,161.4,38.46,29.82,0.0
+Banana milkshake with ice cream (Kele ka milkshake ice cream ke saath),tall glass,259.92,6.85,37.92,9.42,0.91,0.47,232.21,56.53,33.81,0.08
+Flavoured milkshake,tall glass,190.31,5.87,24.64,8.06,0.0,0.3,213.9,46.58,24.55,0.0
+Jal jeera,juice glass,42.34,0.61,9.38,0.36,1.33,1.17,34.61,301.91,8.0,1.87
+Gingo,tall glass,139.73,0.4,36.14,0.17,0.49,0.62,18.42,62.57,35.15,0.36
+Mintade,glass,229.84,0.19,60.39,0.13,0.15,0.3,11.95,152.15,59.68,0.14
+Canjee,glass,11.26,0.42,0.74,0.72,0.61,0.29,9.92,73.26,0.36,0.64
+Cauliflower canjee (Phoolgobhi ki canjee),glass,12.32,0.69,0.62,0.76,0.88,0.4,11.19,74.02,0.17,0.75
+Potato canjee (Aloo canjee),glass,31.76,0.85,5.24,0.76,0.83,0.43,10.16,70.27,0.2,0.59
+Vermicelli porridge (Semiya/Seviyan porridge),bowl,310.85,9.9,41.89,11.83,1.91,0.81,289.29,259.05,27.91,0.64
+Semolina upma (Suji/Rava upma),bowl,157.14,3.51,17.33,7.96,3.45,1.16,22.92,107.94,1.39,3.66
+Vermicelli upma (Semiya/Seviyan upma),bowl,158.43,3.31,17.93,7.91,3.41,0.99,21.57,108.17,1.49,2.66
+Rice upma,bowl,160.73,2.79,19.08,7.92,2.25,0.71,18.67,108.11,1.2,2.02
+Bread upma,bowl,137.61,2.97,13.39,8.23,2.08,0.87,48.04,187.48,1.66,2.02
+Vegetable upma,plate,345.17,11.14,38.78,15.63,9.87,3.17,62.88,817.8,3.27,11.35
+Poha,bowl,160.78,3.32,19.13,7.72,2.03,1.65,20.56,205.86,0.48,2.04
+Vegetable poha,bowl,176.6,4.78,21.05,7.89,3.68,1.88,27.4,408.95,1.37,4.04
+Moong dal stuffed cheela/chilla (Moong dal ka cheela/chilla),cheela,352.1,15.85,44.16,11.63,9.66,5.05,89.44,607.5,2.52,5.66
+Paneer stuffed cheela/chilla,cheela,435.68,24.28,40.68,18.87,8.55,5.13,321.25,613.84,8.1,5.6
+Indian style egg bhujia (Anda bhujia (Indian style)),small bowl,129.53,7.68,4.74,8.84,1.93,1.43,40.18,274.66,2.45,4.64
+French omelette/omlet,egg,143.51,6.82,0.28,12.82,0.26,1.08,31.51,259.66,0.06,0.62
+Puffy omelette/omlet,egg,142.99,6.7,0.06,12.8,0.0,0.91,26.57,258.8,0.06,0.42
+Orange omelette/omlet,egg,147.94,6.79,1.27,12.8,0.0,0.96,28.37,259.1,1.27,0.42
+Cheese and mushroom omelette/omlet,egg,263.2,12.4,2.15,22.81,1.19,1.29,190.43,512.38,1.38,6.78
+Spanish omelette/omlet,egg,239.32,12.54,7.75,17.39,3.86,1.95,48.22,355.48,1.56,8.29
+Mixed stock,cup,229.25,18.79,3.02,15.59,1.33,0.66,18.72,86.57,1.82,0.42
+Meat stock,cup,213.0,18.3,0.0,15.45,0.0,0.45,7.5,75.0,0.0,0.0
+White stock,cup,53.45,0.52,3.05,4.25,1.33,0.21,12.12,11.97,1.85,0.42
+Meat consomme (with mutton),bowl,184.51,92.11,3.16,84.79,4.39,26.13,718.33,78513.55,1.52,1.11
+Consomme au julienne,bowl,213.74,96.18,11.48,82.05,10.66,25.69,661.29,78595.01,6.36,4.25
+Consomme au vermicelli,bowl,187.72,95.48,8.16,81.38,5.05,24.94,610.24,78516.75,1.67,2.43
+Green pea soup (Matar ka soup),bowl,221.32,61.52,20.2,71.7,13.86,12.15,259.28,60927.08,4.83,13.65
+Spinach soup (Palak ka soup),bowl,163.88,52.98,15.21,71.72,9.95,13.48,282.74,60780.72,1.47,1.1
+Mixed vegetable soup,bowl,157.37,36.21,12.99,51.39,7.21,7.65,223.4,40554.39,7.23,6.09
+Cheese soup,bowl,182.97,55.11,8.31,75.94,7.99,10.66,372.09,60922.39,3.72,0.86
+Mulligatawny soup,bowl,189.85,39.3,28.73,46.31,9.05,9.26,153.09,40474.14,4.39,1.23
+Cream of carrot soup,bowl,278.3,38.53,26.48,57.52,9.21,8.06,266.54,40487.3,8.23,2.27
+Cream of broccoli soup,bowl,258.62,41.32,17.14,58.72,8.7,8.38,306.56,40502.33,7.35,1.19
+Cream of potato soup,bowl,286.36,38.53,29.22,57.32,7.21,8.08,247.18,40449.24,5.9,1.38
+Almond soup (Badam ka soup),bowl,375.16,48.32,17.57,65.82,4.32,13.5,548.33,39957.98,9.28,1.65
+Cold cucumber cream soup,bowl,45.43,1.29,6.73,1.29,2.8,0.63,30.67,795.18,1.95,1.59
+Cold tomato soup,bowl,46.4,0.31,1.62,4.27,0.44,0.28,11.52,788.23,0.6,1.44
+Chicken stew,bowl,378.63,21.35,13.19,26.46,5.4,2.67,93.6,236.35,4.26,7.61
+Veg paneer stew,bowl,344.74,16.54,24.2,19.91,7.29,3.24,380.17,173.27,11.49,11.56
+Onion-green chilli parantha/paratha (Pyaaz aur hari mirch ka parantha/paratha),parantha,146.23,3.34,20.16,5.56,3.95,1.38,19.04,184.39,2.07,3.86
+Methi parantha/paratha,parantha,135.3,3.9,20.24,3.96,4.64,2.2,60.05,44.1,2.22,4.27
+Bathua poori,poori,544.24,2.14,12.59,53.75,1.7,0.87,28.02,45.18,0.38,1.9
+Gram flour poori (Besan poori),poori,525.57,1.95,8.24,53.87,1.46,0.54,5.34,43.94,0.26,1.19
+Beetroot poori (Chukandar ki poori),poori,543.14,1.97,12.65,53.71,1.44,0.62,5.54,47.84,0.56,1.8
+Peas poori (Matar ki poori),poori,496.79,2.54,12.5,48.35,1.89,0.71,7.51,40.03,0.4,3.16
+Peas kachori (Matar kachori),kachori,632.21,3.47,14.32,62.18,2.2,0.84,15.41,59.96,0.54,4.31
+Pizza,slice,436.35,20.36,29.56,25.94,5.07,1.98,229.6,668.97,4.1,20.59
+Bacon and mushroom pancake,pancake,191.57,8.29,10.29,12.88,1.93,0.66,54.36,418.26,1.49,10.33
+Cheese and tomato pancake,pancake,162.49,5.67,11.76,10.24,1.17,0.71,140.58,310.48,3.84,4.75
+Minced meat pancake (with chicken),pancake,155.93,16.14,10.99,14.08,0.94,2.68,86.96,6640.97,1.74,1.48
+Eggplant/Brinjal rice (Vangi bhat),plate,538.09,15.37,92.42,10.7,12.92,5.57,104.88,171.96,12.7,10.6
+Kashmiri 'tahar',plate,319.82,6.36,62.23,4.45,3.18,1.03,12.79,199.61,0.55,0.12
+Cumin pulao (Jeera/Zeera pulao),plate,365.83,6.69,63.87,8.65,3.79,0.88,19.62,594.38,1.73,0.27
+Peas pulao (Matar pulao),plate,513.75,18.38,86.9,8.98,15.16,3.7,85.79,406.68,6.16,20.38
+Split bengal gram dal and vegetable pulao (Channa dal and vegetable pulao),plate,514.92,15.91,87.14,10.15,13.96,3.64,84.36,433.35,7.01,8.5
+Black channa pulao/ Bengal gram pulao (Kale chane ka pulao),plate,498.16,13.64,85.54,10.23,10.69,3.07,65.53,409.15,7.9,1.82
+Mutton pulao,plate,866.53,43.19,74.61,71.43,10.94,8.27,330.45,20644.66,6.6,2.5
+Chicken pulao,plate,723.18,40.59,74.61,56.63,10.94,6.55,215.44,20668.25,6.6,2.5
+Mexican rice,plate,624.24,23.94,73.6,25.27,8.5,2.86,75.11,483.67,7.46,18.53
+Plain khitchdi (Plain khichri/khichdi),small bowl,327.36,9.86,57.64,5.78,4.87,1.75,28.96,213.21,0.69,0.81
+Instant idli (with semolina),idli,87.23,3.23,15.31,1.27,2.51,0.81,32.88,530.79,1.18,2.82
+Plain dosa,dosa,137.6,3.73,23.15,3.05,1.89,0.54,6.99,51.65,0.25,0.63
+Masala dosa mixed vegetable fillings,dosa,400.84,13.41,63.83,9.03,11.96,3.34,88.16,338.57,4.24,14.34
+Masala dosa paneer fillings,dosa,479.75,20.34,58.72,17.45,6.15,2.51,337.9,316.52,9.5,9.68
+Uttapam,uttapam,174.15,4.21,24.68,6.14,2.99,0.84,27.8,155.61,1.02,3.91
+Appam,appam,409.28,4.77,20.3,34.6,9.47,1.26,9.73,40.66,6.36,0.14
+Beans and macaroni,plate,345.99,11.65,36.21,17.83,5.21,1.9,220.83,464.74,4.26,9.01
+Spaghetti bolognese,shallow dish,364.68,35.0,37.59,35.62,4.04,7.72,275.72,20057.76,5.28,14.37
+Meat and macaroni casserole,small casserole dish,647.01,36.63,64.58,40.72,4.75,7.41,273.44,10060.5,3.99,1.97
+Spaghetti with meat balls and tomato sauce,shallow dish,878.84,31.16,58.12,59.14,6.2,3.96,226.85,1051.13,10.37,18.7
+Spaghetti with paneer balls and tomato sauce,shallow dish,785.99,19.6,63.09,51.75,6.2,2.72,400.25,989.34,15.0,18.75
+Lasagne with meat sauce,dish,1124.63,51.49,95.51,60.95,8.4,8.77,436.77,658.03,18.45,31.92
+Lasagne with vegetables,dish,865.02,29.96,103.75,37.96,11.66,10.0,577.89,716.66,24.03,26.22
+Home made egg noodles,curry bowl,541.78,14.73,96.55,9.84,3.59,2.58,35.9,398.71,2.33,9.01
+Sour lentils (Khatti dal),curry bowl,126.18,8.04,21.9,0.45,4.43,3.09,30.07,419.32,4.54,2.1
+Urad special dehusked,curry bowl,184.84,8.36,23.59,5.77,6.66,2.21,43.67,291.66,3.52,5.72
+Arhar with spinach (Arhar dal aur palak),curry bowl,213.09,8.27,19.22,11.11,5.22,3.61,87.96,443.5,0.93,1.39
+Moong dal with vadi,curry bowl,87.28,1.44,3.61,7.42,1.43,0.66,10.83,407.29,1.62,2.36
+Rasam with tamarind (Puli rasam/ Chintapandu rasam/ Charu/Saaru),curry bowl,104.25,4.41,13.14,3.44,6.22,2.28,64.56,405.88,3.24,11.79
+Rasam with lemon (Nimmakaya rasam/Nimmakaya charu/Elumichai rasam/Nimbe hannina saaru),curry bowl,96.27,4.36,11.22,3.45,6.06,2.03,61.36,405.28,1.75,11.02
+Green gram whole with baghar (Sabut moong dal with tadka),bowl,143.19,7.29,15.34,5.6,6.81,2.27,56.51,410.11,0.33,1.81
+Urad sabut special,bowl,350.76,10.29,22.23,24.13,9.5,3.14,94.76,265.47,3.82,18.32
+Kabuli channa curry,bowl,243.87,10.39,27.13,10.87,3.97,3.39,113.91,434.06,4.41,7.58
+Besan gatte curry,bowl,484.17,19.83,41.56,27.41,8.3,4.84,386.26,910.85,11.5,5.17
+Dry masala chops,chops,199.37,13.4,4.87,14.08,1.26,2.05,165.68,123.21,3.35,0.69
+Mutton korma,bowl,423.78,25.99,9.28,31.28,2.85,4.0,289.75,208.65,5.99,0.91
+Shahi keema kofta curry,bowl,2580.27,25.55,10.69,270.44,5.59,4.16,89.54,645.05,4.81,9.81
+Minced meat ball curry,bowl,409.6,25.43,10.66,29.28,5.55,3.75,88.95,634.46,4.75,9.92
+Boti kebab,kebab,72.66,5.04,1.67,5.07,0.41,0.77,53.97,42.74,1.14,0.46
+Mutton seekh kebab,kebab,60.25,5.06,1.4,3.79,0.85,0.99,52.83,45.96,0.63,0.42
+Indian lamb and egg curry (Nargisi kofta),kofta,1312.54,15.01,8.09,135.64,2.33,2.16,50.46,224.54,2.92,2.68
+Soya chunks sweet and sour (Nutrinugget sweet and sour),bowl,2312.3,13.17,15.11,258.45,3.96,3.23,64.12,10421.17,5.06,5.18
+Soya chunks korma (Nutrinugget korma),bowl,326.86,9.6,19.08,23.62,6.39,2.94,223.1,370.5,11.6,3.13
+Mushroom matar,bowl,186.06,7.34,14.02,10.8,8.24,2.14,56.33,162.03,3.66,27.19
+Soya chunks and peas (Nutrinugget matar),bowl,184.17,6.75,12.97,11.39,6.37,2.2,45.3,158.19,3.66,14.87
+Vegetable yakhni,bowl,2329.72,6.74,11.13,251.28,3.52,1.4,250.58,218.33,8.23,1.88
+Spinach mushroom (Palak mushroom),bowl,140.54,5.73,8.72,8.72,6.7,4.97,146.8,209.42,2.94,14.99
+Vegetarian nargisi kofta curry,kofta,1325.26,9.13,26.25,131.43,3.44,1.53,187.88,293.49,6.57,3.88
+Roast chicken,joint,266.62,27.32,0.13,17.42,0.04,1.05,18.15,95.64,0.06,1.76
+Shahi chicken masala,bowl,571.54,34.3,14.19,41.96,3.36,3.12,288.68,497.75,9.98,5.4
+Tomato chicken,bowl,196.84,18.63,3.76,11.84,2.51,1.53,37.43,184.77,1.64,10.91
+Creamy chicken,bowl,332.36,29.39,6.8,20.82,1.51,1.79,109.52,211.08,4.59,2.42
+Broccoli chicken ala king,bowl,282.27,18.83,12.6,17.88,4.54,1.83,173.19,245.56,5.87,0.75
+Ginger chicken,bowl,495.91,31.65,21.5,31.64,4.66,3.7,70.68,1404.63,7.48,8.28
+Chicken sweet and sour,bowl,2499.6,38.86,14.97,267.27,3.24,5.24,123.41,10164.41,5.0,6.84
+Chicken korma,bowl,513.46,34.12,18.84,33.57,6.31,3.68,238.28,413.7,11.53,4.74
+Bengal fish curry (Bengali machli curry),bowl,339.76,22.55,13.72,21.82,5.98,2.63,137.97,237.14,7.41,4.27
+Fish finger,fillet,2408.26,25.09,19.85,247.62,1.51,1.69,50.48,459.32,0.76,1.59
+Fish in coconut milk (Nariyal ke doodh ke saath machli),dish,280.64,28.19,8.89,14.43,4.93,2.98,71.43,240.68,5.04,3.77
+Prawn curry (with coconut) (Jhinga curry),bowl,313.44,24.44,8.88,19.83,4.48,2.74,106.57,1075.42,5.82,6.48
+Baked stuffed fish,fish,742.09,98.2,12.91,33.02,2.29,2.16,114.39,452.46,2.11,12.31
+Fish pie,pie,369.44,28.27,23.66,17.64,2.31,1.4,110.47,311.08,3.46,1.79
+Crispy baked fish,casserole dish,391.68,31.0,27.13,18.15,3.42,1.54,169.9,544.56,4.32,10.18
+Fish souffle,dish,412.61,31.04,15.18,25.24,0.57,1.74,188.64,273.05,6.18,2.12
+Potato curry (Aloo ki sabzi),bowl,180.52,3.06,21.0,9.01,4.88,1.96,47.84,158.02,3.19,6.8
+Egg curry (Anda curry),bowl,178.13,8.16,6.11,13.35,3.17,2.3,63.04,215.41,2.87,7.03
+Vegetable curry with coconut,bowl,308.67,10.31,26.7,17.3,12.43,3.52,72.92,161.25,5.24,19.61
+Curd with potatoes (Dahi aloo),bowl,227.19,5.93,27.1,10.32,4.5,1.79,137.91,197.18,6.9,5.61
+Potato kofta curry (Aloo kofta curry),bowl,4645.42,5.71,28.4,500.7,5.71,2.65,79.29,307.27,6.43,7.64
+Yam kofta curry (Zimikand/Suran kofta curry),bowl,2422.44,5.36,28.13,253.85,7.79,2.33,62.66,316.78,4.7,7.17
+Jackfruit kofta curry (Kathal ka kofta curry),bowl,2408.96,6.04,23.76,253.83,7.23,1.83,85.26,300.38,17.97,15.88
+Spinach and potato (Palak aloo),bowl,191.57,5.46,19.81,9.45,6.83,5.32,146.35,209.3,3.13,6.93
+Mooli bhujia,bowl,180.96,3.35,9.41,14.39,4.68,4.69,261.67,178.04,2.13,2.23
+Bathua bhujia,bowl,180.36,4.49,7.2,14.46,7.55,4.68,329.07,162.68,2.14,2.33
+Cabbage rolls (dry) ((Pattagobhi rolls) (dry)),roll,118.47,6.82,5.07,7.78,1.53,0.81,26.22,98.16,1.05,0.6
+Cabbage rolls (curry) ((Pattagobhi rolls)(curry)),roll,181.48,8.39,10.24,11.89,3.42,1.38,43.43,180.55,5.54,0.85
+Dry arbi (Sookhi arbi),bowl,270.69,4.24,22.28,17.99,4.96,1.37,45.67,162.97,3.11,2.65
+Masala arbi,bowl,215.37,3.49,18.77,13.83,3.6,1.15,37.27,303.59,0.94,0.36
+Peas brinjal bhartha (Matar baingan bhartha),small bowl,221.23,5.37,13.13,15.84,9.5,1.64,51.35,166.56,4.12,9.38
+Okra/Lady's fingers fry (Bhindi sabzi/sabji/subji),bowl,184.32,3.04,7.49,15.43,5.94,1.47,112.92,154.32,2.37,9.27
+Crispy okra/Crispy lady's fingers (Karare bhindi),small bowl,2254.47,6.55,14.9,241.28,6.01,1.91,94.64,138.53,0.89,6.03
+Beans foogath,small bowl,190.35,3.67,5.9,16.71,7.51,1.73,80.07,147.16,3.07,4.93
+Stuffed bittergourd (wet) (Bharwa karele),bowl,254.05,2.13,7.32,23.85,4.48,1.43,26.99,563.43,3.06,1.89
+Jackfruit/Kathal (dry),bowl,2363.8,4.49,22.07,250.33,6.42,1.61,61.81,162.84,17.16,13.25
+Yam fried (Zimikand/Suran fried),bowl,2377.28,3.82,26.44,250.36,6.97,2.1,39.2,179.23,3.88,4.54
+"Cauliflower, pea and potato bhujia (Phoolgobhi, matar aur aloo bhujia)",bowl,182.93,5.27,15.74,10.59,6.24,1.87,40.26,165.0,2.81,9.25
+Vegetable jalfrezi,bowl,68.88,1.41,5.46,4.4,2.99,0.69,27.27,79.92,1.81,4.1
+Vegetables stir fry,small bowl,119.59,4.02,12.41,5.72,5.34,1.34,51.67,213.66,3.32,9.42
+Broccoli delight,bowl,81.19,4.97,4.67,4.96,5.64,1.42,53.84,118.22,2.15,1.22
+Dhansak (vegetarian),bowl,199.57,8.01,17.54,10.07,10.05,3.05,63.64,82.38,2.18,3.89
+Cauliflower basket,portion,219.61,12.57,9.59,14.2,5.79,2.22,241.92,468.97,3.54,2.59
+Stuffed bottle gourd (Stuffed ghiya/lauki),portion,330.81,20.72,15.48,20.6,4.19,2.33,255.0,379.8,5.4,1.87
+Ducheese potato,potato,60.38,1.55,4.7,3.87,0.56,0.33,7.77,44.61,0.12,0.15
+Roast potatoes,potato,67.49,1.18,11.22,1.82,1.32,0.44,8.02,70.08,0.25,0.17
+Stuffed baked potatoes,potato,104.25,3.97,11.48,4.57,1.36,0.84,26.76,95.81,0.42,0.39
+Potato nests,nest,213.71,10.93,21.15,9.12,4.76,1.66,105.78,348.7,2.7,6.97
+Parsley potato,bowl,129.67,1.62,14.99,6.81,1.73,0.6,12.4,5.02,0.37,0.22
+Creamed spinach and mushroom,bowl,2496.71,13.55,18.85,262.62,6.06,5.38,389.65,536.73,6.99,11.61
+Fricassee of Mushroom,dish,299.55,10.25,22.84,18.63,3.47,1.01,238.62,334.15,7.04,11.42
+Cauliflower au gratin,bowl,490.71,14.98,30.72,34.32,4.85,1.93,402.56,554.83,10.14,2.29
+Vegetable and cheese pie,dish,615.15,19.53,42.46,40.15,9.27,2.81,482.32,572.06,13.06,8.21
+Spinach souffle,small bowl,300.87,14.74,12.57,21.08,2.88,4.31,267.83,488.96,1.78,1.62
+Beetroot and egg salad (Chukandar aur ande ka salad),small bowl,188.94,7.47,7.57,14.36,1.23,1.22,40.33,245.03,4.38,0.85
+Sour cream potato salad,small bowl,276.51,6.55,20.54,18.43,2.74,2.04,52.74,232.88,1.89,0.89
+Tossed green salad,small bowl,108.73,2.91,8.32,7.06,2.89,2.76,73.49,141.89,4.14,3.95
+Spring basket salad,basket,336.96,7.06,24.37,23.72,6.49,1.79,95.86,54.65,3.08,12.61
+Cucumber and yogurt salad (Kheere aur dahi ka salad),small plate,41.58,2.41,5.44,1.07,1.91,0.6,78.83,163.11,2.62,1.15
+Chicken and tomato towers,stuffed tomato,265.55,18.22,6.24,18.46,3.02,2.04,46.33,200.75,3.19,13.34
+Jellied sunshine fruit salad,small mould,121.43,14.54,10.45,2.11,4.47,2.16,92.3,184.39,7.11,2.0
+Tomato aspic,small mould,107.16,14.62,10.69,0.56,3.37,2.51,94.21,208.84,6.82,12.53
+Frozen frosty fruit salad (Phalon ka salaad),slice,241.17,3.91,36.37,9.72,0.61,0.95,66.67,30.83,33.51,0.82
+French dressing,cup,1477.32,0.65,7.4,160.36,0.44,0.97,14.05,525.75,6.06,0.39
+Mayonnaise without eggs,cup,1274.26,8.25,15.43,131.05,0.17,1.03,292.51,749.66,14.27,0.19
+Curd dressing,cup,164.82,11.68,16.79,6.07,0.46,0.37,407.04,428.02,15.83,0.34
+Carrot raita (Gajar ka raita),bowl,102.15,6.52,11.33,3.45,2.66,0.87,231.33,432.75,9.45,1.04
+Pumpkin raita (Kaddu ka raita),bowl,94.53,6.35,10.23,3.2,1.77,0.57,221.21,219.55,9.31,1.01
+Mint and peanut raita (Pudinay aur moongfali ka raita),bowl,149.21,9.38,9.74,8.25,2.38,2.24,254.36,296.98,8.22,0.93
+Spinach raita (Palak ka raita),bowl,107.18,8.02,10.28,3.78,2.83,3.27,290.45,257.16,8.06,0.52
+Bathua raita,bowl,110.53,8.38,10.79,3.58,4.46,2.98,419.16,225.36,8.34,1.27
+Pineapple raita (Ananas ka raita),bowl,107.6,6.19,13.69,3.21,2.21,0.43,213.68,215.2,12.89,0.62
+Banana raita (Kele ka raita),bowl,141.42,6.56,21.46,3.29,1.58,0.49,211.62,215.11,16.06,0.61
+Mango raita (Aam ka raita),bowl,107.0,6.2,13.07,3.41,1.42,0.55,216.12,215.16,12.5,2.37
+Guava raita (Amarood ka raita),bowl,102.22,6.65,11.55,3.29,4.77,0.45,217.5,215.92,10.66,1.35
+Grapes raita (Angoor ka raita),bowl,115.31,6.31,15.34,3.28,1.13,0.41,213.67,215.44,13.52,2.96
+Bottle gourd kheer (Ghiya/Lauki kheer),bowl,225.06,7.23,26.78,10.32,1.46,0.6,252.12,52.51,25.78,0.62
+Pumpkin kheer (Kaddu ki kheer),bowl,231.16,7.39,27.94,10.34,1.68,0.65,255.94,56.19,27.09,0.95
+Apple kheer (Seb ki kheer),bowl,270.47,7.11,37.74,10.58,1.7,0.61,251.75,52.75,35.62,0.98
+Caramel custard (baked),small bowl,276.68,11.53,33.72,11.3,0.0,1.19,204.27,100.99,33.65,0.42
+Vanilla ice cream without egg,ice cream cup,359.87,4.23,22.36,28.56,0.0,0.16,127.89,37.72,21.17,0.0
+Vanilla ice cream with egg,ice cream cup,389.15,7.54,21.21,30.84,0.0,0.61,140.23,68.33,21.17,0.21
+Strawberry ice cream,ice cream cup,392.13,7.55,22.29,30.84,0.0,0.61,140.2,68.42,21.1,0.21
+Chocochip ice cream,ice cream cup,481.38,8.43,33.4,35.74,0.0,1.01,145.97,69.47,32.06,0.21
+Choconut ice cream,sundae glass,658.8,12.12,55.62,44.47,1.22,2.13,162.03,71.74,50.55,0.92
+Pear chocholate sunday,sundae glass,447.25,5.08,36.6,31.96,0.18,0.58,138.13,39.64,35.11,0.02
+Chocolate sauce,tablespoon,43.87,0.32,7.2,1.73,0.0,0.19,3.13,0.47,7.01,0.0
+Coffee ice cream,ice cream cup,249.84,5.22,23.37,15.64,0.0,0.25,158.77,69.81,22.14,0.69
+Coffee pear alaska,dish,510.74,7.22,48.48,33.09,0.38,0.56,151.75,127.95,42.27,0.18
+Crunchy butterscotch,cup,519.63,5.83,37.33,39.34,0.88,0.48,135.39,41.68,33.21,0.35
+Peach melba ice cream,sundae glass,460.14,4.71,37.36,33.23,0.14,0.26,138.71,41.05,30.59,0.02
+Vanilla ice cream with apples in hot cherry sauce,dish,492.66,4.35,57.09,28.74,0.65,0.41,141.39,79.14,35.61,0.37
+Grape and orange whip,orange case,69.44,1.71,8.13,3.17,1.17,0.65,21.05,17.38,6.85,1.27
+Honey banana cream,tall stemmed glass,415.37,9.19,45.14,22.09,2.32,0.76,144.07,51.8,34.79,0.7
+Raspberry bavarian cream,small mould,355.75,7.92,42.24,18.67,5.2,0.73,62.56,58.27,36.25,0.18
+Fruit delight,small mould,366.25,7.13,31.15,24.25,0.32,0.51,245.18,59.07,30.89,0.64
+Creamy chocolate mousse,dish,467.38,13.89,19.32,36.82,0.0,1.95,91.75,98.61,18.22,0.42
+Cold lemon souffle,souffle dish,411.92,14.29,37.89,23.72,0.0,1.28,133.44,112.4,33.65,0.42
+Cold orange souffle,souffle dish,417.82,14.33,39.26,23.7,0.27,1.38,133.77,112.26,34.8,0.49
+Cold pineapple souffle,souffle dish,413.18,14.2,38.42,23.68,0.0,1.23,130.26,112.59,34.18,0.42
+Cold vanilla souffle,souffle dish,423.71,14.67,38.44,24.35,0.0,1.23,147.43,115.86,34.2,0.42
+Cold chocolate souffle,souffle dish,455.69,15.47,41.84,26.4,0.0,1.66,152.87,116.07,37.2,0.42
+Stewed fruit (with pear),bowl,89.56,0.3,21.96,0.39,3.42,0.25,7.15,2.05,21.3,1.34
+Apricot fool,tall stemmed glass,550.09,3.51,76.85,25.92,2.28,1.66,60.24,18.91,48.63,2.43
+Pavlova,meringue,725.45,6.67,79.0,44.44,0.21,0.92,83.19,95.26,73.66,0.8
+Apple crumb pudding,small plate,216.99,1.51,34.55,8.72,1.3,1.03,37.81,58.32,27.21,0.5
+Steamed cake with chocolate sauce,small mould,718.54,10.69,69.17,45.25,0.69,2.03,161.27,238.76,46.94,1.89
+Hot lemon souffle,bowl,188.63,6.43,19.82,9.64,0.17,0.67,59.25,58.02,14.66,1.12
+Gulab jamun with milk powder,piece,1422.3,2.57,85.26,121.21,0.14,0.38,78.87,203.11,81.63,0.34
+Chum chum,piece,405.44,4.73,88.13,5.98,0.05,0.4,195.11,51.91,86.8,0.12
+Dil bahar,piece,405.44,4.73,88.13,5.98,0.05,0.4,195.11,51.91,86.8,0.12
+Rasbhari,piece,405.44,4.73,88.13,5.98,0.05,0.4,195.11,51.91,86.8,0.12
+Rajbogh,piece,420.55,5.38,88.57,7.17,0.35,0.53,198.89,52.11,87.02,0.17
+Rasgulla,piece,405.44,4.73,88.13,5.98,0.05,0.4,195.11,51.91,86.8,0.12
+Rasmalai,piece,430.28,5.12,92.6,6.69,0.23,0.49,197.78,52.24,91.13,0.15
+Khoa coconut burfi,piece,206.76,5.01,18.37,13.07,2.04,1.05,155.7,15.65,17.89,0.14
+Danedar burfi,piece,143.47,4.53,17.22,6.6,0.12,0.34,150.25,32.56,16.74,0.07
+Semolina burfi (Suji/Rava burfi),piece,163.25,1.62,22.05,7.9,1.31,0.47,6.96,3.9,13.42,1.08
+Pumpkin coconut burfi (Kaddu aur nariyal ki burfi),piece,111.94,1.05,10.24,7.61,2.58,0.47,13.08,5.38,9.69,0.58
+Khoa ladoo,piece,178.21,5.49,15.49,10.84,1.39,1.01,161.38,14.27,15.01,0.12
+Wheat and gram flour ladoo (Atta besan ladoo),piece,151.76,2.84,15.28,9.03,1.82,0.72,10.67,8.19,5.58,1.12
+Semolina ladoo with nuts (Suji/Rava ladoo with nuts),piece,138.63,1.71,15.07,7.99,1.34,0.57,5.66,1.23,6.21,1.15
+Sesame chickpeas brittle (Til aur channe ki chikki),piece,98.96,2.97,17.67,1.63,1.94,1.68,52.76,6.28,12.77,1.81
+Murmura chikki,piece,66.63,0.56,15.64,0.08,0.1,0.87,16.62,3.95,12.67,0.07
+Masala onion pakora/pakoda (Pyaaz ke pakode),pakora,389.03,1.44,4.57,40.63,1.02,0.3,7.8,69.97,1.11,0.15
+Masala green chilli pakora/pakoda (Hari mirch kay pakode),pakora,458.92,1.53,3.81,48.73,0.92,0.32,5.89,82.97,0.19,0.15
+Chicken pakora/pakoda,pakora,404.34,4.13,3.12,41.78,0.66,0.35,6.22,70.74,0.15,0.24
+Fish pakora/pakoda,pakora,395.39,4.09,3.12,40.79,0.66,0.43,8.67,76.91,0.15,0.09
+Paneer cutlet,cutlet,1215.57,8.3,13.77,125.46,0.71,0.87,195.05,165.37,4.56,0.35
+Sago cutlet/vadas (Sabudana cutlet/vadas),cutlet,1178.05,1.19,23.67,120.11,1.13,0.8,11.46,101.56,0.22,0.4
+Poshtik cutlet,cutlet,1195.62,4.83,17.79,122.68,3.24,1.65,35.99,137.53,0.77,0.91
+Egg cutlet (Anda cutlet),cutlet,1169.22,4.98,11.73,122.5,1.18,1.13,32.99,161.45,0.41,0.59
+Minced meat cutlet,cutlet,1241.01,11.9,13.08,127.09,0.93,1.47,48.57,223.55,0.73,0.3
+Vegetable samosa,samosa,447.23,2.23,13.34,42.62,1.54,0.6,10.47,108.7,0.75,1.92
+Plain urad dal vada (Uzunne vada/Minapa garelu/Ulundu vadai/Medu vada),vada,588.01,3.46,7.65,60.19,1.79,0.76,8.36,51.96,0.13,1.26
+Masala urad dal vada,vada,602.03,3.7,8.5,61.26,2.32,0.86,10.16,52.6,0.6,1.4
+Khaman (dhokla),dhokla,64.93,2.28,6.35,3.32,1.77,0.69,6.3,147.25,1.62,0.29
+Instant dhokla,dhokla,87.99,3.26,10.24,3.98,1.52,0.45,28.29,324.57,2.92,0.32
+Tomato ginger chutney (Tamatar adarak ki chutney),tablespoon,7.33,0.17,1.5,0.05,0.35,0.18,3.88,34.39,1.04,1.86
+Mint tomato chutney (Pudinay aur tamatar ki chutney),tablespoon,8.26,0.29,1.56,0.07,0.5,0.39,9.0,34.81,1.04,1.94
+Coriander chutney (Hare dhaniye ki chutney),tablespoon,8.11,0.26,1.54,0.07,0.47,0.31,7.53,35.31,1.04,1.94
+Gooseberry chutney (Amla chutney),tablespoon,6.9,0.23,1.42,0.1,0.74,0.2,7.44,34.51,0.01,0.15
+Walnut chutney (Akhrot ki chutney),tablespoon,45.92,1.17,1.1,4.15,0.38,0.22,14.82,19.83,0.55,2.93
+Saunth/Sonth chutney with ginger,tablespoon,27.71,0.09,6.79,0.03,0.1,0.23,4.99,73.22,6.26,0.02
+Gun powder chutney,tablespoon,43.47,3.0,6.63,0.37,1.94,0.72,9.58,27.23,0.16,1.44
+Dessicated coconut chutney (Sookhe kase nariyal ki chutney),tablespoon,37.47,1.39,3.97,1.72,1.42,0.59,7.96,34.74,1.13,0.92
+Curd mint dip,tablespoon,25.09,1.59,3.0,0.8,0.25,0.27,56.95,73.42,2.58,0.16
+Curd vegetable dip,tablespoon,15.63,1.08,1.68,0.54,0.17,0.1,36.03,36.84,1.51,0.08
+Mayonnaise vegetable dip,tablespoon,103.28,1.29,2.05,10.04,0.17,0.12,39.13,51.19,1.88,0.08
+Tomato and cucumber sandwich (Tamatar aur kheere ka sandwich),sandwich,118.66,3.17,16.15,4.97,1.66,0.91,60.44,174.99,1.41,2.54
+Tomato sandwich (grilled),sandwich,145.77,4.8,16.34,7.2,1.47,0.68,115.81,322.81,1.98,3.67
+French sandwich (toasted),sandwich,208.46,7.61,16.54,12.84,1.53,1.38,112.44,306.61,2.03,2.68
+Peanut butter cucumber sandwich,sandwich,134.44,5.0,16.44,5.83,1.85,0.73,52.68,254.2,1.61,0.19
+Mint and peanut sandwich,sandwich,134.29,3.52,15.62,6.81,1.8,0.83,56.44,222.5,1.37,0.37
+Spicy chutney sandwich,sandwich,143.92,5.04,19.62,5.52,2.15,0.87,89.11,181.87,2.28,1.69
+Chicken walnut sandwich (Chicken aur akhrot ke sandwich),sandwich,190.4,8.38,15.07,11.17,1.02,0.74,52.26,191.48,1.18,0.98
+Rolled sandwich,sandwich,64.47,1.42,7.63,3.36,0.45,0.27,25.89,70.75,0.59,0.03
+Ribbon sandwich,ribbon,102.29,2.68,10.58,5.72,1.25,0.45,67.48,163.35,1.99,0.05
+Checker board sandwich,square,128.17,2.71,9.54,9.07,0.82,0.41,69.17,131.81,1.07,0.02
+Submarine sandwich,hot dog bun,421.63,11.83,26.44,29.78,2.41,2.39,140.63,494.26,4.86,2.99
+Cheese open sandwich,sandwich,150.74,5.41,15.63,7.83,0.96,0.67,140.94,277.43,1.78,0.0
+Sunset and sunrise open sandwich,sandwich,199.68,7.1,15.63,12.53,1.15,1.06,94.39,315.51,1.61,1.51
+Danish luncheon sandwich,sandwich,167.41,7.8,15.35,8.72,1.31,1.1,66.62,315.82,0.98,0.52
+Chicken and corn open sandwich,sandwich,203.92,9.35,20.82,9.57,1.81,0.87,70.58,245.71,2.68,0.59
+Chocolate sponge cake,piece,168.7,6.42,27.81,3.87,0.37,1.28,23.9,43.24,17.58,1.18
+Chocolate swiss roll,swiss roll,145.0,2.85,12.78,9.36,0.14,0.51,20.27,21.1,8.92,0.44
+Lemon curd filling,tablespoon,56.41,0.86,6.6,3.14,0.0,0.15,4.1,8.73,6.53,0.05
+Jam filling,tablespoon,30.0,0.0,7.5,0.0,0.0,0.0,0.0,0.0,6.75,0.0
+Chocolate pastry,pastry,211.93,6.14,28.07,8.82,0.28,1.25,44.15,40.53,19.45,0.88
+Assorted pastry,pastry,185.36,5.44,25.69,7.16,0.34,0.76,37.92,40.16,15.82,1.05
+Orange gateau,piece,142.1,3.81,21.56,4.81,0.54,0.71,33.27,64.18,14.63,0.78
+Black forest gateau,piece,142.76,3.89,20.03,5.62,0.18,0.71,30.67,52.02,14.4,0.59
+Lemon cake,piece,228.05,3.22,26.29,12.58,0.38,0.55,19.99,92.29,15.76,1.04
+Dundee cake,piece,239.31,4.69,24.98,13.7,1.09,0.95,35.06,110.26,12.85,1.08
+Victorian sandwich cake,piece,239.24,3.32,28.69,12.72,0.38,0.55,23.24,93.16,18.07,1.03
+Chocolate eggless cake,piece,357.25,7.63,49.75,15.1,0.37,1.09,212.26,225.12,39.16,0.9
+Orange eggless cake,piece,352.66,7.1,52.21,13.71,0.55,0.51,204.12,224.39,37.55,1.35
+Chocolate glace icing,tablespoon,104.44,0.77,14.95,4.98,0.0,0.49,6.4,2.07,14.33,0.0
+Butter icing,tablespoon,81.12,0.03,11.61,4.11,0.0,0.02,2.02,0.97,11.61,0.0
+Chocolate butter icing,tablespoon,91.1,0.62,11.97,4.8,0.0,0.36,6.18,0.97,11.61,0.0
+Almond biscuit (Badam ke biscuit),biscuit,75.74,1.16,9.69,3.66,0.28,0.21,8.18,28.19,4.12,0.52
+Orange biscuit,biscuit,214.64,2.19,37.58,6.66,0.45,0.47,12.31,156.78,25.79,1.05
+Gingerman biscuit,gingerman,127.03,2.22,19.63,4.52,0.71,0.56,14.7,326.46,7.69,1.29
+Coffee drops,small,52.3,0.89,5.08,3.21,0.22,0.17,6.74,10.41,2.16,1.29
+Christmas biscuit,biscuit,84.11,1.17,12.63,3.29,0.45,0.25,6.02,26.38,5.39,0.73
+Christmas wreath biscuit,biscuit,84.79,1.19,12.75,3.3,0.5,0.27,6.52,26.4,5.47,0.77
+Christmas bell biscuit,biscuit,84.11,1.18,12.63,3.29,0.48,0.25,6.65,26.39,5.39,0.73
+Christmas star biscuit,biscuit,145.64,1.31,27.69,3.73,0.55,0.36,8.45,28.27,19.71,0.74
+Christmas tree biscuit,biscuit,84.69,1.19,12.83,3.29,0.58,0.26,7.7,26.45,5.44,0.73
+Chocolate cream shells,shell,98.2,1.17,13.62,4.45,0.21,0.25,6.56,29.16,7.98,0.52
+Jelly biscuit,biscuit,72.45,0.76,9.89,3.46,0.36,0.21,6.53,19.8,5.33,0.17
+Cherry and walnut cookies,cookies,74.27,0.99,10.43,3.3,0.23,0.23,8.13,20.14,5.34,1.12
+Cheese straws,straw,36.85,0.95,2.95,2.34,0.12,0.12,15.5,56.67,0.17,0.31
+Butterfly biscuit,biscuit,41.48,1.21,3.08,2.69,0.12,0.13,24.6,69.49,0.3,0.31
+Flan pastry,pastry,232.93,3.51,25.0,13.08,0.83,0.6,11.41,100.96,3.25,2.08
+Fruit flan,flan,1215.94,15.35,161.5,58.08,3.31,2.85,89.68,511.94,44.28,8.34
+Orange cream flan,flan,1132.77,19.14,146.15,54.91,2.56,3.77,112.77,333.05,102.13,4.22
+Fruit puree tart,tart,159.4,1.86,16.92,9.36,0.73,0.35,10.93,27.62,5.45,1.22
+Apple banana pie,pie,948.46,12.16,124.84,44.29,7.34,3.07,82.53,1494.38,50.4,10.04
+Lemon chiffon pie,pie,1389.91,26.15,148.12,77.8,3.52,3.29,184.54,508.91,61.03,8.93
+Orange chiffon pie,pie,1449.87,27.15,161.61,77.94,4.86,4.37,211.93,511.5,73.03,8.93
+Cream buns,bun,179.67,3.71,11.79,13.17,0.26,0.41,37.7,37.88,4.96,0.73
+Savoury puffs,puff,264.0,13.16,14.95,21.09,0.46,1.65,95.25,3146.98,6.24,1.28
+Choux swans,swan,370.29,7.45,25.54,26.71,0.6,0.87,76.46,248.33,10.49,1.53
+Potato aigrettes,aigrette,219.41,0.97,3.31,22.45,0.19,0.19,3.81,46.55,0.3,0.27
+Cream horns,horn,469.97,3.94,26.61,38.62,0.69,0.51,35.61,65.75,8.2,1.7
+Savoury cheese horns,horn,218.16,4.18,15.8,15.3,0.54,0.46,90.05,156.91,2.03,1.22
+Paneer patties,patty,340.99,7.65,22.96,24.13,1.18,0.79,130.83,159.57,4.07,2.77
+Vegetable patties,patty,303.07,4.64,24.27,20.53,3.04,1.0,21.94,161.44,1.73,5.47
+Pearl millet infant food (Bajra shishu aahaar),,181.22,5.99,31.05,3.31,3.92,2.83,59.26,6.33,13.03,3.15
+Sajina,,172.63,5.41,33.43,1.52,3.81,2.69,27.2,5.85,12.95,1.69
+Cereal mix,,151.01,4.15,27.3,2.52,2.54,1.47,26.75,11.61,13.35,0.69
+Pulse mix,,111.06,4.21,21.33,0.73,3.0,1.72,19.9,5.17,8.78,1.61
+Shishu ahar,,124.49,3.48,23.22,1.91,1.36,1.36,18.38,3.57,8.82,0.28
+Cereal pulse mix with amylase rice flour,,128.84,3.63,23.63,2.33,2.95,1.01,10.72,0.87,7.51,2.69
+Banana groundnut paste/puree,,213.19,4.27,36.15,5.45,1.7,1.9,74.93,16.85,31.67,0.91
+Rice dal porridge (Chawal dal ki khichdi/khichri),,127.78,3.6,21.68,2.78,1.5,0.92,16.82,4.11,8.85,0.59
+Lentils and semolina porridge (Dal suji porridge/daliya),,234.58,6.52,46.38,2.12,2.88,2.44,89.49,19.27,27.68,1.98
+Spinach khichri (Palak khichri/khichdi),,153.52,5.15,26.07,2.87,2.34,0.97,15.67,104.56,0.31,0.28
+Vegetable mix,,174.21,4.7,36.02,0.94,1.93,2.27,90.06,34.94,27.36,0.55
+Lentils and wheat porridge (Dal wheat porridge/daliya ),,89.44,4.62,14.24,1.6,2.19,0.89,44.74,106.9,1.56,0.2
+Maize porridge,,152.27,3.64,26.59,3.21,2.86,1.89,28.94,9.5,13.07,5.23
+Spinach peanut burfi (Palak aur mungfali ki burfi),,252.89,8.05,32.62,10.55,4.98,3.86,98.29,46.85,27.59,2.03
+Split bengal gram burfi/fudge (Channa dal burfi),piece,176.01,2.85,33.46,4.34,1.26,0.38,10.07,1.55,26.57,0.0
+Chickpea flour cookies (Sweet besan rounds/cookies),piece,51.75,1.07,9.91,0.86,0.64,0.54,13.74,5.57,7.67,0.13
+Pearl millet mathri (Bajra mathri),piece,1178.6,2.74,11.14,124.79,2.04,1.08,6.95,49.8,0.24,0.71
+Sesame biscuit (Til ke biscuit),biscuit,61.66,1.2,7.8,2.81,0.99,0.83,43.34,26.5,4.32,2.26
+Fermented bengal gram vada (Khameerikrit/Ufna hua channa dal ka vada),vada,592.64,3.65,7.82,60.55,2.39,1.25,18.47,57.56,0.32,0.81
+Poshtik namak paras,piece,79.13,0.84,2.52,7.3,0.59,0.26,7.84,5.68,0.11,0.63
+Soya chikki,piece,318.83,5.41,47.32,11.67,2.67,3.37,61.14,12.97,34.22,0.36
+Besan bathua chilla/cheela,cheela,112.61,3.46,12.24,5.6,2.35,0.81,19.51,50.12,0.44,1.39
+Wheat flour and nuts ladoos (Atta nuts ladoos),ladoo,142.06,3.43,16.06,6.96,2.65,1.45,46.14,2.93,5.78,3.97
+Gram flour and semolina dhokla (Besan suji dhokla),piece,196.5,8.41,25.6,7.01,4.53,1.58,65.86,194.21,2.55,1.27
+Atta dal burfi,piece,115.78,2.58,15.75,4.83,1.58,0.61,6.61,1.38,8.17,1.29
+Soya roti,roti,142.93,4.62,20.15,4.64,4.38,1.94,26.89,78.49,0.8,4.06
+Poshtik khichdi/khichri,plate,336.43,10.97,56.35,6.79,7.19,3.61,109.57,150.16,0.94,5.92
+Namkeen daliya,plate,346.14,9.72,57.85,9.37,10.05,3.51,42.21,175.51,0.96,3.02
+Sprouts upma,plate,301.49,9.06,42.86,9.95,6.83,2.63,35.07,140.92,1.59,7.0
+Semolina idli (Suji/Rava idli),idli,61.14,2.77,9.98,1.03,1.73,0.69,29.88,54.81,1.01,1.07
+Poshtik chilla/cheela,cheela,115.37,3.51,19.86,2.2,3.55,1.52,13.15,70.28,0.88,4.08
+Stuffed bittergourd (dry) (Bharwa karela),bowl,230.9,1.37,2.64,23.75,3.18,1.36,17.74,550.91,0.07,1.56
+Cauliflower potato canjee,glass,35.58,1.21,5.58,0.83,1.45,0.59,14.36,75.39,0.28,0.81
+Creamed spinach,small bowl,373.69,19.99,17.13,24.64,5.12,7.29,471.59,601.6,6.13,1.68
+Mango milkshake with ice cream (Aam milkshake ice cream ke saath),tall glass,232.39,6.56,31.21,9.51,0.78,0.51,235.81,56.56,30.96,1.48
+Pineapple milkshake with ice cream (Ananas milkshake ice cream ke saath),tall glass,232.87,6.56,31.71,9.36,1.41,0.42,233.85,56.6,31.28,0.08
+Orange milkshake with ice cream (Narangi milkshake ice cream ke saath),tall glass,230.57,6.63,31.11,9.35,0.55,0.63,237.31,56.62,30.6,0.14
+Woodapple juice (Bel ka sharbat),glass,120.07,2.21,22.87,2.46,3.62,0.44,41.63,447.77,20.21,19.25
+Sattu drink,glass,124.87,3.02,27.54,0.74,2.12,0.89,8.48,67.55,21.14,0.25
+Apple and honey sorbet (Seb aur shehad ka sharbat),cup,196.96,0.25,49.92,0.47,1.84,0.29,14.8,3.2,47.38,1.03
+Thandai,glass,256.45,9.1,23.15,14.92,2.02,1.53,284.68,57.51,20.8,1.37
+Cucumber sharbat (Kheere ka sharbat),glass,112.14,1.07,27.27,0.24,3.21,0.73,26.68,10.55,22.45,1.89
+Apple oats chia seed smoothie,glass,538.28,21.94,82.15,15.56,9.08,3.11,558.66,201.25,36.21,1.17
+Nannari sharbat,cup,990.01,0.12,263.41,0.11,0.0,0.56,29.82,12.92,262.97,0.04
+Semolina milk drink (Thari kanji),cup,116.35,2.59,18.25,3.59,1.9,0.96,21.77,31.48,10.23,1.07
+Saffron milk (Kesariya doodh),glass,268.47,8.33,33.22,12.0,0.38,0.54,291.32,62.25,32.85,0.21
+Black rice kheer (Chak-hao kheer),bowl,307.22,9.07,47.62,10.19,1.59,0.96,197.06,53.51,26.1,0.07
+Coconut kheer (Nariyal ki kheer),bowl,1057.59,22.1,93.8,68.59,9.98,3.43,582.21,299.0,89.3,0.51
+Apple sago payasam (Seb aur sabudana ki kheer),bowl,451.91,10.36,47.68,25.36,1.26,1.04,338.03,130.6,35.2,0.76
+Kesari bath,bowl,432.24,4.23,55.46,22.24,2.92,1.23,13.6,3.01,35.63,2.49
+Putharekulu,roll,170.29,1.96,31.89,4.04,0.94,0.2,3.27,1.43,12.77,0.0
+Mango malpua,piece,1314.71,6.48,50.45,120.5,8.18,2.73,41.81,7.42,19.48,10.83
+Mango vanilla custard,glass,300.06,6.97,37.41,14.32,2.02,1.18,172.47,61.22,29.72,1.71
+Kiwi granola pudding,bowl,1472.38,29.35,169.42,80.48,19.44,7.62,325.94,310.28,79.0,3.22
+Oats burfi,piece,256.18,5.35,37.64,10.4,2.99,1.48,77.47,4.91,19.84,0.24
+Lotus seed halwa (Kamal gattay ka halwa),piece,1343.24,28.24,143.41,74.99,1.53,6.52,300.29,11.08,35.51,0.21
+Amaranth ladoo (Rajgira ladoo),ladoo,199.28,4.44,22.52,9.96,2.24,2.84,63.44,3.29,8.74,13.71
+Chhena poda,slice,255.84,10.16,24.98,13.32,1.04,1.05,219.26,9.65,22.76,0.44
+Sweet couscous dessert,bowl,451.75,8.78,68.37,17.71,5.01,1.94,71.23,9.72,36.59,23.99
+Sweetened yogurt (Shrikhand),bowl,326.5,16.07,48.79,8.81,0.24,0.5,557.54,224.23,48.18,0.26
+Thickened sweetened milk (Rabri),bowl,226.44,7.74,23.23,11.78,0.43,0.64,246.43,52.69,22.23,0.21
+Gram flour halwa (Besan halwa),piece,411.15,8.73,38.29,25.69,2.7,1.0,115.01,22.87,23.52,0.32
+Prawn sandwich,sandwich,386.79,23.62,27.11,21.14,3.53,2.53,172.21,486.51,2.76,1.66
+Watercress sandwich,triangle,124.17,2.8,15.17,6.21,1.22,0.54,53.13,220.53,0.98,0.19
+Fish sandwich,sandwich,391.45,12.31,26.29,27.02,3.2,1.79,123.23,421.91,2.72,0.36
+Kidney bean sandwich with cottage cheese,triangle,423.42,23.6,45.21,16.4,8.77,3.92,399.42,234.84,8.84,12.53
+Finger millet biscuit (Ragi biscuit),biscuit,345.41,3.03,39.69,19.43,4.5,1.92,155.96,74.0,12.73,16.63
+Buttermilk biscuit,biscuit,414.46,7.4,44.88,22.49,1.52,0.99,86.3,416.0,4.43,4.3
+Lemon cookies,cookie,617.36,8.81,66.02,36.02,1.23,1.08,112.74,132.58,36.73,2.76
+Sweet potato biscuit (Shakarkand ke biscuit),biscuit,447.31,7.75,57.55,20.08,3.42,1.22,85.03,512.48,3.82,4.87
+Raspberry shortbread cookies,cookie,163.49,1.11,22.7,7.88,0.28,0.22,5.12,2.25,15.14,0.67
+Pumpkin cookies,cookie,186.63,2.15,38.19,3.36,0.91,0.45,16.54,44.0,27.02,1.3
+Greenpea cookies,cookie,120.92,4.95,17.5,3.22,4.03,1.12,36.75,174.38,10.96,4.9
+Sunflower cookies,cookie,954.3,17.39,73.44,66.5,7.24,4.04,129.14,333.02,44.5,3.29
+Cardamom cookies (Elaichi cookies),cookie,875.47,11.15,118.02,41.8,6.09,3.09,55.1,215.22,85.24,7.67
+Hazelnut cookies,cookie,423.02,5.36,33.82,29.99,2.1,1.11,40.67,69.5,18.87,1.35
+Milk cookies,cookie,573.57,13.1,60.46,31.16,1.24,0.93,314.1,195.41,27.54,3.03
+Cranberry cookies,cookie,506.14,7.28,67.6,23.52,2.09,1.32,67.17,108.21,37.08,3.26
+Olive biscuit,biscuit,207.31,1.52,26.02,11.23,0.39,0.65,5.09,56.81,15.26,0.94
+Tutti fruitti biscuit,biscuit,457.39,5.66,57.74,19.46,5.91,2.13,25.88,101.21,17.12,6.98
+Peach blueberry preserves,half-pints,685.58,2.03,176.88,0.78,4.41,1.26,34.92,10.85,175.2,3.76
+Pear preserves (Naashpati ka murabba),half-pints,603.53,1.5,153.0,1.11,18.23,1.39,39.17,12.52,150.16,6.02
+Starfruit preserves,jar,209.51,0.39,54.63,0.19,1.26,0.32,8.51,3.35,54.38,0.43
+Gooseberry pickle (Amla ka achaar),jar,64.86,0.36,1.77,6.43,0.86,0.24,7.26,20.11,0.08,0.41
+Lotus stem pickle (Kamal kakdi ka achar),jar,403.96,5.68,78.95,6.29,33.76,80.93,541.81,715.29,9.96,0.28
+Date pickle (Khajoor ka achaar),small bowl,251.9,2.32,47.9,5.81,7.19,2.71,57.34,191.89,42.11,1.84
+Garlic pickle (Lahasun ka achar),jar,211.44,1.9,4.99,20.39,2.62,0.93,27.94,137.58,1.19,0.56
+Fermented bamboo shoot pickle (Mesu pickle),jar,81.52,2.15,2.36,7.62,3.05,0.94,22.65,219.78,0.39,0.54
+Sweet peach pickle (Aadoo ka achaar),jar,349.29,1.12,89.38,0.49,3.18,0.8,28.95,79.78,88.06,3.01
+Pickled mustard greens,jar,154.13,17.73,12.34,2.61,19.91,14.28,956.7,2846.89,0.25,27.24
+Small onion pickle,bowl,18.92,1.85,3.1,0.72,1.22,1.35,35.83,279.83,3.35,0.0
+Green tomato pickle (Haray tamatar ka achaar),jar,122.91,0.79,1.82,12.51,1.1,0.49,9.05,101.24,0.49,0.84
+Pickled cabbage,jar,35.51,1.01,6.64,0.35,1.58,0.48,41.37,314.74,5.39,0.28
+Coconut pickle (Nariyal ka aachar),jar,144.86,0.85,3.23,14.48,1.78,0.73,12.54,49.44,2.51,0.76
+Potato pickle (Aloo ka achaar),bowl,173.17,0.97,3.69,17.1,1.04,0.53,22.73,100.27,0.38,0.83
+Mango murabba candy,candy,222.94,0.2,58.76,0.04,0.72,0.25,12.58,10.42,56.8,1.81
+Afghani chicken,plate,287.5,29.72,3.69,17.21,0.58,1.97,66.67,165.11,1.57,2.2
+Fish orly,fillet,1657.28,17.27,12.54,171.06,0.96,0.92,28.08,400.92,0.7,1.29
+Hariyali Fish Tikka,kebab,268.25,25.01,3.94,16.79,1.77,1.49,62.24,179.35,1.49,2.21
+Chicken manchurian,plate,632.99,42.4,26.96,53.18,1.83,5.7,117.93,10738.73,3.98,3.11
+Handi chicken,plate,384.96,28.57,3.47,28.9,1.56,2.16,62.25,175.4,1.75,2.41
+Lemon chicken,plate,486.57,57.88,1.58,27.67,0.46,2.73,49.87,229.07,0.46,3.79
+Lemon butter fish,piece,320.49,32.77,1.51,20.52,0.72,0.8,37.32,375.45,0.46,1.13
+Baked eggs in tomato sauce,plate,398.25,24.48,18.79,25.99,0.04,6.52,357.88,936.33,10.08,0.87
+Egg in a pepper,egg,749.5,73.58,1.0,50.49,0.99,10.25,280.8,1070.25,0.28,5.03
+Spinach mushroom scrambled egg (Palak mushroom bhurji),plate,184.98,15.46,0.68,13.4,0.46,1.87,163.4,265.47,0.12,2.41
+Corn omelette/omlet,omelette,324.26,22.09,3.05,25.04,0.04,2.59,186.92,323.26,0.79,1.08
+Cajun chicken,chicken breast,309.78,21.26,3.25,23.43,1.49,0.88,262.95,2914.72,1.84,1.23
+Paaner do pyaza,bowl,296.11,9.78,7.9,25.2,1.94,1.04,132.68,372.54,5.09,2.64
+Cabbage manchurian (Pattagobhi manchurian),bowl,1660.41,4.71,35.9,166.47,2.75,1.47,23.56,555.41,2.47,2.79
+Gobi 65,plate,2386.48,4.81,30.81,249.63,4.9,2.6,106.11,593.56,2.48,4.73
+Paneer lababdar,bowl,403.24,15.23,12.87,32.36,4.43,2.14,212.41,544.6,7.51,10.1
+Roasted cauliflower steak,cauliflower steak,84.48,2.2,2.17,7.19,3.79,1.02,26.28,129.05,0.48,1.38
+Sauteed radishes with green beans,plate,91.11,2.33,5.83,6.38,3.4,0.98,38.83,62.88,1.72,1.1
+Garlic chutney/Poondu chutney (Lahasun ki chutney),small bowl,202.83,2.65,16.22,13.93,4.09,2.59,50.42,141.0,10.61,7.53
+Schezwan chutney,box,1553.26,25.18,81.69,134.16,43.32,14.83,268.46,3681.04,42.82,17.08
+Onion chutney (Pyaaz ki chutney/Vengaya chutney),cup,75.51,1.56,7.09,4.4,2.41,0.62,14.95,134.76,3.57,1.44
+Dates chutney (Khajoor ki chutney),small bowl,273.26,2.82,57.23,2.96,9.0,3.13,75.76,202.54,49.27,3.57
+Chicken salad,bowl,835.34,37.86,3.22,74.73,4.93,3.05,106.69,125.03,2.38,2.72
+Macaroni salad,cup,422.24,8.08,34.83,28.64,0.89,1.25,57.49,264.09,6.0,0.37
+Cabbage raita (Pattagobhi raita),bowl,196.95,7.53,12.18,13.37,2.15,0.44,275.07,290.91,9.78,0.21
+Pomegranate raita (Anaar ka raita),bowl,104.79,5.84,10.32,4.67,0.87,0.36,199.51,281.55,10.12,23.74
+Onion raita (Pyaaz ka raita),bowl,111.99,7.6,12.31,3.8,1.01,0.48,256.34,297.3,11.06,0.46
+Green chilli raita (Hari mirch ka raita),bowl,79.07,5.72,7.85,3.0,0.27,0.22,198.46,165.38,7.68,0.13
+Kale salad,bowl,95.35,2.61,2.69,8.22,0.73,0.69,58.54,156.7,1.77,0.27
+Spinach and paneer souffle,souffle dish,839.74,34.1,43.48,60.86,4.82,6.34,515.56,1960.43,12.65,1.42
+Masala souffle,souffle dish,1833.77,94.77,119.08,109.35,18.44,11.01,1539.27,1947.0,27.27,5.86
+Chicken and cheese souffle,souffle dish,356.5,17.73,6.78,28.81,0.5,1.24,120.64,236.42,4.82,1.16
+Tamarind chutney (Chintapandu pachadi/Puli chutney),ml,3.95,0.03,0.91,0.02,0.06,0.07,1.46,2.74,0.83,0.09
+Pav bhaji masala,gm,2.62,0.1,0.33,0.12,0.28,0.15,6.68,20.6,0.02,0.16
+Green chutney,glass jar,19.38,1.32,2.44,0.39,1.42,1.12,27.51,64.12,0.22,0.68
+Sago khitchdi/khichri (Sabudana khitchdi/khichri),bowl,507.89,7.38,60.82,27.41,4.95,2.33,41.06,272.07,2.8,2.87
+Gram flour chilla/cheela (Besan chilla/cheela),cheela,70.78,4.06,10.95,1.49,2.21,1.14,14.78,70.6,0.97,0.6
+Vegetable namkeen jave,plate,409.97,10.71,69.32,9.15,10.44,3.89,37.7,117.36,3.81,6.92
+Khakhra,khakhra,135.1,3.61,20.94,4.03,4.11,1.62,16.1,139.38,0.67,4.41
+Moong bean dosa (Pesarattu),pesarattu,75.94,3.27,8.47,3.1,1.6,0.9,9.68,16.29,0.77,0.37
+Methi thepla,thepla,126.16,3.27,15.07,5.81,2.76,1.65,26.79,198.0,1.09,1.88
+Rice puttu (Ari puttu),puttu,344.41,5.29,49.66,13.13,3.18,1.77,20.85,202.84,1.39,0.0
+Buckwheat pancake (Khura),pancake,274.93,3.04,28.48,17.16,0.58,0.72,11.82,73.06,0.67,0.48
+Quinoa khichdi/khichri,bowl,203.71,10.12,28.11,5.06,8.2,3.56,78.26,221.64,2.19,3.47
+Khakhra chaat,plate,2996.46,37.8,139.04,256.05,25.41,10.54,204.61,858.71,27.25,49.94
+Banana appam,appam,1364.2,3.39,58.24,123.49,1.96,2.23,39.89,58.47,28.89,0.33
+Veg manchurian,plate,1141.69,1.73,13.29,120.19,2.26,0.6,32.74,127.33,1.48,0.88
+Pav bhaji,,560.98,15.46,69.7,25.09,11.5,5.63,144.48,952.5,11.96,14.6
+Rice murukku,piece,183.29,1.67,10.27,14.88,0.67,0.52,7.6,19.54,0.05,0.08
+Bhel puri,plate,3573.64,24.65,115.42,335.8,15.7,9.04,169.76,658.66,23.89,8.4
+Semolina dhokla (Suji/Rava dhokla),plate,195.36,5.45,30.94,5.21,5.13,2.53,31.25,444.4,1.85,4.32
+Spicy corn chaat,plate,2659.17,25.53,63.44,258.0,12.01,4.65,95.75,479.4,5.25,1.11
+Jackfruit fritters (Ponsa mulik/Kathal ka pakora),mulik/fritter,160.12,0.63,6.43,14.57,0.4,0.31,6.59,12.43,3.08,0.44
+Banana chips (Kele ke chips),bowl,1134.13,0.62,12.48,120.04,1.11,0.32,3.42,148.0,7.45,0.1
+Wheat cake,piece,210.21,3.2,27.48,9.99,1.85,0.72,66.09,55.43,17.23,2.18
+Mango cheesecake,slice,265.56,4.16,34.94,12.72,1.99,0.92,95.97,186.6,26.75,3.13
+Carrot cake (Gajar ka cake),slice,255.46,5.6,35.97,10.26,2.93,1.03,156.02,158.66,23.94,2.71
+Semolina cake (Suji/Rava cake),square,220.74,3.88,18.48,14.86,3.17,0.8,75.68,53.9,11.13,0.91
+Finger millet cake (Ragi cake),slice,275.6,3.9,38.39,12.1,2.32,1.33,116.75,96.9,24.42,6.27
+Honey cake,slice,546.05,5.04,80.27,24.07,0.83,0.75,83.25,118.76,54.73,2.02
+Almond cardamom cake (Badam elaichi cake),slice,242.84,4.89,23.53,14.55,1.6,0.88,55.4,105.88,12.31,1.26
+Tutti frutti cake,cake,2949.55,38.09,449.04,107.58,7.18,5.23,520.89,902.18,238.23,17.5
+Ham and Bean soup,bowl,144.82,15.99,6.3,6.26,0.82,1.32,30.94,570.19,2.16,0.35
+Whey soup,bowl,153.96,7.72,13.98,7.46,1.88,1.22,368.45,194.54,13.11,0.23
+Bottle gourd soup (Ghiya/Lauki soup),bowl,68.01,1.34,3.43,5.3,2.83,0.76,44.69,158.77,1.15,1.01
+Baked potato soup,bowl,769.88,30.01,30.63,58.68,1.56,1.4,557.89,1406.69,18.0,0.72
+Pumpkin soup,bowl,127.51,1.5,6.61,10.19,3.79,0.6,38.76,144.87,4.68,2.03
+Sweet corn soup,bowl,126.48,3.88,13.98,6.4,1.22,1.6,14.6,87.66,3.51,0.42
+Paneer soup,bowl,292.25,19.68,14.81,17.11,1.71,1.85,505.46,415.51,12.08,2.04
+Curried Cauliflower soup,cup,129.84,23.36,10.84,34.0,8.14,7.37,129.59,25435.58,6.23,1.79
+Millet soup,bowl,129.64,26.08,19.03,29.1,6.54,6.33,150.98,25280.92,3.36,2.42
+Lemon coriander soup,bowl,52.52,1.1,5.01,3.04,3.29,1.69,49.85,106.53,1.07,0.47
+Garlic soup,bowl,280.6,3.43,10.06,25.37,2.39,1.05,87.19,258.13,3.44,0.4
+Dal makhani,bowl,261.63,11.71,28.13,10.82,8.03,4.33,72.87,147.86,2.82,9.38
+Dalma,bowl,313.7,12.95,39.68,12.09,5.7,5.53,143.18,130.18,8.17,11.51
+Split bengal gram dal (Channa dal),bowl,291.2,12.13,29.2,13.5,10.86,5.61,64.24,135.56,2.85,6.48
+Horsegram dal (Kulthi dal),bowl,200.79,10.5,29.61,4.09,5.49,4.7,137.91,229.59,2.61,6.45
+Panchmel dal,bowl,334.6,13.91,32.22,16.11,9.62,4.27,69.36,239.05,2.25,7.65
+Dal dhokli,bowl,231.41,9.96,28.77,8.32,6.27,2.67,48.95,126.36,3.78,4.53
+Gujarati handvo,cake,1442.54,57.4,221.9,33.44,34.51,14.13,475.14,2149.27,17.49,9.19
+Sev (Omapodi/Karapusa),plate,834.22,7.01,17.63,82.27,3.21,0.99,19.1,72.84,0.72,0.05
+Papdi,plate,1231.38,3.18,22.39,125.25,0.98,0.76,10.52,50.21,0.54,2.08
+Jowar dosa,dosa,97.25,2.81,13.39,3.4,1.84,0.67,6.43,32.13,0.2,0.87
+Bread roll,bread roll,526.92,3.45,19.5,48.7,1.75,0.86,54.25,168.61,1.14,0.7
+Soya seekh kebab,kabab,65.75,3.08,5.72,3.36,1.28,0.72,8.96,52.72,0.29,1.12
+Classic seasoned black beans,bowl,50.71,14.11,13.49,14.6,6.18,3.35,70.69,14078.08,0.78,0.17
+Maa chaane ki dal,bowl,279.44,16.05,34.95,7.71,10.91,4.84,55.66,35.11,0.85,4.7
+Garlic chickpea soup (Lahasun aur chane ka shoraba),soup bowl,284.89,14.15,44.29,6.41,9.04,3.04,44.32,253.72,8.44,4.53
+White sauce (thin),,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0
+White sauce (medium),,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0
+White sauce (thick),,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0
+Cheese sauce,,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0
+Egg sauce,,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0
+Mushroom sauce,,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0
+Mustard sauce,,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0
+Brown sauce,,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0
+Classic italian pasta,,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0
+Pasta spinach sauce,,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0
+Pasta cheese sauce,,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0
+Mayonnaise,,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0
+Low calorie quick mayonnaise,,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0
+Thousand island dressing,,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0
+Curd dip,,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0
+Short crust pastry,,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0
+Choux pastry,,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0
+Flaky pastry,,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0
+Sponge cake,,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0
+Glace icing,,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0
+Royal icing,,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0
+American frosting,,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0
+Gum icing,,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0
+Channa murmura premix,,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0
+Cracked wheat and green gram dal premix (Dalia moong dal premix),,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0
+Rice flakes and roasted channa,,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0
+Spinach soup in milk,,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0
+Vegetable soup,,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0
+Mashed banana with milk,,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0
+Poha with curd (Poha aur dahi),,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0
+Potato with curd,,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0
+Sweet wheat porridge (Sweet dalia),,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0
+Vegetable khichdi/khichri,,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0
+Moong dal mixture,,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0
+Cracked wheat khichri/khichdi (Dalia khichri/khichdi),,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0
+Stewed apple,,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0
+Lemon squash (Nimbu ka squash),,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0
+Orange squash (Santre ka squash),,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0
+Lichi squash,,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0
+Mango squash (Aam ka squash),,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0
+Pineapple squash (Ananas ka squash),,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0
+Lemon and ginger squash (Nimbu aur adrak ka squash),,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0
+Apple jam (Seb ka murabba),,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0
+Plum jam (Aloo bukhara jam),,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0
+Pineapple jam,,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0
+Guava jelly (Amrood ki jelly),,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0
+Orange marmalade (Santray ka murabba),,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0
+Carrot murabba (Gajar ka murabba),,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0
+Gooseberry marmalade (Amla murabba),,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0
+Ginger candy (Adrak ki candy),,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0
+Mango pickle (Aam ka achaar),,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0
+Mixed vegetable pickle (Sabziyoon ka achaar),,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0
+Sweet lemon pickle (Neembu ka meetha achaar),,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0
+Plum chutney (Aloo bukhara ki chutney),,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0
+Raw mango chutney (Kachhe aam/Kairi ki chutney),,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0
+Tomato sauce,,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0
+Tomato puree,,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0
+Garam masala,,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0
+Chat masala,,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0
+Kashmiri masala,,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0
+Rasam powder (Rasam masala),,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0
+Sambar powder (Sambar masala),,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0
+Tartare sauce,,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0
+Barbeque sauce,,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0
+Bread sauce,,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0
+Green chilli sauce,,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0
+Home made plain noodles,,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0
+Dal moong,,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0
+Cumin seeds baghar (Jeera baghar/tadka),,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0
+Onion tomato baghar (Pyaaz tamatar ka tadka),,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0
+Mustard seeds baghar (Mustard seed tadka),,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0
+Hot cherry sauce,,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0
+Apple jelly (Seb ki jelly),,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0
+Marmalade (Murabba),,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0
+Plum squash (Aloo bukhara squash),,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0
+Lemon green chilli pickle (Nimboo aur hari mirch ka achaar),,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0
+Brinjal pickle (Baingan ka achaar),,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0
+Sweet and sour tomato pickle (Khatta meetha tamatar ka achaar),,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0
+Jhatpat achar with carrot (Jhatpat achaar gajar ke saath),,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0
+Tomato chutney (Tamatar ki chutney),,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0
+Tomato ketchup,,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0
+Bengal 5 Spice Blend (Panch Phoran),,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0
