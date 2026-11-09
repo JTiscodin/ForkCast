@@ -1286,6 +1286,13 @@ def daily_agent(user_id: int, body: AgentIn):
     return _daily(lambda c, d: agent.run(c, user_id, body.message, d))
 
 
+@app.delete("/daily/{user_id}")
+def daily_delete_account(user_id: int):
+    """Account deletion: erases the user's profile, plans, feedback, orders and memory."""
+    _daily(lambda c, d: daily.delete_user(c, user_id))
+    return {"deleted": user_id}
+
+
 def run_nightly():
     """Refresh token -> recompute weights -> memory MD -> tomorrow's menus."""
     import swiggy_auth

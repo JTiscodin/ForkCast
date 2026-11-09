@@ -515,3 +515,16 @@ def test_note_reaches_place_food_order():
 
     OrderExecutor(mode="mcp", mcp_client=FakeMCP(), address_id="a").place("d", "r", 150, note="No peanut please")
     assert dict(calls)["place_food_order"]["noteToRestaurant"] == "No peanut please"
+
+
+def test_delete_user_erases_every_row(conn):
+    view(conn)
+    daily.record(conn, 1, "up", "dish", "dal makhani")
+    daily.delete_user(conn, 1)
+    for (t,) in conn.execute("SELECT name FROM sqlite_master WHERE type='table'").fetchall():
+        cols = [r[1] for r in conn.execute(f"PRAGMA table_info({t})")]
+        if "user_id" in cols:
+            assert conn.execute(f"SELECT COUNT(*) FROM {t} WHERE user_id = 1").fetchone()[0] == 0, t
+    assert conn.execute("SELECT COUNT(*) FROM menu_card").fetchone()[0] == 0
+    assert conn.execute("SELECT COUNT(*) FROM users WHERE id = 1").fetchone()[0] == 0
+    assert not (daily.MEMORY_DIR / "1.md").exists()

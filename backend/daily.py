@@ -1141,3 +1141,19 @@ def nightly(conn, dishes_fn, im_fn, today_=None):
         except Exception as e:  # noqa: BLE001 — one user's failure must not stop the batch
             print(f"[daily] nightly build failed for user {uid}: {e}")
     return done
+
+
+def delete_user(conn, user_id):
+    """Erase everything stored about a user (account deletion). Children first."""
+    u = (int(user_id),)
+    conn.execute("DELETE FROM order_record WHERE card_id IN (SELECT c.id FROM menu_card c JOIN daily_menu m ON c.menu_id = m.id WHERE m.user_id = ?)", u)
+    conn.execute("DELETE FROM menu_card WHERE menu_id IN (SELECT id FROM daily_menu WHERE user_id = ?)", u)
+    conn.execute("DELETE FROM excluded_card WHERE menu_id IN (SELECT id FROM daily_menu WHERE user_id = ?)", u)
+    conn.execute("DELETE FROM notifications WHERE meal_slot_id IN (SELECT s.id FROM meal_slots s JOIN plans p ON s.plan_id = p.id WHERE p.user_id = ?)", u)
+    conn.execute("DELETE FROM meal_slots WHERE plan_id IN (SELECT id FROM plans WHERE user_id = ?)", u)
+    for t in ("daily_menu", "plans", "consumption_log", "feedback_event", "pref_weight", "ledger_transactions",
+              "budget_cycles", "appetite_profiles", "user_profile"):
+        conn.execute(f"DELETE FROM {t} WHERE user_id = ?", u)
+    conn.execute("DELETE FROM users WHERE id = ?", u)
+    conn.commit()
+    (MEMORY_DIR / f"{int(user_id)}.md").unlink(missing_ok=True)

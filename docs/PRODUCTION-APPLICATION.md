@@ -63,8 +63,9 @@ Browser (Next.js 16)  ──HTTPS──>  Forkcast API (FastAPI, Python)
 - Sent to Gemini: dish names and the user's chat messages; no Swiggy tokens,
   addresses or order IDs.
 - Users can see, adjust and delete each learned preference from the
-  "What we know about you" panel. **TODO before launch**: a one-tap
-  "delete my account" endpoint that removes all of a user's rows.
+  "What we know about you" panel, and "Delete my account and data" there
+  (`DELETE /daily/{user}`) erases their profile, plans, feedback, orders and
+  taste memory. Swiggy-side data (orders, addresses) stays with Swiggy.
 - Prices and availability shown are the ones Swiggy returned; the confirm
   step shows the payable amount from the live cart before ordering.
 
@@ -80,8 +81,12 @@ Postgres and secrets in the host's secret store.
 - **TODO**: accept the Swiggy Builders terms in the form.
 
 ## Known caveats
-- Nutrition values come from the Indian Nutrient Databank (INDB); check its
-  licence terms before commercial use. Restaurant portions differ from home
-  recipes, so values are labelled as estimates.
+- Nutrition values come from the Indian Nutrient Databank (INDB; Vijayakumar
+  et al., Current Developments in Nutrition 2024, doi 10.1016/j.cdnut.2024.103790),
+  published as an open-access resource for research, government and the private
+  sector. Its GitHub repository has no licence file, and its raw values derive from
+  ICMR-NIN's food composition tables, so we credit it in the app and will ask the
+  authors (Anuvaad Solutions) for written permission before a commercial launch.
+  Restaurant portions differ from home recipes, so values are labelled estimates.
 - Swiggy logo files are used for attribution only; confirm they match the
   official brand kit.

@@ -608,14 +608,14 @@ export default function Home() {
 
   return (
     <MotionConfig reducedMotion="user">
-    <div className="relative flex h-dvh flex-col overflow-hidden bg-background">
+    <div className="relative flex min-h-dvh flex-col bg-background lg:h-dvh lg:overflow-hidden">
       <AppHeader live={live} address={address} />
       {tabs}
 
       <div className="grid min-h-0 flex-1 grid-cols-1 gap-0 lg:grid-cols-[minmax(360px,420px)_1fr]">
         {/* LEFT — chat. ChatPane draws its own hairline divider, so the
             wrapper carries no border (the old 3px orange stripe doubled up). */}
-        <div className="min-h-0 bg-surface">
+        <div className="h-[75dvh] min-h-0 bg-surface lg:h-auto">
           {userId && (
             <ChatPane
               userId={userId}
@@ -630,7 +630,7 @@ export default function Home() {
         </div>
 
         {/* RIGHT — artifact */}
-        <div className="min-h-0 overflow-y-auto">
+        <div className="min-h-0 lg:overflow-y-auto">
           <div
             ref={artifactRef}
             className="mx-auto flex w-full max-w-5xl flex-col gap-6 px-5 py-6 lg:px-8"

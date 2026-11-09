@@ -229,6 +229,7 @@ export const api = {
     req<{ ok: boolean }>(`/daily/${user_id}/regenerate${slot ? `?slot=${slot}` : ""}`, {
       method: "POST",
     }),
+  deleteAccount: (user_id: number) => req<{ deleted: number }>(`/daily/${user_id}`, { method: "DELETE" }),
   orderCard: (user_id: number, card_id: number, preview = false) =>
     req<OrderOutcome>(`/daily/${user_id}/order/${card_id}${preview ? "?preview=true" : ""}`, { method: "POST" }),
   feedback: (user_id: number, card_id: number, type: string, value?: number) =>

@@ -34,6 +34,7 @@ import {
 } from "lucide-react";
 
 import { api } from "@/lib/api";
+import { clearSession } from "@/lib/session";
 import type { CardItem, DailySlot, MemoryBullet, MenuCard, OrderOutcome, TodayView as Today } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import { focusRing, mealStyle } from "@/lib/design";
@@ -196,7 +197,7 @@ function MealCard({
   return (
     <article data-reveal className={cn("group/meal flex flex-col", locked && "opacity-60")}>
       {/* Swiggy-style photo: label + price on a dark gradient, press-to-shrink */}
-      <div className="relative aspect-[4/3] overflow-hidden rounded-2xl bg-muted transition-transform duration-200 ease-out group-hover/meal:scale-[0.97]">
+      <div className="relative aspect-[16/9] overflow-hidden rounded-2xl bg-muted sm:aspect-[4/3] transition-transform duration-200 ease-out group-hover/meal:scale-[0.97]">
         <div className="absolute inset-0 transition-transform duration-500 ease-out group-hover/meal:scale-105">
           <DishImage src={main.image_url} alt={title} sizes="(min-width: 1280px) 260px, 50vw" />
         </div>
@@ -450,6 +451,7 @@ export function TodayView({
   const chatEnd = useRef<HTMLDivElement>(null);
   const chatInput = useRef<HTMLInputElement>(null);
   const [chatOpen, setChatOpen] = useState(false);
+  const [armDelete, setArmDelete] = useState(false);
 
   const load = useCallback(async () => {
     try {
@@ -791,7 +793,7 @@ export function TodayView({
             ) : (
               MICROS.map((k) => <MicroBar key={k} k={k} value={n.week_avg[k] ?? 0} target={n.targets[k]} />)
             )}
-            <p className="text-[11px] text-muted-foreground">Values are estimates</p>
+            <p className="text-[11px] text-muted-foreground">Estimates from the <a href="https://doi.org/10.1016/j.cdnut.2024.103790" target="_blank" rel="noreferrer" className="underline">Indian Nutrient Databank</a></p>
           </div>
         </section>
 
@@ -827,6 +829,36 @@ export function TodayView({
               </li>
             ))}
           </ul>
+          {/* Account deletion: wipes profile, plans, feedback and orders on our side */}
+          <div className="border-t border-border pt-2 text-xs">
+            {armDelete ? (
+              <span className="flex flex-wrap items-center gap-2">
+                <span className="font-bold text-danger">Erase everything Forkcast stores about you?</span>
+                <button
+                  type="button"
+                  onClick={async () => {
+                    try {
+                      await api.deleteAccount(userId);
+                      clearSession();
+                      window.location.reload();
+                    } catch (e) {
+                      toast.error(e instanceof Error ? e.message : "Couldn't delete your data");
+                    }
+                  }}
+                  className={cn(focusRing, "rounded-full bg-danger px-2.5 py-1 font-bold text-white")}
+                >
+                  Delete my data
+                </button>
+                <button type="button" onClick={() => setArmDelete(false)} className={cn(focusRing, "rounded-full px-2 py-1 text-muted-foreground hover:text-foreground")}>
+                  Cancel
+                </button>
+              </span>
+            ) : (
+              <button type="button" onClick={() => setArmDelete(true)} className={cn(focusRing, "rounded text-muted-foreground underline-offset-2 hover:text-danger hover:underline")}>
+                Delete my account and data
+              </button>
+            )}
+          </div>
         </section>
       </aside>
 

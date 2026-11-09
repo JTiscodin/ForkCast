@@ -41,8 +41,8 @@ function Chip({ on, onClick, children }: { on: boolean; onClick: () => void; chi
 
 function Section({ n, title, children }: { n: number; title: string; children: React.ReactNode }) {
   return (
-    <section className="flex flex-col gap-2">
-      <h2 className="text-sm font-semibold text-muted-foreground">
+    <section className="flex flex-col gap-3 rounded-2xl bg-card p-4 shadow-soft">
+      <h2 className="text-sm font-bold text-foreground">
         {n}. {title}
       </h2>
       <div className="flex flex-wrap gap-2">{children}</div>
@@ -228,13 +228,16 @@ export function DailyOnboarding({
 
       <p className={cn(surfaces.well, "p-3 text-xs text-muted-foreground")}>
         Wellness guidance only, not medical advice. Medical conditions (diabetes, BP, PCOS, pregnancy) aren&apos;t
-        handled yet. Allergen detection is based on dish names and can miss things, so always confirm with the
-        restaurant.
+        handled yet. Allergens are estimated per dish and can be wrong. For a severe allergy we add a note to the
+        restaurant, but always tell them yourself too.
       </p>
 
-      <Button onClick={save} disabled={saving} className="self-start">
-        {saving ? "Saving…" : "Show my meals for today"}
-      </Button>
+      {/* sticky on phones so saving never needs a scroll to the bottom */}
+      <div className="sticky bottom-0 -mx-4 bg-gradient-to-t from-background via-background to-transparent px-4 pb-4 pt-6 sm:static sm:mx-0 sm:bg-none sm:p-0">
+        <Button onClick={save} disabled={saving} size="lg" className="w-full sm:w-auto">
+          {saving ? "Saving…" : "Show my meals for today"}
+        </Button>
+      </div>
     </div>
   );
 }
