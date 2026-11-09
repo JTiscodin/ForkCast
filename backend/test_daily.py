@@ -438,3 +438,31 @@ def test_passing_over_a_previously_ordered_dish_is_a_no_reorder_signal(conn):
     events = {r["type"] for r in conn.execute(
         "SELECT type FROM feedback_event WHERE key=?", (daily._norm(first["items"][0]["name"]),))}
     assert "no_reorder" in events
+
+
+def test_mcp_client_honours_retry_after_once(monkeypatch):
+    import io
+    import urllib.error
+    import swiggy_mcp
+    calls, slept = [], []
+
+    def fake_urlopen(req, timeout):
+        calls.append(1)
+        if len(calls) == 1:
+            raise urllib.error.HTTPError(req.full_url, 429, "Too Many", {"Retry-After": "1"}, io.BytesIO(b""))
+        return io.BytesIO(b'{"jsonrpc":"2.0","id":1,"result":{"structuredContent":{"ok":1}}}')
+
+    monkeypatch.setattr(swiggy_mcp.urllib.request, "urlopen", fake_urlopen)
+    monkeypatch.setattr(swiggy_mcp.time, "sleep", lambda s: slept.append(s))
+    c = swiggy_mcp.SwiggyMCPClient.__new__(swiggy_mcp.SwiggyMCPClient)
+    c.url, c.token, c._id, c.timeout = "https://x", "t", 0, 5
+    assert c.call("search_menu", {}) == {"ok": 1} and slept == [1.0] and len(calls) == 2
+
+
+def test_preview_builds_carts_but_records_nothing(conn):
+    daily.save_profile(conn, 1, {"mode": "live"})
+    card = view(conn)["slots"][1]["cards"][0]
+    r = daily.order(conn, 1, card["id"], OrderExecutor(mode="mock"), None, None, confirm=True, preview=True)
+    assert r["mode"] == "preview" and all(o["status"] == "dry_run" for o in r["orders"])
+    assert conn.execute("SELECT COUNT(*) FROM order_record").fetchone()[0] == 0
+    assert conn.execute("SELECT COUNT(*) FROM consumption_log").fetchone()[0] == 0

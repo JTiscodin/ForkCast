@@ -918,16 +918,21 @@ def parse_food_text(text):
 
 # ---------------------------------------------------------------- ordering
 
-def order(conn, user_id, card_id, food_exec, im_client, address_id, confirm=False):
+def order(conn, user_id, card_id, food_exec, im_client, address_id, confirm=False, preview=False):
     # confirm must come from a user click (the HTTP order endpoint), never from the agent
-    """One tap -> one or two orders (restaurant + Instamart). Honours profile.mode."""
+    """One tap -> one or two orders (restaurant + Instamart). Honours profile.mode.
+
+    preview=True builds the real carts and returns Swiggy's payable totals without
+    ordering or recording anything: the summary a live order is confirmed against.
+    """
     card = get_card(conn, card_id)
     if not card or card["user_id"] != user_id:
         raise ValueError("no such card")
     if not confirm:
         raise ValueError("confirm required")
     profile = get_profile(conn, user_id)
-    dry = profile["mode"] != "live"
+    dry = preview or profile["mode"] != "live"
+    rec = (lambda *a, **k: _result(*a, **k)) if preview else (lambda *a, **k: _rec(conn, *a, **k))
     if card["price"] >= MAX_ORDER:
         raise ValueError(f"order total must stay under Rs {MAX_ORDER}")
     if _ordered(conn, user_id, _date.fromisoformat(card["date"]), card["slot"]):
@@ -942,10 +947,10 @@ def order(conn, user_id, card_id, food_exec, im_client, address_id, confirm=Fals
                                 raw_variant=f.get("raw_variant"), dry_run=dry,
                                 extra_items=[{"id": i["id"], "quantity": _qty(i),
                                               "raw_variant": i.get("raw_variant")} for i in food[1:]])
-            results.append(_rec(conn, card_id, "food", r.get("order_id"), r["status"] if r["status"] != "confirmed" else "placed",
+            results.append(rec(card_id, "food", r.get("order_id"), r["status"] if r["status"] != "confirmed" else "placed",
                                 dry, r.get("amount") or _total(food), r.get("eta_min")))
         except Exception as e:  # noqa: BLE001 — fall back to the Swiggy app
-            results.append(_rec(conn, card_id, "food", None, "failed", dry, 0, None, str(e),
+            results.append(rec(card_id, "food", None, "failed", dry, 0, None, str(e),
                                 "https://www.swiggy.com/search?query=" + urllib.parse.quote(f["name"])))
     if groc:
         amt = _total(groc)
@@ -960,11 +965,13 @@ def order(conn, user_id, card_id, food_exec, im_client, address_id, confirm=Fals
                     res = im_client.checkout(address_id)
                     data = res.get("data") or res
                     oid, st = str(data.get("orderId") or data.get("order_id") or "IM-?"), "placed"
-            results.append(_rec(conn, card_id, "instamart", oid, st, dry, amt, 15))
+            results.append(rec(card_id, "instamart", oid, st, dry, amt, 15))
         except Exception as e:  # noqa: BLE001
-            results.append(_rec(conn, card_id, "instamart", None, "failed", dry, 0, None, str(e),
+            results.append(rec(card_id, "instamart", None, "failed", dry, 0, None, str(e),
                                 "https://www.swiggy.com/instamart"))
     ok = [r for r in results if r["status"] != "failed"]
+    if preview:
+        return {"card_id": card_id, "mode": "preview", "orders": results, "logged": None}
     if ok:
         log = log_food_items(conn, user_id, card)
         record_card(conn, user_id, card, "ordered", card["position"])
@@ -1000,6 +1007,10 @@ def _rec(conn, card_id, platform, oid, status, dry, amount, eta, error=None, fal
                  "VALUES (?,?,?,?,?,?)", (card_id, platform, oid, status,
                                           "dry_run" if dry else "live", amount))
     conn.commit()
+    return _result(card_id, platform, oid, status, dry, amount, eta, error, fallback)
+
+
+def _result(card_id, platform, oid, status, dry, amount, eta, error=None, fallback=None):
     return {"platform": platform, "order_id": oid, "status": status, "amount": amount,
             "eta_min": eta, "error": error, "fallback_url": fallback}
 

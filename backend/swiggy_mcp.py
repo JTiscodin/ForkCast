@@ -18,6 +18,7 @@ mock (MockMCPClient) needs no changes upstream. That's why catalog_fetcher /
 order_executor take an injected client.
 """
 import os
+import time
 import json
 import urllib.request
 import urllib.error
@@ -98,6 +99,16 @@ class SwiggyMCPClient:
                 return _parse_mcp_response(raw)
             except urllib.error.HTTPError as e:
                 body = e.read().decode(errors="replace")
+                # Swiggy's gateway: honour Retry-After on 429 (builders guidelines), once
+                if e.code == 429 and attempt == 0:
+                    try:
+                        wait = float(e.headers.get("Retry-After") or 2)
+                    except ValueError:
+                        wait = 2.0
+                    if wait <= 10:   # longer waits fail fast instead of stalling a request
+                        time.sleep(wait)
+                        continue
+                    raise SwiggyMCPError(f"HTTP 429: rate limited, retry after {wait:.0f}s") from e
                 # 401 with an invalid/expired token is NOT transient — mark it so
                 # the app can prompt for a fresh login instead of hammering Swiggy
                 # with a dead JWT. (No refresh token is persisted; a full browser

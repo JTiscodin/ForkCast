@@ -1211,9 +1211,9 @@ def daily_regenerate(user_id: int, slot: str = None):
 
 
 @app.post("/daily/{user_id}/order/{card_id}")
-def daily_order(user_id: int, card_id: int):
+def daily_order(user_id: int, card_id: int, preview: bool = False):
     return _daily(lambda c, d: daily.order(c, user_id, card_id, d["food_exec"], d["im_client"],
-                                           d["address_id"], confirm=True))
+                                           d["address_id"], confirm=True, preview=preview))
 
 
 @app.post("/daily/{user_id}/feedback")
