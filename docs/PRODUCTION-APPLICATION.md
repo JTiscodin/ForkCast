@@ -4,7 +4,7 @@ Draft answers to the nine inputs the Swiggy Builders production form asks for.
 Items marked **TODO** need a value only the applicant has.
 
 ## 1. Who is building it
-Vardan Agarwal, independent developer (GitHub: vardanagarwal11).
+Vardan Agarwal, independent developer (GitHub: vardanagarwal11), Jatin Tilwani, independent developer.
 
 ## 2. What it does
 Forkcast plans one person's food day. Every morning it shows four short lists —
