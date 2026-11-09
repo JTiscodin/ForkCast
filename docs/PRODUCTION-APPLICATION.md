@@ -81,6 +81,12 @@ Postgres and secrets in the host's secret store.
 - **TODO**: accept the Swiggy Builders terms in the form.
 
 ## Known caveats
+- **Must fix before launch: no per-user authentication yet.** The prototype is
+  single-user and trusts the `user_id` in the URL, so anyone who can reach the
+  API could read, order for, or delete another user. Production needs a signed
+  session (e.g. sign-in via Swiggy OAuth) bound to the user, with every
+  `/daily/{user_id}` route, especially order and delete, checking that the
+  session owns that id.
 - Nutrition values come from the Indian Nutrient Databank (INDB; Vijayakumar
   et al., Current Developments in Nutrition 2024, doi 10.1016/j.cdnut.2024.103790),
   published as an open-access resource for research, government and the private
