@@ -81,12 +81,12 @@ Postgres and secrets in the host's secret store.
 - **TODO**: accept the Swiggy Builders terms in the form.
 
 ## Known caveats
-- **Must fix before launch: no per-user authentication yet.** The prototype is
-  single-user and trusts the `user_id` in the URL, so anyone who can reach the
-  API could read, order for, or delete another user. Production needs a signed
-  session (e.g. sign-in via Swiggy OAuth) bound to the user, with every
-  `/daily/{user_id}` route, especially order and delete, checking that the
-  session owns that id.
+- **Access control:** every user-scoped route requires a per-user signed token
+  (HMAC-SHA256, issued when the account is created) and checks that the token owns
+  the user, plan or slot in the request; other users get 403. Remaining before
+  launch: token expiry or sign-in via Swiggy OAuth, per-user Swiggy logins (today
+  the server holds one Swiggy login, so `/mcp/addresses` stays open for onboarding),
+  and a CORS allow-list instead of `*`.
 - Nutrition values come from the Indian Nutrient Databank (INDB; Vijayakumar
   et al., Current Developments in Nutrition 2024, doi 10.1016/j.cdnut.2024.103790),
   published as an open-access resource for research, government and the private

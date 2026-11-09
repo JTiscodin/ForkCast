@@ -1,3 +1,4 @@
+import { clearSession, loadSession } from "./session";
 // Typed API client for the Forkcast backend (FastAPI on :8000).
 import type {
   ParsedIntake,
@@ -39,7 +40,10 @@ async function req<T>(
 ): Promise<T> {
   const res = await fetch(BASE + path, {
     method: opts.method ?? "GET",
-    headers: { "Content-Type": "application/json" },
+    headers: {
+      "Content-Type": "application/json",
+      ...(loadSession().token ? { Authorization: `Bearer ${loadSession().token}` } : {}),
+    },
     body: opts.body ? JSON.stringify(opts.body) : undefined,
     cache: "no-store",
   });
@@ -53,6 +57,11 @@ async function req<T>(
         : (j.detail ?? detail);
     } catch {
       /* ignore */
+    }
+    if (res.status === 403 && /sign in again/i.test(detail)) {
+      // our session token is missing or no longer valid: start onboarding fresh
+      clearSession();
+      if (typeof window !== "undefined") window.location.reload();
     }
     throw new ApiError(res.status, detail);
   }
@@ -82,7 +91,7 @@ export const api = {
     req<{ live: boolean }>("/auth/swiggy/logout", { method: "POST" }),
 
   createUser: (name: string, area?: string) =>
-    req<{ user_id: number }>("/user", { method: "POST", body: { name, area } }),
+    req<{ user_id: number; token: string }>("/user", { method: "POST", body: { name, area } }),
 
   addresses: () =>
     req<{ addresses: SwiggyAddress[] }>("/mcp/addresses"),

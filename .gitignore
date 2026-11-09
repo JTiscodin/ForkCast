@@ -34,3 +34,4 @@ backend/out*.txt
 *.png
 /mealplanner.db
 backend/data/taste/
+backend/.auth_secret

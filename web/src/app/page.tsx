@@ -286,7 +286,7 @@ export default function Home() {
         setUserId(u.user_id);
         setAddress(addr);
         setReady(true);
-        saveSession({ userId: u.user_id, name, address: addr, month: MONTH });
+        saveSession({ userId: u.user_id, token: u.token, name, address: addr, month: MONTH });
         // Tell the backend which addressId to search and order against —
         // without this, live mode silently falls back to the FIRST saved
         // Swiggy address regardless of the pick. Best-effort: on failure

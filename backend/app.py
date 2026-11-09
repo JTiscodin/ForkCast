@@ -20,6 +20,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, field_validator
 
 from db import init_db, get_conn
+import auth
 from wallet_service import WalletService
 from appetite import build_profile, AppetiteProfile
 import taste_profile
@@ -110,7 +111,9 @@ CATALOG_TTL_S = int(os.environ.get("CATALOG_TTL_S", "1800"))
 init_db()
 _init_runtime()
 
-app = FastAPI(title="Budget Meal Planner")
+app = FastAPI(title="Forkcast")
+# per-user tokens (auth.py); registered before CORS so CORS wraps its 403s
+app.middleware("http")(auth.middleware(get_conn))
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"],
                    allow_headers=["*"])
 
@@ -337,7 +340,7 @@ def create_user(body: UserIn):
     conn, w, _ = svc()
     uid = w.create_user(body.name, body.area)
     conn.close()
-    return {"user_id": uid}
+    return {"user_id": uid, "token": auth.bearer(uid)}
 
 
 @app.get("/mode")
