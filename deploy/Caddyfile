@@ -1,0 +1,5 @@
+# /etc/caddy/Caddyfile — HTTPS in front of the backend (certificate is automatic)
+# Replace the hostname with your DuckDNS name.
+forkcast-api.duckdns.org {
+	reverse_proxy 127.0.0.1:8343
+}

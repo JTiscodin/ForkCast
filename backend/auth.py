@@ -90,6 +90,14 @@ def owner_of(conn, path):
     return None
 
 
+def is_local(request):
+    """True only for a caller on the server itself. Behind the reverse proxy every
+    request comes from 127.0.0.1, so anything the proxy forwarded is NOT local."""
+    host = request.client.host if request.client else ""
+    return host in ("127.0.0.1", "::1") and not any(
+        h in request.headers for h in ("x-forwarded-for", "x-real-ip", "forwarded", "via"))
+
+
 def _deny(code, msg):
     return JSONResponse({"detail": msg}, status_code=code)
 
@@ -100,8 +108,7 @@ def middleware(get_conn):
         if request.method == "OPTIONS" or key in PUBLIC:
             return await call_next(request)
         if key in LOOPBACK_ONLY:
-            host = request.client.host if request.client else ""
-            return await call_next(request) if host in ("127.0.0.1", "::1") else _deny(403, "local only")
+            return await call_next(request) if is_local(request) else _deny(403, "local only")
         uid = user_from(request.headers.get("authorization"))
         if uid is None:
             return _deny(403, "Sign in again: missing or invalid session")

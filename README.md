@@ -102,6 +102,7 @@ Without a Swiggy login, the app runs on a built-in mock catalogue.
 | `SWIGGY_ADDRESS_ID` | Optional: pin a saved Swiggy address. |
 | `FORKCAST_SECRET` | Signs user tokens. If unset, a random secret is generated into `backend/.auth_secret`. |
 | `FORKCAST_ORIGINS` | Comma-separated web origins allowed to call the API (default `http://localhost:6001,http://localhost:3000`). |
+| `FORKCAST_ALLOW_LIVE` | `1` lets visitors from the internet switch on Live ordering. Leave unset while the server holds one shared Swiggy login. |
 | `DAILY_NIGHTLY_HOUR` | Hour the nightly job runs (default 2). |
 
 ### Tests
@@ -125,6 +126,7 @@ learning signals, order flow against a fake MCP, and auth.
 | `web/` | Next.js app (Today view, setup, chat, month planner) |
 | `docs/SPEC-daily-personalization.md` | Product spec for the daily recommender |
 | `docs/PRODUCTION-APPLICATION.md` | Answers for Swiggy's production access form |
+| `docs/DEPLOY.md` | Free hosting setup: Oracle Cloud VM + Vercel |
 
 The older **Month** tab (a budget-first monthly calendar with Swiggy Cash rollover) is
 still available; Forkcast's main screen is the daily view.

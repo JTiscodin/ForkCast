@@ -1,0 +1,16 @@
+# /etc/systemd/system/forkcast.service — keeps the backend running and restarts it on crash/reboot
+[Unit]
+Description=Forkcast backend
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+User=ubuntu
+WorkingDirectory=/home/ubuntu/Swiggy-Builder/backend
+# 127.0.0.1 only: the outside world reaches it through Caddy (HTTPS), never directly
+ExecStart=/home/ubuntu/Swiggy-Builder/backend/.venv/bin/python -m uvicorn app:app --host 127.0.0.1 --port 8343
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

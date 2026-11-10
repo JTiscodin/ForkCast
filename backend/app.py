@@ -345,8 +345,7 @@ def create_user(body: UserIn, request: Request):
         # Sign-back-in is local only: the server holds ONE Swiggy login, so only the
         # person at this machine (who owns that login) may reclaim its account. A
         # remote caller always gets a fresh, empty account.
-        local = bool(request.client) and request.client.host in ("127.0.0.1", "::1")
-        key = _swiggy_key(body.address_id) if local else None
+        key = _swiggy_key(body.address_id) if auth.is_local(request) else None
         if key:   # sign back in: same Swiggy account -> same Forkcast account
             row = conn.execute("SELECT id FROM users WHERE swiggy_key = ? ORDER BY id LIMIT 1", (key,)).fetchone()
             if row:
@@ -358,6 +357,14 @@ def create_user(body: UserIn, request: Request):
         return {"user_id": uid, "token": auth.bearer(uid), "returning": False}
     finally:
         conn.close()
+
+
+def _owns_swiggy_login(conn, user_id):
+    """True for the account that signed in from the server's own machine with the
+    connected Swiggy account. Its order history is personal data: nobody else's
+    taste profile may be seeded from it."""
+    r = conn.execute("SELECT swiggy_key FROM users WHERE id = ?", (user_id,)).fetchone()
+    return bool(r and r[0])
 
 
 def _swiggy_key(address_id):
@@ -465,7 +472,7 @@ def _mark_expired_token(e):
 
 
 @app.get("/mcp/addresses")
-def mcp_addresses():
+def mcp_addresses(request: Request):
     """Live only: list saved Swiggy addresses to pick an addressId for ordering.
 
     Normalizes the raw Swiggy payload to the shape the frontend expects:
@@ -500,7 +507,8 @@ def mcp_addresses():
             continue  # an entry with no id can't be selected or ordered against
         out.append({
             "id": str(aid),
-            "addressLine": a.get("addressLine") or a.get("address") or a.get("label"),
+            # the full street address is shown only on the owner's machine
+            "addressLine": (a.get("addressLine") or a.get("address") or a.get("label")) if auth.is_local(request) else None,
             "addressCategory": a.get("addressCategory") or a.get("type"),
             "addressTag": a.get("addressTag") or a.get("label"),
             "label": a.get("label"),
@@ -1209,18 +1217,25 @@ def daily_get_profile(user_id: int):
 
 
 @app.post("/daily/{user_id}/profile")
-def daily_save_profile(user_id: int, body: DailyProfileIn):
+def daily_save_profile(user_id: int, body: DailyProfileIn, request: Request):
     def go(conn, deps):
         if not conn.execute("SELECT 1 FROM users WHERE id=?", (user_id,)).fetchone():
             raise ValueError("unknown user")
+        # The server holds ONE Swiggy login. A visitor from the internet must never be
+        # able to place real orders on it; only the owner's machine (or an explicit
+        # FORKCAST_ALLOW_LIVE=1, once per-user Swiggy sign-in exists) can go live.
+        if body.mode == "live" and not (auth.is_local(request) or os.environ.get("FORKCAST_ALLOW_LIVE") == "1"):
+            raise ValueError("Live ordering is switched off on this server. Dry run still builds the real cart.")
         data = body.model_dump(exclude={"quiz_picks"})
         if not data.get("city") and not (daily.get_profile(conn, user_id) or {}).get("city"):
             data["city"] = _city_from_address()
         p = daily.save_profile(conn, user_id, data)
         for name in body.quiz_picks[:10]:
             daily.record(conn, user_id, "quiz", "dish", str(name))
-        pulled = daily.pull_history(conn, user_id, deps["im_client"], deps["address_id"])
-        pulled += daily.pull_food_orders(conn, user_id, STATE["client"] if _live() else None, deps["address_id"])
+        pulled = 0
+        if _owns_swiggy_login(conn, user_id):
+            pulled = daily.pull_history(conn, user_id, deps["im_client"], deps["address_id"])
+            pulled += daily.pull_food_orders(conn, user_id, STATE["client"] if _live() else None, deps["address_id"])
         daily.write_memory_md(conn, user_id)
         # a profile change (weekday diet, allergies…) invalidates unordered menus from today
         # on; the live/dry-run switch alone changes no card, so it keeps them
@@ -1345,7 +1360,8 @@ def run_nightly():
     try:
         deps = _daily_deps()
         for r in conn.execute("SELECT user_id FROM user_profile").fetchall():
-            daily.pull_food_orders(conn, r["user_id"], STATE["client"] if _live() else None, deps["address_id"])
+            if _owns_swiggy_login(conn, r["user_id"]):
+                daily.pull_food_orders(conn, r["user_id"], STATE["client"] if _live() else None, deps["address_id"])
         return daily.nightly(conn, deps["dishes_fn"], deps["im_fn"])
     finally:
         conn.close()

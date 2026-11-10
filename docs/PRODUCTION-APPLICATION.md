@@ -51,10 +51,11 @@ Browser (Next.js 16)  ──HTTPS──>  Forkcast API (FastAPI, Python)
 
 ## 4. Redirect URIs
 - Development: `http://localhost:8765/callback`
-- Production: **TODO** `https://<your-domain>/auth/swiggy/callback`
+- Production: **TODO** `https://<backend address>/auth/swiggy/callback`
+  (backend address = the DuckDNS name set up in `docs/DEPLOY.md`)
 
 ## 5. Static egress IPs
-**TODO** — the IP(s) of the production host that calls mcp.swiggy.com.
+**TODO** — the reserved public IP of the Oracle Cloud VM (one address).
 
 ## 6. Security contact
 vardanagarwal11@gmail.com
@@ -76,9 +77,16 @@ vardanagarwal11@gmail.com
   step shows the payable amount from the live cart before ordering.
 
 ## 8. Infrastructure
-**TODO** — hosting provider/region, HTTPS termination, DB backups. Current
-prototype: single FastAPI process + SQLite; production plan is a managed
-Postgres and secrets in the host's secret store.
+- Backend: one Oracle Cloud "Always Free" VM (Ubuntu 24.04, India region) with a
+  reserved public IP. FastAPI under systemd, bound to localhost, behind Caddy
+  with automatic HTTPS. SQLite on the VM's disk.
+- Website: Vercel (Next.js). It talks only to the backend, never to Swiggy.
+- Secrets (Swiggy tokens, Gemini key, token-signing secret) live in the VM's
+  `backend/.env`, outside git.
+- While the server holds a single Swiggy login, visitors from the internet
+  cannot switch on Live ordering, never receive the account's street address,
+  and their taste profile is never seeded from the account's order history.
+- Setup steps: `docs/DEPLOY.md`.
 
 ## 9. Terms acknowledgement
 - "Powered by Swiggy" / "Powered by Instamart" shown on every card, the order

@@ -44,6 +44,11 @@ def test_same_swiggy_account_signs_back_in(client, monkeypatch):
     r = remote.post("/user", json={"name": "S", "address_id": "999__home"}).json()
     assert r["user_id"] != a["user_id"] and r["returning"] is False   # remote callers can't reclaim an account
     client.delete(f"/daily/{r['user_id']}", headers={"Authorization": "Bearer " + r["token"]})
+    # behind the reverse proxy everything arrives from 127.0.0.1: forwarded requests are not local
+    p = client.post("/user", json={"name": "S", "address_id": "999__home"}, headers={"X-Forwarded-For": "203.0.113.9"}).json()
+    assert p["user_id"] != a["user_id"]
+    client.delete(f"/daily/{p['user_id']}", headers={"Authorization": "Bearer " + p["token"]})
+    assert client.post("/daily/nightly", headers={"X-Forwarded-For": "203.0.113.9"}).status_code == 403
     for u in (a, stranger):
         client.delete(f"/daily/{u['user_id']}", headers={"Authorization": "Bearer " + u["token"]})
 
@@ -68,6 +73,15 @@ def test_deleted_account_token_stops_working(client):
     h = {"Authorization": "Bearer " + u["token"]}
     assert client.delete(f"/daily/{u['user_id']}", headers=h).status_code == 200
     assert client.get(f"/daily/{u['user_id']}/memory", headers=h).status_code == 403
+
+
+def test_internet_visitors_cannot_go_live(client, monkeypatch):
+    monkeypatch.delenv("FORKCAST_ALLOW_LIVE", raising=False)
+    u = client.post("/user", json={"name": "V"}).json()
+    h = {"Authorization": "Bearer " + u["token"], "X-Forwarded-For": "203.0.113.9"}
+    assert client.post(f"/daily/{u['user_id']}/profile", json={"mode": "live"}, headers=h).status_code == 400
+    assert client.post(f"/daily/{u['user_id']}/profile", json={"mode": "dry_run"}, headers=h).status_code == 200
+    client.delete(f"/daily/{u['user_id']}", headers=h)
 
 
 def test_public_routes_stay_open(client):

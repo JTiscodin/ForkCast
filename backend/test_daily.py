@@ -531,6 +531,25 @@ def test_note_reaches_place_food_order():
     assert dict(calls)["place_food_order"]["noteToRestaurant"] == "No peanut please"
 
 
+def test_rain_brings_chai_pakora_weather():
+    rain, dry = {"rain": True}, {}
+    assert daily.weather_score("Onion Pakoda", DAY, rain) > daily.weather_score("Onion Pakoda", DAY, dry)
+    assert daily.weather_score("Bhel Puri", DAY, rain) < 0                 # raw street food drops in the rain
+    assert daily.weather_reason("Onion Pakoda", DAY, rain) == "Raining today: chai and pakora weather"
+    assert daily.weather_reason("Onion Pakoda", DAY, dry) is None
+    assert daily.weather_reason("Steak", DAY, rain) is None                # "tea" must not match inside "steak"
+
+
+def test_rainy_snack_gets_chai_from_the_same_restaurant(conn, monkeypatch):
+    monkeypatch.setattr(daily, "weather", lambda city, day: {"rain": True})
+    base = next(x for x in mock_catalog() if x.veg)
+    pool = [replace(base, dish_id="p1", name="Onion Pakoda", restaurant_id="r1", meal_type="snack", price=90, dish_kind="snack"),
+            replace(base, dish_id="t1", name="Masala Chai", restaurant_id="r1", meal_type="snack", price=30, dish_kind="beverage")]
+    drafts = daily.candidates("snack", DAY, daily.get_profile(conn, 1), lambda *a, **k: pool, lambda q: [])
+    pak = next(d for d in drafts if d["items"][0]["name"] == "Onion Pakoda")
+    assert [i["name"] for i in pak["items"]] == ["Onion Pakoda", "Masala Chai"]
+
+
 def test_dairy_allergy_blocks_instamart_and_addons(conn):
     al = [{"name": "dairy", "severe": False}]
     assert daily._name_allergen("Amul Calci+ Milk Tetra", al) == "dairy"

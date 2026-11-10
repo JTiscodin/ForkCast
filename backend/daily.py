@@ -257,7 +257,29 @@ COOLING = ("curd", "dahi", "raita", "lassi", "chaas", "buttermilk", "coconut", "
 WARM = ("soup", "dal", "khichdi", "paratha", "halwa", "biryani", "curry", "rasam",
         "thukpa", "makki", "tea", "pongal")
 RAW_STREET = ("salad", "chaat", "pani puri", "golgappa", "bhel", "sev puri", "cut fruit")
+# Rainy-day cravings: chai-pakora weather. Fried, hot, eaten with tea.
+RAINY = ("pakora", "pakoda", "pakode", "bhajiya", "bhajji", "bhaji", "fritter", "samosa", "kachori", "vada",
+         "bonda", "maggi", "momo", "soup", "bhutta", "corn", "chai", "tea")
 _WEATHER_CACHE = {}
+
+
+def _has(name, words):
+    n = name.lower()
+    return any(re.search(rf"\b{re.escape(w)}", n) for w in words)
+
+
+def weather_reason(name, day, wx):
+    """Plain-words reason shown on the card when the weather is why it ranks high."""
+    s = season(day)
+    if wx.get("rain") and _has(name, RAINY):
+        return "Raining today: chai and pakora weather"
+    if s == "monsoon" and _has(name, RAINY):
+        return "Monsoon favourite, served hot"
+    if (wx.get("hot") or s == "summer") and _has(name, COOLING):
+        return "Hot day: something cooling"
+    if s == "winter" and _has(name, WARM):
+        return "Cold day: warm and filling"
+    return None
 
 
 def season(day):
@@ -301,7 +323,7 @@ def weather_score(name, day, wx):
     if s == "summer" or wx.get("hot"):
         x += cool - 0.5 * warm
     if s == "monsoon" or wx.get("rain"):
-        x += 0.5 * warm - raw
+        x += 0.5 * warm - raw + (1.0 if _has(n, RAINY) else 0.0)
     if s == "winter":
         x += warm - 0.5 * cool
     return max(-1.0, min(1.0, x))
@@ -587,6 +609,13 @@ def candidates(slot, day, profile, dishes_fn, im_fn, conn=None):
             cur = acc.get(d.restaurant_id)
             if cur is None or d.price * q < cur.price * carb_qty(cur):
                 acc[d.restaurant_id] = d
+    rainy = season(day) == "monsoon" or bool(weather(profile.get("city"), day).get("rain"))
+    tea = {}   # restaurant -> cheapest plain chai
+    if rainy and slot == "snack":
+        for d in pool:
+            if _has(d.name, ("chai", "tea")) and not _has(d.name, ("iced", "cold", "lemon")) and d.price <= 80:
+                if d.restaurant_id not in tea or d.price < tea[d.restaurant_id].price:
+                    tea[d.restaurant_id] = d
     out = []
     for d in pool:
         p = profs.get(d.name)
@@ -600,6 +629,10 @@ def candidates(slot, day, profile, dishes_fn, im_fn, conn=None):
         if p and p.get("source") != "rules":   # rule guesses must not override the Jain safe-list
             item.update(canonical=p.get("canonical"), onion_garlic=p["onion_garlic"], allergens=p.get("allergens"))
         items = [item]
+        if slot == "snack" and rainy and _has(d.name, RAINY) and not _has(d.name, ("chai", "tea", "soup")):
+            cup = tea.get(d.restaurant_id)
+            if cup is not None:
+                items.append({**_dish_item(cup), "quantity": 1, "side": True})
         if needs_carb:
             side = acc.get(d.restaurant_id)
             if side is None:
@@ -866,7 +899,8 @@ def build_day(conn, user_id, day, dishes_fn, im_fn, slots=None):
         # one add-on per slot, offered on the gap card first: on every card it's noise
         addon_for = next((c for c, (r, _) in picks if r == "gap"), picks[0][0] if picks else None)
         for pos, (c, (role, why)) in enumerate(picks):
-            reasons = [why]
+            wr = weather_reason(" ".join(i["name"] for i in c["items"]), day, ctx["wx"])
+            reasons = [wr, why] if wr else [why]
             add = _addon(conn, profile, day, slot, c, ctx["gap"], im_fn, addon_cache) if c is addon_for else None
             items = list(c["items"])
             if add and c["price"] + add["price"] < MAX_ORDER:
