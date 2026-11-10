@@ -110,9 +110,13 @@ def middleware(get_conn):
             return _deny(403, "Not your account")
         conn = get_conn()
         try:
+            # a deleted account's token is dead even before it expires
+            alive = conn.execute("SELECT 1 FROM users WHERE id = ?", (uid,)).fetchone()
             owner = owner_of(conn, path)
         finally:
             conn.close()
+        if not alive:
+            return _deny(403, "Sign in again: missing or invalid session")
         if owner is not None and owner != uid:
             return _deny(403 if owner != -1 else 404, "Not your plan" if owner != -1 else "Not found")
         # any user_id the request carries (query or body, whatever the content-type) must be the caller's

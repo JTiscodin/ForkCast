@@ -454,6 +454,33 @@ _ALLERGY_ALIASES = {"tree nut": "tree_nut", "nuts": "tree_nut", "cashew": "tree_
                     "milk": "dairy", "lactose": "dairy", "wheat": "gluten", "prawn": "shellfish", "eggs": "egg"}
 
 
+# Name words that mean an allergen is in the food. Used for anything without a dish
+# profile: Instamart products, add-ons, and dishes the classifier hasn't seen yet.
+ALLERGEN_WORDS = {
+    "dairy": ("milk", "curd", "dahi", "paneer", "cheese", "butter", "ghee", "lassi", "chaas", "buttermilk",
+              "yogurt", "yoghurt", "cream", "kheer", "raita", "makhani", "malai", "khoya", "mawa", "rabri"),
+    "peanut": ("peanut", "groundnut", "moongfali", "mungfali"),
+    "tree_nut": ("cashew", "kaju", "almond", "badam", "pista", "pistachio", "walnut", "akhrot", "hazelnut", "nuts"),
+    "gluten": ("wheat", "atta", "maida", "roti", "chapati", "naan", "bread", "paratha", "pasta", "noodles",
+               "suji", "rava", "kulcha", "bhatura", "puri", "sandwich", "burger", "pizza", "maggi"),
+    "egg": ("egg", "eggs", "omelette", "omelet", "anda", "bhurji egg"),
+    "soy": ("soy", "soya", "tofu"),
+    "fish": ("fish", "surmai", "pomfret", "rohu", "tuna", "salmon"),
+    "shellfish": ("prawn", "prawns", "shrimp", "crab", "lobster"),
+    "sesame": ("sesame", "til", "tahini"),
+}
+
+
+def _name_allergen(name, allergies):
+    """The user's allergy that this product NAME points to, or None."""
+    words = set(re.findall(r"[a-z]+", (name or "").lower()))
+    for a in allergies:
+        key = _ALLERGY_ALIASES.get(a["name"], a["name"].replace(" ", "_"))
+        if words & set(ALLERGEN_WORDS.get(key, ())) or a["name"].lower() in (name or "").lower():
+            return a["name"]
+    return None
+
+
 def _allergy_check(items, allergies):
     """Profiled allergens vs the user's: (blocking allergen, note to restaurant).
 
@@ -577,13 +604,16 @@ def candidates(slot, day, profile, dishes_fn, im_fn, conn=None):
             side = acc.get(d.restaurant_id)
             if side is None:
                 continue
-            items.append({**_dish_item(side), "quantity": carb_qty(side), "side": True})
+            sp = profs.get(side.name)
+            items.append({**_dish_item(side), "quantity": carb_qty(side), "side": True,
+                          **({"allergens": sp.get("allergens")} if sp and sp.get("source") != "rules" else {})})
         out.append({"items": items})
     for qa, qb in IM_BUNDLES.get(slot, ()):
         picked = []
         for q in (qa, qb):
             try:
-                rows = [r for r in im_fn(q) if r.get("price") and _im_safe(r.get("name") or "", diet)]
+                rows = [r for r in im_fn(q) if r.get("price") and _im_safe(r.get("name") or "", diet)
+                        and not _name_allergen(f"{q} {r.get('name') or ''}", profile.get("allergies") or [])]
             except Exception as e:  # noqa: BLE001 — Instamart outage = restaurant-only cards
                 print(f"[daily] instamart '{q}' failed: {e}")
                 rows = []
@@ -642,8 +672,10 @@ def filter_and_score(conn, user_id, profile, day, slot, drafts, ctx):
         if any(not _im_safe(i["name"], diet_on(profile, day)) for i in items):
             continue
         hit, note = _allergy_check(items, profile["allergies"])
-        if hit is None and not any("allergens" in i for i in items):   # unprofiled: name rules
-            hit = next((a for a in (tp.allergy_blocked(_as_dish(i), with_allergy) for i in items) if a), None)
+        if hit is None:   # items without a profile (Instamart, unseen dishes): judge by name
+            bare = [i for i in items if i.get("allergens") is None]
+            hit = next((a for a in (_name_allergen(i["name"], profile["allergies"]) for i in bare) if a), None) \
+                or next((a for a in (tp.allergy_blocked(_as_dish(i), with_allergy) for i in bare) if a), None)
         if note:
             items = [{**items[0], "note": note}] + items[1:]
             c = {**c, "items": items}
@@ -794,7 +826,8 @@ def _addon(conn, profile, day, slot, card, gap, im_fn, cache):
             continue   # already on the plate (curd rice + dahi) or no fit for this diet
         if q not in cache:
             try:
-                rows = [r for r in im_fn(q) if r.get("price") and _im_safe(r.get("name") or "", diet)]
+                rows = [r for r in im_fn(q) if r.get("price") and _im_safe(r.get("name") or "", diet)
+                        and not _name_allergen(f"{q} {r.get('name') or ''}", profile.get("allergies") or [])]
             except Exception:  # noqa: BLE001 — add-on is optional
                 rows = []
             cache[q] = _im_item(min(rows, key=lambda r: r["price"])) if rows else None

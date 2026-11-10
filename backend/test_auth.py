@@ -63,5 +63,12 @@ def test_user_routes_need_the_owners_token(client):
     client.delete(f"/daily/{other['user_id']}", headers=h)
 
 
+def test_deleted_account_token_stops_working(client):
+    u = client.post("/user", json={"name": "D"}).json()
+    h = {"Authorization": "Bearer " + u["token"]}
+    assert client.delete(f"/daily/{u['user_id']}", headers=h).status_code == 200
+    assert client.get(f"/daily/{u['user_id']}/memory", headers=h).status_code == 403
+
+
 def test_public_routes_stay_open(client):
     assert client.get("/mode").status_code == 200

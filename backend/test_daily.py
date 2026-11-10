@@ -531,6 +531,21 @@ def test_note_reaches_place_food_order():
     assert dict(calls)["place_food_order"]["noteToRestaurant"] == "No peanut please"
 
 
+def test_dairy_allergy_blocks_instamart_and_addons(conn):
+    al = [{"name": "dairy", "severe": False}]
+    assert daily._name_allergen("Amul Calci+ Milk Tetra", al) == "dairy"
+    assert daily._name_allergen("Epigamia Mango Flavoured Yogurt", al) == "dairy"
+    assert daily._name_allergen("Butter Tandoori Roti", al) == "dairy"
+    assert daily._name_allergen("Robusta Banana", al) is None
+    assert daily._name_allergen("Salted Peanuts", [{"name": "peanut", "severe": True}]) == "peanut"
+    daily.save_profile(conn, 1, {"diet_type": "veg", "allergies": al})
+    for s in view(conn)["slots"]:
+        for c in s["cards"]:
+            for i in c["items"]:
+                if i["source"] == "instamart":
+                    assert not daily._name_allergen(i["name"], al), i["name"]
+
+
 def test_hidden_for_allergies_lists_each_dish_once(conn):
     daily.save_profile(conn, 1, {"allergies": [{"name": "peanut", "severe": True}]})
     for s in view(conn)["slots"]:
