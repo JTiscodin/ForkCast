@@ -519,6 +519,22 @@ def _fits_profile(d, slot, prof):
     return prof["kind"] in ("meal", "curry")
 
 
+def _side_qty(name, q):
+    """How many of this roti/rice item one person needs with a curry (0 = don't use it).
+
+    q is the per-piece default (2 roti, 1 rice). A pack already holds several
+    pieces, so it is ordered once; a sharing pack (more than 4 pieces, or a
+    tub/basket/family size) is never a one-person side.
+    """
+    n = name.lower()
+    if not q or re.search(r"\b(tub|basket|bucket|family|party|jumbo|platter)\b", n):
+        return 0
+    m = (re.search(r"pack of\s*(\d+)", n) or re.search(r"(\d+)\s*[- ]?\s*(?:pcs|pc|pieces|piece|nos)\b", n)
+         or re.search(r"\((\d+)\)", n))
+    pieces = int(m.group(1)) if m else 1
+    return 0 if pieces > 4 else 1 if pieces > 1 else q
+
+
 def candidates(slot, day, profile, dishes_fn, im_fn, conn=None):
     """-> list of card drafts {items, price, kind} before filtering.
 
@@ -535,8 +551,7 @@ def candidates(slot, day, profile, dishes_fn, im_fn, conn=None):
             q = {"bread": 2, "rice": 1}.get(p["kind"], 0)
         else:
             q = ACC_QTY.get(d.course, 0) if d.dish_kind == "meal" else 0
-        # already a multi-piece pack ("Pack of 3", "(2 Pcs)", "4 Nos"): order it once
-        return 1 if q and re.search(r"pack of\s*[2-9]|\b[2-9]\s*(pcs|pc|pieces|nos)\b", d.name.lower()) else q
+        return _side_qty(d.name, q)
 
     acc = {}   # restaurant -> cheapest roti/rice serving, so a curry is a whole meal
     for d in pool:

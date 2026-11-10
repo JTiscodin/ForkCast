@@ -531,6 +531,15 @@ def test_note_reaches_place_food_order():
     assert dict(calls)["place_food_order"]["noteToRestaurant"] == "No peanut please"
 
 
+def test_side_bread_is_sized_for_one_person():
+    assert daily._side_qty("Tawa Roti", 2) == 2
+    assert daily._side_qty("Butter Roti (2 Pcs)", 2) == 1          # a pack is ordered once
+    assert daily._side_qty("Rumali Roti Pack of 3", 2) == 1
+    assert daily._side_qty("Chapati Tub (6-pcs)", 2) == 0          # sharing pack: never a one-person side
+    assert daily._side_qty("Roti Basket", 2) == 0
+    assert daily._side_qty("Steamed Rice", 1) == 1
+
+
 def test_unspent_budget_rolls_into_next_month(conn):
     p = daily.get_profile(conn, 1)
     assert daily.budget(conn, 1, p, DAY)["rollover"] == 0          # not on Forkcast last month
