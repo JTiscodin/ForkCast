@@ -35,3 +35,4 @@ backend/out*.txt
 /mealplanner.db
 backend/data/taste/
 backend/.auth_secret
+web/src/.swarm/
