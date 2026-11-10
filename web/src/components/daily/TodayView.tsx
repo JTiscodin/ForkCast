@@ -97,7 +97,7 @@ function PoweredBy({ service }: { service: "Swiggy" | "Instamart" }) {
 /** Swiggy's rating mark: white star in a solid green circle. */
 function RatingDot() {
   return (
-    <span className="inline-flex size-[18px] items-center justify-center rounded-full bg-rating" aria-hidden>
+    <span className="inline-flex size-[18px] shrink-0 items-center justify-center rounded-full bg-rating" aria-hidden>
       <Star className="size-2.5 fill-white text-white" strokeWidth={2.6} />
     </span>
   );
@@ -196,44 +196,44 @@ function MealCard({
   const veg = card.items.every((i) => i.veg);
 
   return (
-    <article data-reveal className={cn("group/meal flex flex-col", locked && "opacity-60")}>
+    <article data-reveal className={cn("group/meal flex flex-col overflow-hidden rounded-2xl bg-card shadow-soft transition-shadow hover:shadow-layered", locked && "opacity-60")}>
       {/* Swiggy-style photo: label + price on a dark gradient, press-to-shrink */}
-      <div className="relative aspect-[16/9] overflow-hidden rounded-2xl bg-muted sm:aspect-[4/3] transition-transform duration-200 ease-out group-hover/meal:scale-[0.97]">
+      <div className="relative aspect-[16/9] overflow-hidden bg-muted sm:aspect-[4/3]">
         <div className="absolute inset-0 transition-transform duration-500 ease-out group-hover/meal:scale-105">
           <DishImage src={main.image_url} alt={title} sizes="(min-width: 1280px) 260px, 50vw" />
         </div>
-        <div aria-hidden className="absolute inset-x-0 bottom-0 h-2/3 bg-gradient-to-t from-black/80 via-black/30 to-transparent" />
+        <div aria-hidden className="absolute inset-x-0 bottom-0 h-1/2 bg-gradient-to-t from-black/75 to-transparent" />
+        <span className="absolute left-2 top-2 rounded-full bg-white/95 px-2 py-0.5 text-[11px] font-extrabold text-foreground shadow-soft">{ROLE_LABEL[card.role]}</span>
         {grocery && (
           <span className="absolute right-2 top-2 inline-flex items-center gap-1 rounded-md bg-white px-1.5 py-0.5 text-[11px] font-extrabold text-meal-snack">
             <ShoppingBasket className="size-3" aria-hidden /> Instamart
           </span>
         )}
         <div className="absolute inset-x-3 bottom-2.5 text-white">
-          <p className="text-[11px] font-extrabold uppercase tracking-wide text-white/85">{ROLE_LABEL[card.role]}</p>
           <p className="text-xl font-extrabold leading-tight tracking-[-0.02em] tabular-nums">{formatINR(card.price)}</p>
         </div>
       </div>
 
-      <div className="flex flex-1 flex-col gap-1 px-1 pt-2.5">
+      <div className="flex flex-1 flex-col gap-1 p-3">
         <h3 className="flex items-start gap-1.5 text-[15px] font-extrabold leading-snug tracking-[-0.01em]">
           <span className="mt-[3px]">
             <DietMarker veg={veg} />
           </span>
           <span className="line-clamp-2">{title}</span>
         </h3>
-        <p className="flex flex-wrap items-center gap-x-1.5 gap-y-0.5 whitespace-nowrap text-[13px] font-bold">
-          {typeof rating === "number" && !grocery && (
-            <>
-              <RatingDot />
-              <span>{rating.toFixed(1)}</span>
-              <span className="text-muted-foreground" aria-hidden>•</span>
-            </>
-          )}
+        <p className="flex items-center gap-x-1.5 overflow-hidden whitespace-nowrap text-[13px] font-bold">
           <span>~{Math.round(card.nutrients.kcal ?? 0)} kcal</span>
           <span className="text-muted-foreground" aria-hidden>•</span>
-          <span>{Math.round(card.nutrients.protein ?? 0)}g protein</span>
+          <span className="truncate">{Math.round(card.nutrients.protein ?? 0)}g protein</span>
         </p>
-        <p className="truncate text-sm text-muted-foreground">{grocery ? "Instamart · delivered in minutes" : main.restaurant_name}</p>
+        <p className="flex items-center gap-1.5 text-sm text-muted-foreground">
+          {typeof rating === "number" && !grocery && (
+            <span className="flex shrink-0 items-center gap-1 font-bold text-foreground">
+              <RatingDot /> {rating.toFixed(1)}
+            </span>
+          )}
+          <span className="truncate">{grocery ? "Instamart, delivered in minutes" : main.restaurant_name}</span>
+        </p>
         <p className="flex flex-wrap gap-x-2">
           {!grocery && <PoweredBy service="Swiggy" />}
           {(grocery || addon) && <PoweredBy service="Instamart" />}
@@ -333,34 +333,35 @@ function MealCard({
               </p>
             </div>
           ) : (
-            <div className="flex flex-wrap items-center justify-between gap-1">
+            <div className="flex flex-col gap-2">
               {/* Swiggy's ADD button: white, green bold caps, soft shadow */}
               <button
                 type="button"
                 disabled={locked}
                 onClick={() => setConfirming(true)}
-                className={cn(focusRing, "rounded-lg border border-border bg-card px-5 py-1.5 text-sm font-extrabold uppercase tracking-wide text-rating shadow-soft transition hover:bg-muted active:scale-95 disabled:cursor-not-allowed disabled:text-muted-foreground")}
+                className={cn(focusRing, "w-full rounded-xl bg-rating px-5 py-2 text-sm font-extrabold text-white transition hover:brightness-95 active:scale-[0.98] disabled:cursor-not-allowed disabled:bg-muted disabled:text-muted-foreground")}
               >
                 {locked ? "Done" : "Order"}
               </button>
-              <div className="flex">
+              <div role="group" aria-label="Teach Forkcast" className="grid grid-cols-4 gap-1">
                 {(
                   [
-                    ["up", ThumbsUp, "More like this"],
-                    ["down", ThumbsDown, "Less like this"],
-                    ["not_today", Clock, "Not today"],
-                    ["never", Ban, "Never show this"],
+                    ["up", ThumbsUp, "More", "More like this", "hover:bg-rating/10 hover:text-rating"],
+                    ["down", ThumbsDown, "Less", "Less like this", "hover:bg-warning/10 hover:text-warning"],
+                    ["not_today", Clock, "Later", "Not today, swap it", "hover:bg-muted hover:text-foreground"],
+                    ["never", Ban, "Never", "Never show this", "hover:bg-danger/10 hover:text-danger"],
                   ] as const
-                ).map(([t, Icon, label]) => (
+                ).map(([t, Icon, short, label, hover]) => (
                   <button
                     key={t}
                     type="button"
                     aria-label={label}
                     title={label}
                     onClick={() => onFeedback(card, t)}
-                    className={cn(focusRing, "rounded-md p-1 text-muted-foreground transition hover:bg-muted hover:text-foreground active:scale-90")}
+                    className={cn(focusRing, "flex flex-col items-center gap-0.5 rounded-lg py-1 text-[11px] font-semibold text-muted-foreground transition active:scale-90", hover)}
                   >
-                    <Icon className="size-[15px]" />
+                    <Icon className="size-4" aria-hidden />
+                    {short}
                   </button>
                 ))}
               </div>
@@ -509,8 +510,10 @@ export function TodayView({
   async function feedback(card: MenuCard, type: string) {
     try {
       await api.feedback(userId, card.id, type);
+      const dish = card.items[0].name;
       toast.success(
-        { up: "Got it, more like this", down: "Noted, less like this", not_today: "Swapping it out for today", never: "Won't show that again" }[type] ?? "Noted"
+        { up: `Learned: more ${dish}`, down: `Learned: less ${dish}`, not_today: `Swapping ${dish} out for today`, never: `${dish} won't be shown again` }[type] ?? "Noted",
+        type === "up" || type === "down" ? { description: "See it under You", action: { label: "Open", onClick: onShowProfile } } : undefined
       );
       if (type === "never" || type === "not_today") {
         await api.regenerate(userId, data?.slots.find((s) => s.cards.some((c) => c.id === card.id))?.slot);
