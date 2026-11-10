@@ -473,11 +473,25 @@ def test_food_order_history_teaches_once_per_order(conn):
         def call(self, tool, args):
             assert tool == "get_food_orders" and args["orderCount"] == 15 and args["addressId"]
             return {"data": {"orders": [{"orderId": "o1", "restaurantName": "Haldiram",
-                                         "orderedItems": "1 x Rajma Chawal, 2 x Butter Roti"}]}}
+                                         "orderedItems": "1 x Rajma Chawal, 2 x Butter Roti, Afghani Chaap (1)"}]}}
     assert daily.pull_food_orders(conn, 1, Food(), "a1") == 1
     assert daily.pull_food_orders(conn, 1, Food(), "a1") == 0          # same order not learned twice
     w, _ = daily.weights(conn, 1)
     assert w[("dish", "rajma chawal")] == pytest.approx(2, abs=0.01) and ("dish", "butter roti") in w
+    assert ("dish", "afghani chaap") in w                              # "(1)" quantity is not part of the name
+
+
+def test_grocery_history_counts_each_product_once(conn):
+    class IM:
+        def get_orders(self):
+            return [{"displayName": "Amul Curd"}]
+
+        def your_go_to_items(self, address_id):
+            return []
+    daily.pull_history(conn, 1, IM(), "a1")
+    daily.pull_history(conn, 1, IM(), "a1")
+    w, _ = daily.weights(conn, 1)
+    assert w[("grocery", "amul curd")] == pytest.approx(2, abs=0.01)
 
 
 def test_meals_must_be_filling_and_soda_combos_are_out(conn):

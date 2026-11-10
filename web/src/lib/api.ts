@@ -1,4 +1,4 @@
-import { clearSession, loadSession } from "./session";
+import { clearSession, loadSession, saveSession } from "./session";
 // Typed API client for the Forkcast backend (FastAPI on :8000).
 import type {
   ParsedIntake,
@@ -65,6 +65,9 @@ async function req<T>(
     }
     throw new ApiError(res.status, detail);
   }
+  // sliding session: the backend sends a renewed token with every signed-in response
+  const fresh = res.headers.get("X-Forkcast-Token");
+  if (fresh) saveSession({ token: fresh });
   return res.json() as Promise<T>;
 }
 
@@ -90,8 +93,8 @@ export const api = {
   authLogout: () =>
     req<{ live: boolean }>("/auth/swiggy/logout", { method: "POST" }),
 
-  createUser: (name: string, area?: string) =>
-    req<{ user_id: number; token: string }>("/user", { method: "POST", body: { name, area } }),
+  createUser: (name: string, area?: string, address_id?: string) =>
+    req<{ user_id: number; token: string; returning?: boolean }>("/user", { method: "POST", body: { name, area, address_id } }),
 
   addresses: () =>
     req<{ addresses: SwiggyAddress[] }>("/mcp/addresses"),

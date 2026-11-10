@@ -282,7 +282,8 @@ export default function Home() {
   const handleStart = useCallback(
     async (name: string, addr: SwiggyAddress | null) => {
       try {
-        const u = await api.createUser(name, addr?.addressTag ?? addr?.addressCategory);
+        const u = await api.createUser(name, addr?.addressTag ?? addr?.addressCategory, addr?.id);
+        if (u.returning) toast.success("Welcome back. Your plan and preferences are restored.");
         setUserId(u.user_id);
         setAddress(addr);
         setReady(true);

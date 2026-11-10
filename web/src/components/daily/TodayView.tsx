@@ -24,7 +24,7 @@ import {
   Sun,
   ThumbsDown,
   ThumbsUp,
-  Trash2,
+
   Wallet,
   Zap,
   ChefHat,
@@ -44,6 +44,7 @@ import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { LottiePlayer } from "@/components/ui/LottiePlayer";
 import Image from "next/image";
+import { TastePanel } from "./TastePanel";
 import { LogoMark } from "@/components/app/Logo";
 import { BowlIllustration } from "@/components/ui/illustrations";
 import { DishImage } from "@/components/dish/DishImage";
@@ -797,38 +798,8 @@ export function TodayView({
           </div>
         </section>
 
-        <section className="flex flex-col gap-2 rounded-2xl bg-card p-4 shadow-soft">
-          <h2 className="font-extrabold">What we know about you</h2>
-          <ul className="flex flex-col gap-1 text-xs text-muted-foreground">
-            {memory.facts.map((f) => (
-              <li key={f}>{f}</li>
-            ))}
-          </ul>
-          <ul className="flex flex-col">
-            {memory.bullets.map((b) => (
-              <li key={b.id} className="group/mem flex items-center justify-between gap-2 rounded-lg px-2 py-1.5 text-sm hover:bg-muted/60">
-                <span className="min-w-0">
-                  <span className={cn("mr-1.5 inline-block size-1.5 rounded-full align-middle", b.blocked ? "bg-danger" : b.weight > 0 ? "bg-rating" : "bg-warning")} aria-hidden />
-                  {b.text}
-                </span>
-                <span className="flex shrink-0 opacity-60 transition-opacity group-hover/mem:opacity-100">
-                  {!b.blocked && (
-                    <>
-                      <Button size="icon" variant="ghost" aria-label={`More ${b.key}`} onClick={() => editMemory(b, { weight: b.weight + 2 })}>
-                        <ThumbsUp />
-                      </Button>
-                      <Button size="icon" variant="ghost" aria-label={`Less ${b.key}`} onClick={() => editMemory(b, { weight: b.weight - 2 })}>
-                        <ThumbsDown />
-                      </Button>
-                    </>
-                  )}
-                  <Button size="icon" variant="ghost" aria-label={`Forget ${b.key}`} onClick={() => editMemory(b, { delete: true })}>
-                    <Trash2 />
-                  </Button>
-                </span>
-              </li>
-            ))}
-          </ul>
+        <section className="flex flex-col gap-3 rounded-2xl bg-card p-4 shadow-soft">
+          <TastePanel facts={memory.facts} bullets={memory.bullets} onEdit={editMemory} />
           {/* Account deletion: wipes profile, plans, feedback and orders on our side */}
           <div className="border-t border-border pt-2 text-xs">
             {armDelete ? (

@@ -289,4 +289,5 @@ export interface MemoryBullet {
   weight: number;
   blocked: boolean;
   text: string;
+  why?: string;   // plain-words source of the belief
 }

@@ -183,11 +183,22 @@ def _norm(s):
 
 # ---------------------------------------------------------------- memory
 
+MEMORY_WHY = (("never", "You said never"), ("memory_edit", "You set this"), ("ordered", "You ordered it here"),
+              ("up", "You liked it"), ("down", "You disliked it"), ("quiz", "You picked it at setup"),
+              ("history", "From your Swiggy orders"), ("off_plan", "You logged eating it"),
+              ("not_today", "You said not today"), ("no_reorder", "You stopped ordering it"),
+              ("skip", "You skipped it"))
+
+
 def memory(conn, user_id):
     """'What we know about you' bullets, strongest first."""
     p = get_profile(conn, user_id)
     w, blocks = weights(conn, user_id)
     out = []
+    # why we think so, in the user's terms (strongest source first)
+    seen = {}
+    for e in conn.execute("SELECT dimension, key, type FROM feedback_event WHERE user_id=?", (user_id,)):
+        seen.setdefault((e["dimension"], e["key"]), set()).add(e["type"])
     for (dim, key), val in sorted(w.items(), key=lambda kv: -abs(kv[1])):
         if (dim, key) in blocks:
             text = f"Never show {key} ({dim})"
@@ -196,7 +207,8 @@ def memory(conn, user_id):
         else:
             text = f"{'Likes' if val > 0 else 'Not keen on'} {key} ({dim})"
         out.append({"id": f"{dim}:{key}", "dimension": dim, "key": key,
-                    "weight": round(val, 2), "blocked": (dim, key) in blocks, "text": text})
+                    "weight": round(val, 2), "blocked": (dim, key) in blocks, "text": text,
+                    "why": next((label for t, label in MEMORY_WHY if t in seen.get((dim, key), ())), "")})
     facts = []
     if p:
         facts.append(f"Diet: {p['diet_type']}" + (
@@ -1066,6 +1078,11 @@ def quiz(diet):
             ("egg" in n.lower() or diet == "nonveg")]
 
 
+def _order_item_name(item):
+    """'Afghani Chaap (1)' / '2 x Butter Naan' -> the dish name without the quantity."""
+    return re.sub(r"^\s*\d+\s*[x×]\s*|\s*[x×]\s*\d+\s*$|\s*\(\d+\)\s*$", "", item).strip()
+
+
 def pull_food_orders(conn, user_id, food_client, address_id):
     """Swiggy Food order history (get_food_orders, docs: addressId + orderCount<=15) ->
     +2 per dish, +2/3 per restaurant, once per orderId. Also catches orders placed
@@ -1085,10 +1102,11 @@ def pull_food_orders(conn, user_id, food_client, address_id):
                                    "AND key=?", (user_id, oid)).fetchone():
             continue
         record(conn, user_id, "history", "order", oid, value=0)   # seen-marker: learn each order once
-        for item in re.split(r",|\n", o.get("orderedItems") or ""):
-            name = re.sub(r"^\s*\d+\s*[x×]\s*|\s*[x×]\s*\d+\s*$", "", item).strip()
-            if name:
-                record(conn, user_id, "history", "dish", name)
+        names = [n for n in (_order_item_name(i) for i in re.split(r",|\n", o.get("orderedItems") or "")) if n]
+        # learn on the standard dish name, the same key the cards are scored on
+        prof = dish_profile.profiles(conn, names)
+        for name in names:
+            record(conn, user_id, "history", "dish", (prof.get(name) or {}).get("canonical") or name)
         if o.get("restaurantName"):
             record(conn, user_id, "history", "restaurant", o["restaurantName"], value=EVENT_DELTAS["history"] / 3)
         learned += 1
@@ -1106,7 +1124,10 @@ def pull_history(conn, user_id, im_client, address_id):
         except Exception as e:  # noqa: BLE001 — cold start is best-effort
             print(f"[daily] history pull failed: {e}")
     for n in dict.fromkeys(names):
-        record(conn, user_id, "history", "grocery", n)
+        # once per product: this runs on every profile save, and repeats used to pile up
+        if not conn.execute("SELECT 1 FROM feedback_event WHERE user_id=? AND type='history' AND dimension='grocery' "
+                            "AND key=?", (user_id, _norm(n))).fetchone():
+            record(conn, user_id, "history", "grocery", n)
     return len(names)
 
 

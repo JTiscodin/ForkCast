@@ -117,7 +117,7 @@ app.middleware("http")(auth.middleware(get_conn))
 # only our own web app may call the API from a browser (FORKCAST_ORIGINS: comma-separated)
 app.add_middleware(CORSMiddleware, allow_origins=os.environ.get(
     "FORKCAST_ORIGINS", "http://localhost:6001,http://localhost:3000").split(","), allow_methods=["*"],
-                   allow_headers=["*"])
+                   allow_headers=["*"], expose_headers=["X-Forkcast-Token"])
 
 class _AppetiteCache(dict):
     """user_id -> AppetiteProfile.
@@ -320,6 +320,7 @@ class SwapIn(BaseModel):
 class UserIn(BaseModel):
     name: str
     area: str = None
+    address_id: str = None    # a saved Swiggy address: proves which Swiggy account this is
 
 
 class ChatIn(BaseModel):
@@ -340,9 +341,40 @@ class AdjustIn(BaseModel):
 @app.post("/user")
 def create_user(body: UserIn):
     conn, w, _ = svc()
-    uid = w.create_user(body.name, body.area)
-    conn.close()
-    return {"user_id": uid, "token": auth.bearer(uid)}
+    try:
+        key = _swiggy_key(body.address_id)
+        if key:   # sign back in: same Swiggy account -> same Forkcast account
+            row = conn.execute("SELECT id FROM users WHERE swiggy_key = ? ORDER BY id LIMIT 1", (key,)).fetchone()
+            if row:
+                return {"user_id": row[0], "token": auth.bearer(row[0]), "returning": True}
+        uid = w.create_user(body.name, body.area)
+        if key:
+            conn.execute("UPDATE users SET swiggy_key = ? WHERE id = ?", (key, uid))
+            conn.commit()
+        return {"user_id": uid, "token": auth.bearer(uid), "returning": False}
+    finally:
+        conn.close()
+
+
+def _swiggy_key(address_id):
+    """Identity of the connected Swiggy account, or None when it can't be proven.
+
+    The address must be one the server's live Swiggy login actually owns
+    (get_addresses), so a made-up id can't claim someone's account.
+    shortcut: Swiggy address ids look like "<customer>__<address>" and we key on
+    the customer part (falls back to the whole id); with per-user Swiggy OAuth,
+    key on that user's own token subject instead.
+    """
+    if not address_id or not _live():
+        return None
+    try:
+        raw = STATE["client"].call("get_addresses", {})
+    except Exception as e:  # noqa: BLE001 — no proof, so no sign-in; a new account is created
+        print(f"[auth] address check failed: {e}")
+        return None
+    entries = (raw.get("addresses") or raw.get("data") or []) if isinstance(raw, dict) else []
+    owned = {str(a.get("id") or a.get("addressId")) for a in entries if isinstance(a, dict)}
+    return str(address_id).split("__")[0] if str(address_id) in owned else None
 
 
 @app.get("/mode")

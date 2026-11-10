@@ -14,6 +14,33 @@ def test_token_round_trip_and_forgery():
     assert auth.user_from("Bearer " + auth.bearer(7)) == 7
     assert auth.user_from("Bearer 8." + auth.token_for(7)) is None   # someone else's signature
     assert auth.user_from(None) is None
+    assert auth.user_from("Bearer " + auth.bearer(7, now=0)) is None   # issued long ago: expired
+    uid, exp, sig = auth.bearer(7).split(".")
+    assert auth.user_from(f"Bearer {uid}.{int(exp) + 999}.{sig}") is None   # expiry can't be edited
+
+
+def test_response_renews_the_token(client):
+    u = client.post("/user", json={"name": "R"}).json()
+    r = client.get(f"/daily/{u['user_id']}/memory", headers={"Authorization": "Bearer " + u["token"]})
+    assert auth.user_from("Bearer " + r.headers["X-Forkcast-Token"]) == u["user_id"]
+    client.delete(f"/daily/{u['user_id']}", headers={"Authorization": "Bearer " + u["token"]})
+
+
+def test_same_swiggy_account_signs_back_in(client, monkeypatch):
+    class Swiggy:
+        token = "t"
+
+        def call(self, tool, args):
+            return {"addresses": [{"id": "999__home"}, {"id": "999__work"}]}
+    monkeypatch.setattr(app_mod, "_live", lambda: True)
+    monkeypatch.setitem(app_mod.STATE, "client", Swiggy())
+    a = client.post("/user", json={"name": "S", "address_id": "999__home"}).json()
+    b = client.post("/user", json={"name": "S", "address_id": "999__work"}).json()
+    assert b["user_id"] == a["user_id"] and b["returning"] is True
+    stranger = client.post("/user", json={"name": "X", "address_id": "999__made_up"}).json()
+    assert stranger["user_id"] != a["user_id"]            # unproven address never signs in
+    for u in (a, stranger):
+        client.delete(f"/daily/{u['user_id']}", headers={"Authorization": "Bearer " + u["token"]})
 
 
 def test_user_routes_need_the_owners_token(client):
