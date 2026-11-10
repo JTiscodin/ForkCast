@@ -282,6 +282,16 @@ export interface OrderOutcome {
     error: string | null; fallback_url: string | null }[];
 }
 
+/** What Forkcast read from an uploaded diet plan; applied only after the user confirms. */
+export interface DietPlanProposal {
+  diet_type: string | null;
+  goal: string | null;
+  allergies: string[];
+  prefer: string[];
+  avoid: string[];
+  summary: string;
+}
+
 export interface MemoryBullet {
   id: string;
   dimension: string;

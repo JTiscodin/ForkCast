@@ -67,7 +67,9 @@ vardanagarwal11@gmail.com
 - Not stored: payment details (cash on delivery only), full address text
   (only the Swiggy `addressId` and its label), phone or email from Swiggy.
 - Swiggy OAuth tokens live server-side only, never in the browser or logs.
-- Sent to Gemini: dish names and the user's chat messages; no Swiggy tokens,
+- Diet plan upload: a photo, PDF or text file the user chooses is sent to Gemini
+  once to be read, shown back to the user for confirmation, and not stored.
+- Sent to Gemini: dish names, the user's chat messages and an uploaded diet plan; no Swiggy tokens,
   addresses or order IDs.
 - Users can see, adjust and delete each learned preference from the
   "What we know about you" panel, and "Delete my account and data" there

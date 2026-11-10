@@ -1344,6 +1344,31 @@ def daily_agent(user_id: int, body: AgentIn):
     return _daily(lambda c, d: agent.run(c, user_id, body.message, d))
 
 
+class DietPlanIn(BaseModel):
+    mime: str
+    data: str                  # base64 file contents
+
+
+class DietPlanApplyIn(BaseModel):
+    proposal: dict
+
+
+@app.post("/daily/{user_id}/diet-plan")
+def daily_diet_plan(user_id: int, body: DietPlanIn):
+    """Read an uploaded diet plan (photo/PDF/text) -> a proposal the user confirms. Nothing is saved."""
+    import diet_plan
+    try:
+        return {"proposal": diet_plan.read(body.mime, body.data)}
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+
+
+@app.post("/daily/{user_id}/diet-plan/apply")
+def daily_diet_plan_apply(user_id: int, body: DietPlanApplyIn):
+    import diet_plan
+    return _daily(lambda c, d: {"profile": diet_plan.apply(c, user_id, body.proposal)})
+
+
 @app.delete("/daily/{user_id}")
 def daily_delete_account(user_id: int):
     """Account deletion: erases the user's profile, plans, feedback, orders and memory."""

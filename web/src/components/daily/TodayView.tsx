@@ -28,6 +28,7 @@ import {
   Wallet,
   Zap,
   ChefHat,
+  Paperclip,
   PiggyBank,
   MessageCircle,
   Sparkles,
@@ -36,7 +37,7 @@ import {
 
 import { api } from "@/lib/api";
 import { clearSession } from "@/lib/session";
-import type { CardItem, DailySlot, MemoryBullet, MenuCard, OrderOutcome, TodayView as Today } from "@/lib/types";
+import type { CardItem, DailySlot, DietPlanProposal, MemoryBullet, MenuCard, OrderOutcome, TodayView as Today } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import { focusRing, mealStyle } from "@/lib/design";
 import { fadeUp } from "@/lib/motion";
@@ -452,6 +453,7 @@ export function TodayView({
   const [chat, setChat] = useState<{ role: "you" | "bot"; text: string }[]>([]);
   const [msg, setMsg] = useState("");
   const [thinking, setThinking] = useState(false);
+  const [plan, setPlan] = useState<DietPlanProposal | null>(null);
   const [armLive, setArmLive] = useState(false);
   const [cartBar, setCartBar] = useState<{ title: string; outcome: OrderOutcome } | null>(null);
   const rootRef = useRef<HTMLDivElement>(null);
@@ -476,7 +478,7 @@ export function TodayView({
 
   useEffect(() => {
     chatEnd.current?.scrollIntoView({ behavior: "smooth", block: "nearest" });
-  }, [chat, thinking]);
+  }, [chat, thinking, plan]);
 
   useEffect(() => {
     if (!cartBar) return;
@@ -553,6 +555,44 @@ export function TodayView({
       load();
     } catch (e) {
       setChat((c) => [...c, { role: "bot", text: e instanceof Error ? e.message : "Something went wrong" }]);
+    } finally {
+      setThinking(false);
+    }
+  }
+
+  // Diet plan upload: read it, show what was understood in chat, change nothing until confirmed
+  async function uploadPlan(file?: File) {
+    if (!file) return;
+    if (file.size > 5 * 1024 * 1024) return void toast.error("The file must be under 5 MB");
+    setChatOpen(true);
+    setPlan(null);
+    setChat((c) => [...c, { role: "you", text: `Uploaded ${file.name}` }]);
+    setThinking(true);
+    try {
+      const data = await new Promise<string>((resolve, reject) => {
+        const r = new FileReader();
+        r.onload = () => resolve(String(r.result).split(",")[1] ?? "");
+        r.onerror = () => reject(new Error("Couldn't read that file"));
+        r.readAsDataURL(file);
+      });
+      setPlan((await api.readDietPlan(userId, file.type || "text/plain", data)).proposal);
+    } catch (e) {
+      setChat((c) => [...c, { role: "bot", text: e instanceof Error ? e.message : "Couldn't read that file" }]);
+    } finally {
+      setThinking(false);
+    }
+  }
+
+  async function applyPlan() {
+    if (!plan) return;
+    setThinking(true);
+    try {
+      await api.applyDietPlan(userId, plan);
+      setPlan(null);
+      setChat((c) => [...c, { role: "bot", text: "Done. Your preferences follow the plan now, and I'm rebuilding today's meals around it." }]);
+      await load();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Couldn't apply the plan");
     } finally {
       setThinking(false);
     }
@@ -753,6 +793,14 @@ export function TodayView({
         >
           <Sparkles className="size-5 shrink-0 text-brand-500" aria-hidden />
           <input name="ask" aria-label="Ask Forkcast" placeholder="Craving something? “spicy under ₹250”, “I had dal at home”…" className="min-w-0 flex-1 bg-transparent py-2 text-[15px] outline-none placeholder:text-muted-foreground" />
+          <label
+            title="Upload your diet plan (photo, PDF or text)"
+            className={cn("flex shrink-0 cursor-pointer items-center gap-1.5 rounded-xl border border-border px-3 py-2 text-sm font-bold text-foreground/80 transition hover:border-brand-500 hover:text-brand-600 focus-within:outline-2 focus-within:outline-offset-2 focus-within:outline-brand-500", "")}
+          >
+            <Paperclip className="size-4" aria-hidden />
+            <span className="hidden sm:inline">Diet plan</span>
+            <input type="file" accept="image/png,image/jpeg,image/webp,application/pdf,text/plain" className="sr-only" aria-label="Upload your diet plan" onChange={(e) => { uploadPlan(e.target.files?.[0]); e.target.value = ""; }} />
+          </label>
           <button type="submit" className={cn(focusRing, "shrink-0 rounded-xl bg-brand-500 px-4 py-2 text-sm font-extrabold text-white transition hover:bg-brand-600 active:scale-95")}>Ask</button>
         </form>
 
@@ -975,6 +1023,35 @@ export function TodayView({
                 </motion.p>
               ))}
             </AnimatePresence>
+            {plan && (
+              <div className="flex flex-col gap-2 self-start rounded-2xl rounded-bl-sm border border-brand-500/30 bg-brand-50 p-3 text-sm" role="group" aria-label="Diet plan found">
+                <p className="font-extrabold">Here&apos;s what I read from your plan</p>
+                {plan.summary && <p className="text-foreground/80">{plan.summary}</p>}
+                <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1">
+                  {(
+                    [
+                      ["Diet", plan.diet_type],
+                      ["Goal", plan.goal?.replace(/_/g, " ")],
+                      ["Allergies", plan.allergies.join(", ")],
+                      ["Eat more", plan.prefer.join(", ")],
+                      ["Avoid", plan.avoid.join(", ")],
+                    ] as const
+                  )
+                    .filter(([, v]) => v)
+                    .map(([k, v]) => (
+                      <div key={k} className="contents">
+                        <dt className="font-bold text-muted-foreground">{k}</dt>
+                        <dd className="capitalize">{v}</dd>
+                      </div>
+                    ))}
+                </dl>
+                <p className="text-xs text-muted-foreground">Applying updates your preferences and rebuilds today&apos;s meals. General wellness only, not medical advice.</p>
+                <div className="flex gap-2">
+                  <Button size="sm" onClick={applyPlan} disabled={thinking}>Use this plan</Button>
+                  <Button size="sm" variant="ghost" onClick={() => setPlan(null)}>Discard</Button>
+                </div>
+              </div>
+            )}
             {thinking && (
               <div className="flex items-center gap-2 self-start text-xs text-muted-foreground">
                 <LottiePlayer path="/animations/cooking-pot.json" className="size-9" />
@@ -990,6 +1067,14 @@ export function TodayView({
               send();
             }}
           >
+            <label
+            title="Upload your diet plan (photo, PDF or text)"
+            className={cn("flex shrink-0 cursor-pointer items-center gap-1.5 rounded-xl border border-border px-3 py-2 text-sm font-bold text-foreground/80 transition hover:border-brand-500 hover:text-brand-600 focus-within:outline-2 focus-within:outline-offset-2 focus-within:outline-brand-500", "px-2.5")}
+          >
+            <Paperclip className="size-4" aria-hidden />
+            <span className="sr-only">Diet plan</span>
+            <input type="file" accept="image/png,image/jpeg,image/webp,application/pdf,text/plain" className="sr-only" aria-label="Upload your diet plan" onChange={(e) => { uploadPlan(e.target.files?.[0]); e.target.value = ""; }} />
+          </label>
             <Input ref={chatInput} aria-label="Message" placeholder="Ask for a craving or log a meal" value={msg} onChange={(e) => setMsg(e.target.value)} />
             <Button size="icon" type="submit" aria-label="Send" disabled={thinking}>
               <Send />

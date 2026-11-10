@@ -531,6 +531,31 @@ def test_note_reaches_place_food_order():
     assert dict(calls)["place_food_order"]["noteToRestaurant"] == "No peanut please"
 
 
+def test_diet_plan_is_clamped_and_applied(conn, monkeypatch):
+    import base64
+    import diet_plan
+    monkeypatch.setattr(gemini, "has_key", lambda: True)
+    monkeypatch.setattr(gemini, "chat", lambda *a, **k: json.dumps({
+        "diet_type": "vegan", "goal": "become a wizard", "allergies": ["peanut", "kryptonite"],
+        "prefer": ["Oats", "sprouts"], "avoid": ["sugar", "DROP TABLE users;"], "summary": "Low sugar vegan plan",
+        "mode": "live"}))
+    b64 = base64.b64encode(b"plan").decode()
+    prop = diet_plan.read("application/pdf", b64)
+    assert prop["diet_type"] == "vegan" and prop["goal"] is None       # unknown values are dropped
+    assert prop["allergies"] == ["peanut"] and "mode" not in prop
+    assert prop["avoid"] == ["sugar", "drop table users"]              # reduced to harmless words
+    with pytest.raises(ValueError):
+        diet_plan.read("application/x-msdownload", b64)                # only photos, PDFs and text
+    p = diet_plan.apply(conn, 1, prop)
+    assert p["diet_type"] == "vegan" and p["mode"] == "dry_run"
+    assert {"name": "peanut", "severe": False} in p["allergies"]
+    w, _ = daily.weights(conn, 1)
+    assert w[("ingredient", "oats")] > 0 and w[("ingredient", "sugar")] < 0
+    diet_plan.apply(conn, 1, {"avoid": ["fried"]})
+    w, _ = daily.weights(conn, 1)
+    assert w[("ingredient", "bhature")] < 0                             # "avoid fried" reaches chole bhature
+
+
 def test_rain_brings_chai_pakora_weather():
     rain, dry = {"rain": True}, {}
     assert daily.weather_score("Onion Pakoda", DAY, rain) > daily.weather_score("Onion Pakoda", DAY, dry)

@@ -20,6 +20,7 @@ import type {
   TodayView,
   OrderOutcome,
   MemoryBullet,
+  DietPlanProposal,
 } from "./types";
 
 const BASE =
@@ -241,6 +242,10 @@ export const api = {
     req<{ ok: boolean }>(`/daily/${user_id}/regenerate${slot ? `?slot=${slot}` : ""}`, {
       method: "POST",
     }),
+  readDietPlan: (user_id: number, mime: string, data: string) =>
+    req<{ proposal: DietPlanProposal }>(`/daily/${user_id}/diet-plan`, { method: "POST", body: { mime, data } }),
+  applyDietPlan: (user_id: number, proposal: DietPlanProposal) =>
+    req<{ profile: DailyProfile }>(`/daily/${user_id}/diet-plan/apply`, { method: "POST", body: { proposal } }),
   deleteAccount: (user_id: number) => req<{ deleted: number }>(`/daily/${user_id}`, { method: "DELETE" }),
   orderCard: (user_id: number, card_id: number, preview = false) =>
     req<OrderOutcome>(`/daily/${user_id}/order/${card_id}${preview ? "?preview=true" : ""}`, { method: "POST" }),

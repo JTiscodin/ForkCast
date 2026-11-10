@@ -568,7 +568,8 @@ export default function Home() {
     <nav aria-label="Views" className="flex justify-center border-b border-border bg-surface px-4 py-2">
       {/* one segmented control; the active view is a filled pill */}
       <div className="flex gap-1 rounded-full bg-muted p-1">
-        {(["today", "you", "month"] as const).map((v) => {
+        {/* the old Month planner kept its own budget and plan, which never matched Today; it is no longer linked */}
+        {(["today", "you"] as const).map((v) => {
           const active = view === v || (v === "today" && view === "setup");
           return (
             <button

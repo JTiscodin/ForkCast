@@ -183,7 +183,7 @@ def _norm(s):
 
 # ---------------------------------------------------------------- memory
 
-MEMORY_WHY = (("never", "You said never"), ("memory_edit", "You set this"), ("ordered", "You ordered it here"),
+MEMORY_WHY = (("never", "You said never"), ("diet_plan", "From your diet plan"), ("memory_edit", "You set this"), ("ordered", "You ordered it here"),
               ("up", "You liked it"), ("down", "You disliked it"), ("quiz", "You picked it at setup"),
               ("history", "From your Swiggy orders"), ("off_plan", "You logged eating it"),
               ("not_today", "You said not today"), ("no_reorder", "You stopped ordering it"),
