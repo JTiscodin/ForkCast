@@ -52,7 +52,7 @@ Browser (Next.js 16)  ──HTTPS──>  Forkcast API (FastAPI, Python)
 **TODO** — the IP(s) of the production host that calls mcp.swiggy.com.
 
 ## 6. Security contact
-**TODO** — a monitored security email for this app.
+vardanagarwal11@gmail.com
 
 ## 7. Data handling and privacy
 - Stored: diet, allergies, budget, city, meal times, feedback events, the plan
@@ -79,7 +79,8 @@ Postgres and secrets in the host's secret store.
 - "Powered by Swiggy" / "Powered by Instamart" shown on every card, the order
   summary and the confirmation bar, using the official logos.
 - No dark patterns: no pre-ticked orders, no countdowns, totals always shown.
-- **TODO**: accept the Swiggy Builders terms in the form.
+- The applicant, Vardan Agarwal, has read and accepts the Swiggy MCP terms
+  (confirmed 11 November 2026).
 
 ## 10. Security audit summary (optional)
 No external audit. Internal review done: per-user signed tokens with ownership

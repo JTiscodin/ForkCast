@@ -853,7 +853,11 @@ def build_day(conn, user_id, day, dishes_fn, im_fn, slots=None):
                 (mid, role, pos, json.dumps(items), _total(items),
                  json.dumps({**nut, "confidence": conf, "source": sources}),
                  c["score"], json.dumps(reasons)))
-        for c in sorted(excluded, key=lambda c: -c.get("score", 0))[:5]:
+        # one row per dish: the same poha from five restaurants is one hidden item, not five
+        hidden = {}
+        for c in sorted(excluded, key=lambda c: -c.get("score", 0)):
+            hidden.setdefault(_norm(c["items"][0].get("canonical") or c["items"][0]["name"]), c)
+        for c in list(hidden.values())[:5]:
             conn.execute("INSERT INTO excluded_card (menu_id, items, allergen_hit) VALUES (?,?,?)",
                          (mid, json.dumps(c["items"]), c["allergen_hit"]))
         conn.commit()

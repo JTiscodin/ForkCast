@@ -531,6 +531,13 @@ def test_note_reaches_place_food_order():
     assert dict(calls)["place_food_order"]["noteToRestaurant"] == "No peanut please"
 
 
+def test_hidden_for_allergies_lists_each_dish_once(conn):
+    daily.save_profile(conn, 1, {"allergies": [{"name": "peanut", "severe": True}]})
+    for s in view(conn)["slots"]:
+        names = [daily._norm(e["items"][0]["name"]) for e in s["excluded"]]
+        assert len(names) == len(set(names)), names
+
+
 def test_side_bread_is_sized_for_one_person():
     assert daily._side_qty("Tawa Roti", 2) == 2
     assert daily._side_qty("Butter Roti (2 Pcs)", 2) == 1          # a pack is ordered once
