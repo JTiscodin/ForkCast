@@ -3,11 +3,11 @@ name: Swiggy
 colors:
   background: "#ffffff"
   foreground: "#282c3f" # Swiggy Charcoal
-  brand: "#fc8019"      # Primary Orange
+  brand: "#FF5200"      # Primary Orange
   muted: "#686b78"
   border: "#e9e9eb"
   card: "#ffffff"
-  accent: "#fc8019"
+  accent: "#FF5200"
   
   dark:
     background: "#121212"
@@ -15,7 +15,7 @@ colors:
     muted: "#93959f"
     border: "#282c3f"
     card: "#1a1a1a"
-    accent: "#fc8019"
+    accent: "#FF5200"
 
 typography:
   fontFamily:
@@ -45,7 +45,7 @@ Swiggy's design system is vibrant, approachable, and focused on "Delivery Happin
 4. **The "Orange Thread":** Swiggy Orange is the primary navigation guide through the app.
 
 ## Colors
-- **Swiggy Orange (#FC8019):** A vibrant "Pumpkin" orange that represents the brand's core energy and delivery fleet.
+- **Swiggy Orange (#FF5200):** A vibrant "Pumpkin" orange that represents the brand's core energy and delivery fleet.
 - **Charcoal (#282C3F):** Used for primary text to provide a sophisticated contrast to the orange.
 - **Secondary Accents:** Uses yellows (#F3C334) for offers and highlights.
 

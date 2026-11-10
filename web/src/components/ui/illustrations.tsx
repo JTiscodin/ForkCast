@@ -12,7 +12,7 @@ type IllustrationProps = {
 };
 
 /* Shared palette — mirrors the app's design tokens. */
-const ORANGE = "#FC8019";
+const ORANGE = "#FF5200";
 const CREAM = "#FFF4E9";
 const CHARCOAL = "#282C3F";
 const GREEN = "#24963f";

@@ -15,7 +15,7 @@ personal and commercial projects. Each JSON was fetched from `assets-v2.lottiefi
 | `coin-drop.json` | WalletBar Swiggy-Cash/leftover increase reveal, plays once (~2s) | "coins" — <https://lottiefiles.com/free-animation/coins> | <https://assets-v2.lottiefiles.com/a/8edfcc22-1179-11ee-88a1-b75d7da00ec0/1FievhJDm1.json> | 20.6 KB | 2026-08-26 |
 
 Palette note: `swap-utensils.json` was recolored programmatically from its
-original teal/navy (`#4cbba1`, `#1c1d3e`) to the app palette (`#fc8019`,
+original teal/navy (`#4cbba1`, `#1c1d3e`) to the app palette (`#FF5200`,
 `#282c3f`) before shipping. `coin-drop.json` was kept as-is — already warm
 gold/orange (`#f49b51`, `#fcc659`, `#ffe6a6`). Both chosen for the Swiggy brand.
 
