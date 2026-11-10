@@ -65,7 +65,7 @@ export function DailyOnboarding({
   const [otherAllergy, setOtherAllergy] = useState("");
   const [goal, setGoal] = useState<Goal>(initial?.goal ?? "maintain");
   const [budget, setBudget] = useState(String(initial?.monthly_budget ?? 6000));
-  const [slots, setSlots] = useState<DailySlotName[]>(initial?.slots ?? ["breakfast", "lunch", "dinner"]);
+  const [slots, setSlots] = useState<DailySlotName[]>(initial?.slots ?? ["breakfast", "lunch", "snack", "dinner"]);
   const [city, setCity] = useState(initial?.city ?? "");
   const [quiz, setQuiz] = useState<string[]>([]);
   const [picks, setPicks] = useState<string[]>([]);
@@ -124,8 +124,15 @@ export function DailyOnboarding({
   return (
     <div className="mx-auto flex w-full max-w-2xl flex-col gap-6 px-4 py-6">
       <header>
-        <h1 className="text-2xl font-semibold">Set up your daily meals</h1>
-        <p className="text-sm text-muted-foreground">About a minute. You can change any of this later in chat.</p>
+        {!initial && (
+          <ol aria-label="Step 3 of 3" className="mb-3 flex gap-1.5">
+            {[1, 2, 3].map((n) => (
+              <li key={n} className="h-1.5 w-7 rounded-full bg-brand-500" />
+            ))}
+          </ol>
+        )}
+        <h1 className="font-heading text-2xl font-extrabold tracking-[-0.02em]">{initial ? "Your preferences" : "What do you like to eat?"}</h1>
+        <p className="text-sm text-muted-foreground">{initial ? "Changes apply from your next plan." : "About a minute. Your first plan is built as soon as you save."}</p>
       </header>
 
       <Section n={1} title="Diet">

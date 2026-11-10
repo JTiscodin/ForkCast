@@ -65,9 +65,9 @@ export function ConnectSwiggy({
       <div className="flex items-start gap-3 rounded-lg border border-brand-100 bg-brand-50 p-3">
         <ShieldCheck strokeWidth={2.4} className="mt-0.5 size-5 shrink-0 text-brand-700" />
         <p className="text-sm leading-[1.4] text-muted-foreground">
-          Connect your Swiggy account to plan with real restaurants near you and
-          place real orders. A browser window opens for you to log in securely.
-          Your token stays on this machine, never in the browser.
+          You sign in on Swiggy&apos;s own page; Forkcast never sees your password. We use the
+          connection to read menus and your saved addresses, and to build a cart when you ask.
+          Orders are cash on delivery and always need your confirmation.
         </p>
       </div>
 

@@ -114,7 +114,9 @@ _init_runtime()
 app = FastAPI(title="Forkcast")
 # per-user tokens (auth.py); registered before CORS so CORS wraps its 403s
 app.middleware("http")(auth.middleware(get_conn))
-app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"],
+# only our own web app may call the API from a browser (FORKCAST_ORIGINS: comma-separated)
+app.add_middleware(CORSMiddleware, allow_origins=os.environ.get(
+    "FORKCAST_ORIGINS", "http://localhost:6001,http://localhost:3000").split(","), allow_methods=["*"],
                    allow_headers=["*"])
 
 class _AppetiteCache(dict):

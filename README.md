@@ -101,6 +101,7 @@ Without a Swiggy login, the app runs on a built-in mock catalogue.
 | `SWIGGY_MCP_TOKEN` / `SWIGGY_REFRESH_TOKEN` | Written by **Connect Swiggy** (OAuth 2.1 + PKCE). |
 | `SWIGGY_ADDRESS_ID` | Optional: pin a saved Swiggy address. |
 | `FORKCAST_SECRET` | Signs user tokens. If unset, a random secret is generated into `backend/.auth_secret`. |
+| `FORKCAST_ORIGINS` | Comma-separated web origins allowed to call the API (default `http://localhost:6001,http://localhost:3000`). |
 | `DAILY_NIGHTLY_HOUR` | Hour the nightly job runs (default 2). |
 
 ### Tests
