@@ -28,6 +28,7 @@ import {
   Wallet,
   Zap,
   ChefHat,
+  PiggyBank,
   MessageCircle,
   Sparkles,
   X,
@@ -219,32 +220,32 @@ function MealCard({
           <span className="mt-[3px]">
             <DietMarker veg={veg} />
           </span>
-          <span className="line-clamp-2">{title}</span>
+          <span>{title}</span>
         </h3>
-        <p className="flex items-center gap-x-1.5 overflow-hidden whitespace-nowrap text-[13px] font-bold">
+        <p className="flex flex-wrap items-center gap-x-1.5 text-[13px] font-bold">
           <span>~{Math.round(card.nutrients.kcal ?? 0)} kcal</span>
           <span className="text-muted-foreground" aria-hidden>•</span>
-          <span className="truncate">{Math.round(card.nutrients.protein ?? 0)}g protein</span>
+          <span>{Math.round(card.nutrients.protein ?? 0)}g protein</span>
         </p>
-        <p className="flex items-center gap-1.5 text-sm text-muted-foreground">
+        <p className="flex items-start gap-1.5 text-sm text-muted-foreground">
           {typeof rating === "number" && !grocery && (
             <span className="flex shrink-0 items-center gap-1 font-bold text-foreground">
               <RatingDot /> {rating.toFixed(1)}
             </span>
           )}
-          <span className="truncate">{grocery ? "Instamart, delivered in minutes" : main.restaurant_name}</span>
+          <span>{grocery ? "Instamart, delivered in minutes" : main.restaurant_name}</span>
         </p>
         <p className="flex flex-wrap gap-x-2">
           {!grocery && <PoweredBy service="Swiggy" />}
           {(grocery || addon) && <PoweredBy service="Instamart" />}
         </p>
         {sides.map((s) => (
-          <p key={s.id} className="truncate text-xs text-muted-foreground">
+          <p key={s.id} className="text-xs text-muted-foreground">
             with {sideLine(s)}
           </p>
         ))}
         {addon && (
-          <p className="flex items-center gap-1 truncate text-xs text-meal-snack" title={addon.addon_reason}>
+          <p className="flex items-start gap-1 text-xs text-meal-snack" title={addon.addon_reason}>
             <ShoppingBasket className="size-3 shrink-0" aria-hidden />
             <span className="sr-only">Instamart add-on: </span>+ {sideLine(addon)}
           </p>
@@ -790,7 +791,7 @@ export function TodayView({
               <span className="flex size-9 shrink-0 items-center justify-center rounded-full bg-muted">{i.icon}</span>
               <span className="min-w-0">
                 <span className="block text-xs font-semibold text-muted-foreground">{i.label}</span>
-                <span className="block truncate text-sm font-extrabold">{i.value}</span>
+                <span className="block text-sm font-extrabold">{i.value}</span>
               </span>
             </div>
           ))}
@@ -836,7 +837,7 @@ export function TodayView({
                 <ul className="mt-2 flex flex-col gap-1">
                   {s.excluded.map((e) => (
                     <li key={e.id} className="flex justify-between gap-2">
-                      <span className="truncate">{e.items[0]?.name}</span>
+                      <span>{e.items[0]?.name}</span>
                       <span className="shrink-0 text-xs text-danger">contains {e.allergen_hit}</span>
                     </li>
                   ))}
@@ -849,6 +850,44 @@ export function TodayView({
       </main>
 
       <aside className="flex flex-col gap-5 lg:sticky lg:top-4 lg:max-h-[calc(100dvh-2rem)] lg:self-start lg:overflow-y-auto">
+        <section aria-label="Budget and rollover" className="flex flex-col gap-3 rounded-2xl bg-card p-4 shadow-soft">
+          <div className="flex items-baseline justify-between">
+            <h2 className="font-extrabold">{now.toLocaleString("en-IN", { month: "long" })} food budget</h2>
+            <span className="text-xs text-muted-foreground">{data.budget.days_left} days left</span>
+          </div>
+          <p className="font-heading text-3xl font-extrabold tracking-[-0.02em] tabular-nums">
+            {formatINR(data.budget.remaining)}
+            <span className="ml-1.5 text-sm font-semibold text-muted-foreground">left of {formatINR(data.budget.monthly + data.budget.rollover)}</span>
+          </p>
+          <div className="h-2 overflow-hidden rounded-full bg-muted" role="img" aria-label={`${formatINR(data.budget.spent)} spent`}>
+            <div className="h-full rounded-full bg-brand-500" style={{ width: `${Math.min(100, (data.budget.spent / Math.max(1, data.budget.monthly + data.budget.rollover)) * 100)}%` }} />
+          </div>
+          <dl className="grid grid-cols-2 gap-2 text-sm">
+            <div className="rounded-xl bg-muted/60 p-2.5">
+              <dt className="text-xs text-muted-foreground">For today</dt>
+              <dd className="font-extrabold tabular-nums">{formatINR(data.budget.daily_cap)}</dd>
+            </div>
+            <div className="rounded-xl bg-muted/60 p-2.5">
+              <dt className="text-xs text-muted-foreground">Spent this month</dt>
+              <dd className="font-extrabold tabular-nums">{formatINR(data.budget.spent)}</dd>
+            </div>
+          </dl>
+          {/* Rollover: unspent budget carries into next month (a virtual ledger, no money held) */}
+          <div className="flex items-start gap-2.5 rounded-xl bg-rating/10 p-3">
+            <PiggyBank className="mt-0.5 size-5 shrink-0 text-rating" aria-hidden />
+            <div className="text-sm">
+              <p className="font-extrabold text-rating">
+                {data.budget.rollover > 0 ? `${formatINR(data.budget.rollover)} rolled over from last month` : "Rollover savings"}
+              </p>
+              <p className="text-xs text-foreground/75">
+                {data.budget.saved_so_far > 0
+                  ? `${formatINR(data.budget.saved_so_far)} unspent so far. Whatever is left on the last day is added to next month's budget.`
+                  : "Spend less than your budget and the rest is added to next month."}
+              </p>
+            </div>
+          </div>
+        </section>
+
         <section className="flex flex-col gap-4 rounded-2xl bg-card p-4 shadow-soft">
           <h2 className="font-extrabold">Today&apos;s nutrition</h2>
           <div className="grid grid-cols-5 gap-1">

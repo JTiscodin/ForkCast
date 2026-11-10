@@ -265,7 +265,7 @@ export interface TodayView {
   season: string;
   weather: { hot?: boolean; rain?: boolean };
   profile: DailyProfile;
-  budget: { monthly: number; spent: number; remaining: number; days_left: number; daily_cap: number };
+  budget: { monthly: number; spent: number; remaining: number; days_left: number; daily_cap: number; rollover: number; saved_so_far: number };
   nutrition: {
     today: Nutrients;
     week_avg: Nutrients;

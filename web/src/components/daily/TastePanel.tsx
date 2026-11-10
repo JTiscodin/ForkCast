@@ -86,13 +86,13 @@ export function TastePanel({
                   onClick={() => setOpenId(openId === b.id ? null : b.id)}
                   className={cn(
                     focusRing,
-                    "flex max-w-full items-center gap-1.5 rounded-full border px-2.5 py-1 text-left text-[13px] font-semibold capitalize transition active:scale-95",
+                    "flex max-w-full items-center gap-1.5 rounded-2xl border px-2.5 py-1 text-left text-[13px] font-semibold capitalize transition active:scale-95",
                     openId === b.id ? "border-brand-500 bg-brand-50 text-brand-700" : "border-border bg-card hover:border-brand-300",
                     b.blocked && "line-through decoration-danger/60"
                   )}
                 >
                   {b.blocked ? <Ban className="size-3 shrink-0 text-danger" aria-hidden /> : <Strength weight={b.weight} />}
-                  <span className="line-clamp-1">{b.key.replace(/_/g, " ")}</span>
+                  <span>{b.key.replace(/_/g, " ")}</span>
                 </button>
               </li>
             ))}

@@ -531,6 +531,19 @@ def test_note_reaches_place_food_order():
     assert dict(calls)["place_food_order"]["noteToRestaurant"] == "No peanut please"
 
 
+def test_unspent_budget_rolls_into_next_month(conn):
+    p = daily.get_profile(conn, 1)
+    assert daily.budget(conn, 1, p, DAY)["rollover"] == 0          # not on Forkcast last month
+    last = (DAY.replace(day=1) - timedelta(days=1)).isoformat()
+    mid = conn.execute("INSERT INTO daily_menu (user_id, date, slot) VALUES (1, ?, 'lunch')", (last,)).lastrowid
+    cid = conn.execute("INSERT INTO menu_card (menu_id, role, position, items, price, nutrients, score, reasons) "
+                       "VALUES (?, 'usual', 0, '[]', 500, '{}', 0, '[]')", (mid,)).lastrowid
+    conn.execute("INSERT INTO order_record (card_id, platform, order_id, status, mode, amount) "
+                 "VALUES (?, 'food', 'o', 'placed', 'live', 500)", (cid,))
+    b = daily.budget(conn, 1, p, DAY)
+    assert b["rollover"] == 8500 and b["remaining"] == 17500       # 9000 budget, 500 spent last month
+
+
 def test_delete_user_erases_every_row(conn):
     view(conn)
     daily.record(conn, 1, "up", "dish", "dal makhani")

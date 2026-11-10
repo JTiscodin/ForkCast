@@ -309,17 +309,31 @@ def weather_score(name, day, wx):
 # ---------------------------------------------------------------- budget
 
 def budget(conn, user_id, profile, day):
-    """Daily soft cap = remaining monthly budget / days left in the cycle."""
-    month = day.strftime("%Y-%m")
-    spent = conn.execute(
-        "SELECT COALESCE(SUM(o.amount),0) FROM order_record o JOIN menu_card c ON c.id=o.card_id "
-        "JOIN daily_menu m ON m.id=c.menu_id WHERE m.user_id=? AND substr(m.date,1,7)=? "
-        "AND o.status='placed'", (user_id, month)).fetchone()[0]
+    """Daily soft cap = (monthly budget + last month's rollover - spent) / days left.
+
+    Rollover: whatever last month's budget didn't spend carries into this month,
+    if the user was on Forkcast that month. A virtual ledger: no money is held.
+    """
+    def spent_in(month):
+        return conn.execute(
+            "SELECT COALESCE(SUM(o.amount),0) FROM order_record o JOIN menu_card c ON c.id=o.card_id "
+            "JOIN daily_menu m ON m.id=c.menu_id WHERE m.user_id=? AND substr(m.date,1,7)=? "
+            "AND o.status='placed'", (user_id, month)).fetchone()[0]
+
+    monthly = profile["monthly_budget"]
+    spent = spent_in(day.strftime("%Y-%m"))
+    prev = (day.replace(day=1) - timedelta(days=1)).strftime("%Y-%m")
+    was_here = conn.execute("SELECT 1 FROM daily_menu WHERE user_id=? AND substr(date,1,7)=? LIMIT 1",
+                            (user_id, prev)).fetchone()
+    rollover = max(0.0, monthly - spent_in(prev)) if was_here else 0.0
     nxt = (day.replace(day=28) + timedelta(days=4)).replace(day=1)
     days_left = (nxt - day).days
-    remaining = profile["monthly_budget"] - spent
-    return {"monthly": profile["monthly_budget"], "spent": round(spent, 2),
+    days_in_month = (nxt - day.replace(day=1)).days
+    remaining = monthly + rollover - spent
+    return {"monthly": monthly, "spent": round(spent, 2), "rollover": round(rollover, 2),
             "remaining": round(remaining, 2), "days_left": days_left,
+            # unspent so far = budget for the days already gone, minus what was spent
+            "saved_so_far": round(max(0.0, monthly / days_in_month * (day.day - 1) - spent), 2),
             "daily_cap": round(max(0.0, remaining) / days_left, 2)}
 
 # ---------------------------------------------------------------- nutrition state
