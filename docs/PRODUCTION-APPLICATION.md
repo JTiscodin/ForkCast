@@ -5,7 +5,12 @@ Draft answers to the inputs on the Swiggy Builders production page (9 required,
 Items marked **TODO** need a value only the applicant has.
 
 ## 1. Who is building it
-Vardan Agarwal, independent developer (GitHub: vardanagarwal11).
+Two independent developers, applying on the **Individual Developers** track:
+
+- **Vardan Agarwal** (primary contact), Meerut, Uttar Pradesh, India.
+  GitHub: [vardanagarwal11](https://github.com/vardanagarwal11). LinkedIn: **TODO**.
+  Email: vardanagarwal11@gmail.com. Phone: shared in the application email.
+- **Jatin Tilwani**, co-developer. GitHub: **TODO**. LinkedIn: **TODO**.
 
 ## 2. What it does
 Forkcast plans one person's food day. Every morning it shows four short lists —
