@@ -12,7 +12,7 @@ def client():
 
 def test_token_round_trip_and_forgery():
     assert auth.user_from("Bearer " + auth.bearer(7)) == 7
-    assert auth.user_from("Bearer 8." + auth.token_for(7)) is None   # someone else's signature
+    assert auth.user_from("Bearer 8." + auth.token_for(7)) is None   # old no-expiry format is refused
     assert auth.user_from(None) is None
     assert auth.user_from("Bearer " + auth.bearer(7, now=0)) is None   # issued long ago: expired
     uid, exp, sig = auth.bearer(7).split(".")
@@ -34,11 +34,16 @@ def test_same_swiggy_account_signs_back_in(client, monkeypatch):
             return {"addresses": [{"id": "999__home"}, {"id": "999__work"}]}
     monkeypatch.setattr(app_mod, "_live", lambda: True)
     monkeypatch.setitem(app_mod.STATE, "client", Swiggy())
+    client = TestClient(app_mod.app, client=("127.0.0.1", 5000))   # the person at the server's machine
     a = client.post("/user", json={"name": "S", "address_id": "999__home"}).json()
     b = client.post("/user", json={"name": "S", "address_id": "999__work"}).json()
     assert b["user_id"] == a["user_id"] and b["returning"] is True
     stranger = client.post("/user", json={"name": "X", "address_id": "999__made_up"}).json()
     assert stranger["user_id"] != a["user_id"]            # unproven address never signs in
+    remote = TestClient(app_mod.app, client=("203.0.113.9", 5000))
+    r = remote.post("/user", json={"name": "S", "address_id": "999__home"}).json()
+    assert r["user_id"] != a["user_id"] and r["returning"] is False   # remote callers can't reclaim an account
+    client.delete(f"/daily/{r['user_id']}", headers={"Authorization": "Bearer " + r["token"]})
     for u in (a, stranger):
         client.delete(f"/daily/{u['user_id']}", headers={"Authorization": "Bearer " + u["token"]})
 

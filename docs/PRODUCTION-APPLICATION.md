@@ -107,12 +107,15 @@ there is no polling and no background scraping.
 
 ## Known caveats
 - **Access control:** every user-scoped route requires a per-user signed token
-  (HMAC-SHA256, issued when the account is created) and checks that the token owns
-  the user, plan or slot in the request; other users get 403. Remaining before
-  launch: token expiry or sign-in via Swiggy OAuth, per-user Swiggy logins (today
-  the server holds one Swiggy login, so `/mcp/addresses` stays open for onboarding),
-  and setting `FORKCAST_ORIGINS` to the production web origin (the API only accepts
-  browser calls from listed origins; default is localhost).
+  (HMAC-SHA256) and checks that it owns the user, plan or slot in the request;
+  others get 403. Tokens expire after 30 days and are renewed on each request, so
+  idle sessions end. The API only accepts browser calls from listed origins.
+- **Must change before real multi-user launch: one Swiggy login per server.**
+  The prototype holds a single Swiggy OAuth token, so it serves one Swiggy
+  account. Production needs per-user Swiggy OAuth: each user connects their own
+  account, tokens are stored per user (encrypted), and signing in to Forkcast is
+  signing in with Swiggy. Until then, getting an expired account back works only
+  from the server's own machine, and `/mcp/addresses` is open during setup.
 - Nutrition values come from the Indian Nutrient Databank (INDB; Vijayakumar
   et al., Current Developments in Nutrition 2024, doi 10.1016/j.cdnut.2024.103790),
   published as an open-access resource for research, government and the private

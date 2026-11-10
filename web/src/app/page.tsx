@@ -538,7 +538,7 @@ export default function Home() {
   // reachable under the "Month" tab as budget envelope + history.
   // undefined = still loading, null = no daily profile yet -> onboarding form
   const [dailyProfile, setDailyProfile] = useState<DailyProfile | null | undefined>(undefined);
-  const [view, setView] = useState<"today" | "month" | "setup">("today");
+  const [view, setView] = useState<"today" | "you" | "month" | "setup">("today");
   useEffect(() => {
     if (!ready || !userId) return;
     api
@@ -565,18 +565,24 @@ export default function Home() {
   }
 
   const tabs = (
-    <nav aria-label="Views" className="flex gap-1 border-b border-border px-4 py-2">
-      {(["today", "month"] as const).map((v) => (
-        <Button
-          key={v}
-          size="sm"
-          variant={view === v || (v === "today" && view === "setup") ? "default" : "ghost"}
-          onClick={() => setView(v)}
-          className="capitalize"
-        >
-          {v}
-        </Button>
-      ))}
+    <nav aria-label="Views" className="flex justify-center border-b border-border bg-surface px-4 py-2">
+      {/* one segmented control; the active view is a filled pill */}
+      <div className="flex gap-1 rounded-full bg-muted p-1">
+        {(["today", "you", "month"] as const).map((v) => {
+          const active = view === v || (v === "today" && view === "setup");
+          return (
+            <button
+              key={v}
+              type="button"
+              aria-current={active ? "page" : undefined}
+              onClick={() => setView(v)}
+              className={`rounded-full px-5 py-1.5 text-sm font-bold capitalize transition focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500 ${active ? "bg-card text-foreground shadow-soft" : "text-muted-foreground hover:text-foreground"}`}
+            >
+              {v}
+            </button>
+          );
+        })}
+      </div>
     </nav>
   );
 
@@ -599,6 +605,8 @@ export default function Home() {
             <TodayView
               userId={userId}
               onEditProfile={() => setView("setup")}
+              onShowProfile={() => setView("you")}
+              section={view === "you" ? "you" : "today"}
               addressLabel={address?.addressTag || address?.addressCategory || undefined}
             />
           )}

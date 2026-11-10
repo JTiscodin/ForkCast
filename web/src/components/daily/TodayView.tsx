@@ -104,8 +104,8 @@ function RatingDot() {
 }
 
 function Ring({ value, target, label, unit }: { value: number; target: number; label: string; unit: string }) {
-  const size = 64;
-  const stroke = 6;
+  const size = 52;
+  const stroke = 5;
   const r = (size - stroke) / 2;
   const c = 2 * Math.PI * r;
   const pct = Math.min(1, value / Math.max(target, 1));
@@ -435,10 +435,14 @@ function Nudge({ slot, onLog }: { slot: DailySlot; onLog: (kind: string, text?: 
 export function TodayView({
   userId,
   onEditProfile,
+  onShowProfile,
+  section = "today",
   addressLabel = "your saved Swiggy address",
 }: {
   userId: number;
   onEditProfile: () => void;
+  onShowProfile: () => void;
+  section?: "today" | "you";
   addressLabel?: string;
 }) {
   const [data, setData] = useState<Today | null>(null);
@@ -618,6 +622,68 @@ export function TodayView({
     { icon: <WeatherIcon className="size-4 text-meal-dinner" />, label: "Weather", value: `${data.weather.rain ? "Rainy" : data.weather.hot ? "Hot" : data.season[0].toUpperCase() + data.season.slice(1)}${data.profile.city ? ` in ${data.profile.city}` : ""}` },
   ];
 
+  const liked = memory.bullets.filter((b) => !b.blocked && b.weight > 0 && b.dimension === "dish");
+  const deleteAccount = (
+          <div className="text-sm">
+            {armDelete ? (
+              <span className="flex flex-wrap items-center gap-2">
+                <span className="font-bold text-danger">Erase everything Forkcast stores about you?</span>
+                <button
+                  type="button"
+                  onClick={async () => {
+                    try {
+                      await api.deleteAccount(userId);
+                      clearSession();
+                      window.location.reload();
+                    } catch (e) {
+                      toast.error(e instanceof Error ? e.message : "Couldn't delete your data");
+                    }
+                  }}
+                  className={cn(focusRing, "rounded-full bg-danger px-2.5 py-1 font-bold text-white")}
+                >
+                  Delete my data
+                </button>
+                <button type="button" onClick={() => setArmDelete(false)} className={cn(focusRing, "rounded-full px-2 py-1 text-muted-foreground hover:text-foreground")}>
+                  Cancel
+                </button>
+              </span>
+            ) : (
+              <button type="button" onClick={() => setArmDelete(true)} className={cn(focusRing, "rounded text-muted-foreground underline-offset-2 hover:text-danger hover:underline")}>
+                Delete my account and data
+              </button>
+            )}
+          </div>
+  );
+
+  if (section === "you") {
+    return (
+      <div className="mx-auto flex w-full max-w-5xl flex-col gap-6 px-4 py-6 lg:px-6">
+        <header className="flex flex-wrap items-end justify-between gap-3">
+          <div>
+            <h1 className="font-heading text-[28px] font-extrabold leading-tight tracking-[-0.03em] sm:text-[32px]">What Forkcast knows about you</h1>
+            <p className="mt-1 max-w-xl text-sm text-muted-foreground">
+              Every pick is shaped by this page. Fix anything that looks wrong and tomorrow&apos;s plan changes with it.
+            </p>
+          </div>
+          <Button variant="outline" onClick={onEditProfile}>
+            <Settings /> Diet, allergies and budget
+          </Button>
+        </header>
+        <section className="rounded-2xl bg-card p-5 shadow-soft">
+          <TastePanel wide facts={memory.facts} bullets={memory.bullets} onEdit={editMemory} />
+        </section>
+        <section className="flex flex-col gap-2 rounded-2xl bg-card p-5 shadow-soft">
+          <h2 className="font-heading text-lg font-extrabold">Your data</h2>
+          <p className="max-w-xl text-sm text-muted-foreground">
+            Forkcast stores your preferences, the plans it showed you and what you ordered through it. Deleting your
+            account erases all of it. Your Swiggy account and its orders are not affected.
+          </p>
+          {deleteAccount}
+        </section>
+      </div>
+    );
+  }
+
   return (
     <div ref={rootRef} className="mx-auto grid w-full max-w-7xl gap-8 px-4 py-6 lg:grid-cols-[1fr_340px] lg:px-6">
       <main className="flex min-w-0 flex-col gap-8">
@@ -782,7 +848,7 @@ export function TodayView({
       <aside className="flex flex-col gap-5 lg:sticky lg:top-4 lg:max-h-[calc(100dvh-2rem)] lg:self-start lg:overflow-y-auto">
         <section className="flex flex-col gap-4 rounded-2xl bg-card p-4 shadow-soft">
           <h2 className="font-extrabold">Today&apos;s nutrition</h2>
-          <div className="grid grid-cols-3 gap-y-3">
+          <div className="grid grid-cols-5 gap-1">
             {MACROS.map((m) => (
               <Ring key={m.key} label={m.label} unit={m.unit} value={n.today[m.key] ?? 0} target={n.targets[m.key]} />
             ))}
@@ -798,38 +864,26 @@ export function TodayView({
           </div>
         </section>
 
+        {/* Taste teaser: the full, editable profile lives on the You tab */}
         <section className="flex flex-col gap-3 rounded-2xl bg-card p-4 shadow-soft">
-          <TastePanel facts={memory.facts} bullets={memory.bullets} onEdit={editMemory} />
-          {/* Account deletion: wipes profile, plans, feedback and orders on our side */}
-          <div className="border-t border-border pt-2 text-xs">
-            {armDelete ? (
-              <span className="flex flex-wrap items-center gap-2">
-                <span className="font-bold text-danger">Erase everything Forkcast stores about you?</span>
-                <button
-                  type="button"
-                  onClick={async () => {
-                    try {
-                      await api.deleteAccount(userId);
-                      clearSession();
-                      window.location.reload();
-                    } catch (e) {
-                      toast.error(e instanceof Error ? e.message : "Couldn't delete your data");
-                    }
-                  }}
-                  className={cn(focusRing, "rounded-full bg-danger px-2.5 py-1 font-bold text-white")}
-                >
-                  Delete my data
-                </button>
-                <button type="button" onClick={() => setArmDelete(false)} className={cn(focusRing, "rounded-full px-2 py-1 text-muted-foreground hover:text-foreground")}>
-                  Cancel
-                </button>
-              </span>
-            ) : (
-              <button type="button" onClick={() => setArmDelete(true)} className={cn(focusRing, "rounded text-muted-foreground underline-offset-2 hover:text-danger hover:underline")}>
-                Delete my account and data
-              </button>
-            )}
+          <div className="flex items-baseline justify-between">
+            <h2 className="font-extrabold">Your taste</h2>
+            <span className="text-xs text-muted-foreground">{liked.length} learned</span>
           </div>
+          {liked.length === 0 ? (
+            <p className="text-sm text-muted-foreground">Order or rate a meal and Forkcast starts learning.</p>
+          ) : (
+            <ul className="flex flex-wrap gap-1.5">
+              {liked.slice(0, 6).map((b) => (
+                <li key={b.id} className="rounded-full bg-brand-50 px-2.5 py-1 text-[13px] font-semibold capitalize text-brand-700">
+                  {b.key.replace(/_/g, " ")}
+                </li>
+              ))}
+            </ul>
+          )}
+          <button type="button" onClick={onShowProfile} className={cn(focusRing, "flex items-center justify-between rounded-xl bg-muted px-3 py-2 text-sm font-bold transition hover:bg-brand-50 hover:text-brand-700")}>
+            See and edit everything <ChevronRight className="size-4" aria-hidden />
+          </button>
         </section>
       </aside>
 

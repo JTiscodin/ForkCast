@@ -15,7 +15,7 @@ Flow:
 import os
 import time as _time
 import config  # noqa: F401 — loads .env before anything reads os.environ
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, field_validator
 
@@ -339,10 +339,14 @@ class AdjustIn(BaseModel):
 
 # ---------- endpoints ----------
 @app.post("/user")
-def create_user(body: UserIn):
+def create_user(body: UserIn, request: Request):
     conn, w, _ = svc()
     try:
-        key = _swiggy_key(body.address_id)
+        # Sign-back-in is local only: the server holds ONE Swiggy login, so only the
+        # person at this machine (who owns that login) may reclaim its account. A
+        # remote caller always gets a fresh, empty account.
+        local = bool(request.client) and request.client.host in ("127.0.0.1", "::1")
+        key = _swiggy_key(body.address_id) if local else None
         if key:   # sign back in: same Swiggy account -> same Forkcast account
             row = conn.execute("SELECT id FROM users WHERE swiggy_key = ? ORDER BY id LIMIT 1", (key,)).fetchone()
             if row:
@@ -361,6 +365,8 @@ def _swiggy_key(address_id):
 
     The address must be one the server's live Swiggy login actually owns
     (get_addresses), so a made-up id can't claim someone's account.
+    Never an authentication factor for remote callers (create_user gates this to
+    loopback): the address list is readable by anyone who can reach this server.
     shortcut: Swiggy address ids look like "<customer>__<address>" and we key on
     the customer part (falls back to the whole id); with per-user Swiggy OAuth,
     key on that user's own token subject instead.

@@ -8,8 +8,8 @@ Secret: FORKCAST_SECRET env var, else a random one generated once into
 backend/.auth_secret (gitignored). Rotating it signs every user out.
 
 Tokens last TTL_DAYS and every authenticated response carries a fresh one in
-X-Forkcast-Token, so active users stay signed in and idle sessions die. A user whose
-token expired signs back in through Swiggy (POST /user with their Swiggy address).
+X-Forkcast-Token, so active users stay signed in and idle sessions die. Signing back in after
+expiry is only possible from the server's own machine (see app._swiggy_key).
 """
 import hashlib
 import hmac
@@ -63,15 +63,10 @@ def user_from(header, now=None):
     if not header or not header.startswith("Bearer "):
         return None
     parts = header[7:].strip().split(".")
-    if len(parts) == 2:
-        # shortcut: tokens issued before expiry existed are accepted once and replaced by
-        # the refreshed token on the response; drop this branch after 2026-12-15.
-        uid, exp, sig = parts[0], "", parts[1]
-    elif len(parts) == 3 and parts[1].isdigit():
-        uid, exp, sig = parts
-        if int(exp) < (time.time() if now is None else now):
-            return None
-    else:
+    if len(parts) != 3 or not parts[1].isdigit():
+        return None
+    uid, exp, sig = parts
+    if int(exp) < (time.time() if now is None else now):
         return None
     if not uid.isdigit() or not hmac.compare_digest(sig, token_for(uid, exp)):
         return None
@@ -135,5 +130,7 @@ def middleware(get_conn):
         response = await call_next(request)
         if response.status_code < 400 and not (request.method == "DELETE" and _USER_PATH.match(path)):
             response.headers["X-Forkcast-Token"] = bearer(uid)   # sliding renewal
+            response.headers["Cache-Control"] = "no-store, private"   # a token must never sit in a cache
+            response.headers["Vary"] = "Authorization"
         return response
     return check

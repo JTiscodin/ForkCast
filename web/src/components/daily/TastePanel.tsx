@@ -34,7 +34,9 @@ export function TastePanel({
   facts,
   bullets,
   onEdit,
+  wide = false,
 }: {
+  wide?: boolean;
   facts: string[];
   bullets: MemoryBullet[];
   onEdit: (b: MemoryBullet, change: Change) => void;
@@ -68,6 +70,7 @@ export function TastePanel({
         </p>
       )}
 
+      <div className={cn("grid gap-x-8 gap-y-5", wide && "md:grid-cols-2")}>
       {groups.map((g) => (
         <section key={g.title} className="flex flex-col gap-2">
           <h3 className="flex items-baseline justify-between text-sm font-bold">
@@ -89,7 +92,7 @@ export function TastePanel({
                   )}
                 >
                   {b.blocked ? <Ban className="size-3 shrink-0 text-danger" aria-hidden /> : <Strength weight={b.weight} />}
-                  <span className="line-clamp-1">{b.key}</span>
+                  <span className="line-clamp-1">{b.key.replace(/_/g, " ")}</span>
                 </button>
               </li>
             ))}
@@ -99,7 +102,7 @@ export function TastePanel({
           {open && g.items.some((b) => b.id === open.id) && (
             <div className="flex flex-col gap-2 rounded-xl bg-muted/60 p-3">
               <p className="text-sm">
-                <span className="font-bold capitalize">{open.key}</span>
+                <span className="font-bold capitalize">{open.key.replace(/_/g, " ")}</span>
                 {open.why && <span className="text-muted-foreground"> · {open.why}</span>}
               </p>
               <div className="flex flex-wrap gap-1.5">
@@ -128,6 +131,7 @@ export function TastePanel({
           )}
         </section>
       ))}
+      </div>
     </div>
   );
 }
