@@ -36,3 +36,7 @@ backend/out*.txt
 backend/data/taste/
 backend/.auth_secret
 web/src/.swarm/
+
+# app logos are part of the app
+!web/public/brand/*.png
+!web/src/app/icon.png
