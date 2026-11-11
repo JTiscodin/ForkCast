@@ -81,7 +81,7 @@ def profiles(conn, names, llm=True):
                     found[k] = prof
                     conn.execute("INSERT OR REPLACE INTO dish_profile (key, profile, source) VALUES (?,?,?)",
                                   (k, json.dumps(prof), "llm"))
-        conn.commit()
+            conn.commit()   # per batch: never hold the write lock across the next model call
     return {n: found.get(k) or rule_profile(n) for n, k in keys.items()}
 
 

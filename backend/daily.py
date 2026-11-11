@@ -13,6 +13,7 @@ gap add-on -> persist daily_menu + menu_card + excluded_card.
 import json
 import math
 import re
+import threading
 import urllib.parse
 import urllib.request
 from datetime import date as _date, datetime, timedelta, timezone
@@ -21,6 +22,8 @@ from pathlib import Path
 import dish_profile
 import nutrition
 import taste_profile as tp
+
+_BUILD_LOCK = threading.RLock()   # re-entrant: today() holds it while calling build_day
 
 SLOTS = ("breakfast", "lunch", "snack", "dinner")
 DIETS = ("veg", "eggetarian", "nonveg", "jain", "vegan")
@@ -870,7 +873,13 @@ def _addon(conn, profile, day, slot, card, gap, im_fn, cache):
     return None
 
 
-def build_day(conn, user_id, day, dishes_fn, im_fn, slots=None):
+def build_day(*args, **kwargs):
+    """Serialised: every path that builds menus (today, regenerate, nightly) takes the same lock."""
+    with _BUILD_LOCK:
+        return _build_day(*args, **kwargs)
+
+
+def _build_day(conn, user_id, day, dishes_fn, im_fn, slots=None):
     """Generate (or regenerate) menus for every active slot of `day`."""
     profile = get_profile(conn, user_id)
     if not profile:
@@ -975,12 +984,16 @@ def today(conn, user_id, day, now, dishes_fn, im_fn, stock_fn=None):
     profile = get_profile(conn, user_id)
     if not profile:
         return None
-    stale = [s for s in profile["slots"]
-             if not _menu_fresh(conn, user_id, day, s)
-             or (stock_fn and not _ordered(conn, user_id, day, s)
-                 and _gone(conn, user_id, day, s, stock_fn))]
-    if stale:
-        build_day(conn, user_id, day, dishes_fn, im_fn, slots=stale)
+    # One build at a time: the page asks for today twice on load, and two builds
+    # writing at once ended in "database is locked". The second caller waits, then
+    # finds the menus fresh and builds nothing.
+    with _BUILD_LOCK:
+        stale = [s for s in profile["slots"]
+                 if not _menu_fresh(conn, user_id, day, s)
+                 or (stock_fn and not _ordered(conn, user_id, day, s)
+                     and _gone(conn, user_id, day, s, stock_fn))]
+        if stale:
+            build_day(conn, user_id, day, dishes_fn, im_fn, slots=stale)
     slots = []
     for s in profile["slots"]:
         m = conn.execute("SELECT * FROM daily_menu WHERE user_id=? AND date=? AND slot=?",
