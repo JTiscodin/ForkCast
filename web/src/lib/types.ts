@@ -292,6 +292,19 @@ export interface DietPlanProposal {
   summary: string;
 }
 
+/** One dish found by Ask Forkcast; "add N" puts it into today's plan. */
+export interface ChatResult {
+  index: number;
+  name: string;
+  price: number;
+  restaurant: string;
+  rating: number | null;
+  image_url: string;
+  source: "food" | "instamart";
+  veg: boolean;
+  kcal: number;
+}
+
 export interface MemoryBullet {
   id: string;
   dimension: string;

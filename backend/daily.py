@@ -355,10 +355,14 @@ def budget(conn, user_id, profile, day):
     days_left = (nxt - day).days
     days_in_month = (nxt - day.replace(day=1)).days
     remaining = monthly + rollover - spent
+    # "unspent so far" only counts days this person has actually been on Forkcast
+    joined = conn.execute("SELECT date(created_at) FROM users WHERE id=?", (user_id,)).fetchone()
+    start = max(day.replace(day=1), _date.fromisoformat(joined[0]) if joined and joined[0] else day.replace(day=1))
+    days_here = max(0, (day - start).days)
     return {"monthly": monthly, "spent": round(spent, 2), "rollover": round(rollover, 2),
             "remaining": round(remaining, 2), "days_left": days_left,
             # unspent so far = budget for the days already gone, minus what was spent
-            "saved_so_far": round(max(0.0, monthly / days_in_month * (day.day - 1) - spent), 2),
+            "saved_so_far": round(max(0.0, monthly / days_in_month * days_here - spent), 2),
             "daily_cap": round(max(0.0, remaining) / days_left, 2)}
 
 # ---------------------------------------------------------------- nutrition state
@@ -551,6 +555,17 @@ def _fits_slot(d, slot):
         d.meal_type == slot or (slot != "breakfast" and d.meal_type in ("lunch", "dinner")))
 
 
+# Not something you eat as it comes: cooking ingredients, raw produce for cooking, non-food.
+_IM_NOT_READY = ("batter", "atta", "flour", "maida", "besan", "dough", "premix", "ready to cook", "raw ",
+                 "kachha", "kaccha", "frozen", "oil", "ghee", "masala", "powder", "spice", "seeds", "dal ",
+                 "rice ", "sugar", "salt", "detergent", "soap", "shampoo", "cleaner", "tissue", "toothpaste")
+
+
+def _im_ready(name):
+    """Instamart product you can eat as it comes (restaurant dishes never go through this)."""
+    return not any(w in f"{name.lower()} " for w in _IM_NOT_READY)
+
+
 def _im_safe(name, diet):
     n = name.lower()
     if diet == "vegan" and any(w in n for w in _ANIMAL):
@@ -649,6 +664,7 @@ def candidates(slot, day, profile, dishes_fn, im_fn, conn=None):
         for q in (qa, qb):
             try:
                 rows = [r for r in im_fn(q) if r.get("price") and _im_safe(r.get("name") or "", diet)
+                        and _im_ready(r.get("name") or "")
                         and not _name_allergen(f"{q} {r.get('name') or ''}", profile.get("allergies") or [])]
             except Exception as e:  # noqa: BLE001 — Instamart outage = restaurant-only cards
                 print(f"[daily] instamart '{q}' failed: {e}")
@@ -706,6 +722,8 @@ def filter_and_score(conn, user_id, profile, day, slot, drafts, ctx):
         if diet_on(profile, day) == "jain" and any(not _jain_ok(i) for i in food if not i.get("side")):
             continue
         if any(not _im_safe(i["name"], diet_on(profile, day)) for i in items):
+            continue
+        if any(i["source"] == "instamart" and not _im_ready(i["name"]) for i in items):
             continue
         hit, note = _allergy_check(items, profile["allergies"])
         if hit is None:   # items without a profile (Instamart, unseen dishes): judge by name
@@ -863,6 +881,7 @@ def _addon(conn, profile, day, slot, card, gap, im_fn, cache):
         if q not in cache:
             try:
                 rows = [r for r in im_fn(q) if r.get("price") and _im_safe(r.get("name") or "", diet)
+                        and _im_ready(r.get("name") or "")
                         and not _name_allergen(f"{q} {r.get('name') or ''}", profile.get("allergies") or [])]
             except Exception:  # noqa: BLE001 — add-on is optional
                 rows = []
@@ -1226,6 +1245,11 @@ def pull_food_orders(conn, user_id, food_client, address_id):
     return learned
 
 
+_IM_FOODS = ("curd", "dahi", "yogurt", "yoghurt", "banana", "fruit", "apple", "orange", "papaya", "egg", "bread",
+             "poha", "makhana", "chaas", "chach", "buttermilk", "lassi", "sprout", "milk", "paneer", "tofu",
+             "dates", "chana", "cucumber", "salad", "juice", "coconut water", "oats", "muesli", "nuts")
+
+
 def pull_history(conn, user_id, im_client, address_id):
     """Instamart get_orders + your_go_to_items as cold-start grocery signal."""
     if im_client is None:
@@ -1236,6 +1260,8 @@ def pull_history(conn, user_id, im_client, address_id):
             names += _names(fn(*args))
         except Exception as e:  # noqa: BLE001 — cold start is best-effort
             print(f"[daily] history pull failed: {e}")
+    # only things Forkcast would actually offer (curd, fruit, makhana...), not the whole basket
+    names = [n for n in names if _im_ready(n) and any(w in n.lower() for w in _IM_FOODS)]
     for n in dict.fromkeys(names):
         # once per product: this runs on every profile save, and repeats used to pile up
         if not conn.execute("SELECT 1 FROM feedback_event WHERE user_id=? AND type='history' AND dimension='grocery' "

@@ -7,7 +7,8 @@ import { useGSAP } from "@gsap/react";
 import { cn } from "@/lib/utils";
 import type { SwiggyAddress } from "@/lib/types";
 import { DUR, EASE, prefersReducedMotion } from "@/lib/motion";
-import { MapPin } from "lucide-react";
+import { MapPin, Moon, Sun } from "lucide-react";
+import { useTheme } from "next-themes";
 import { LogoMark } from "./Logo";
 
 gsap.registerPlugin(useGSAP);
@@ -20,6 +21,7 @@ export function AppHeader({
   address: SwiggyAddress | null;
 }) {
   const rootRef = useRef<HTMLElement>(null);
+  const { resolvedTheme, setTheme } = useTheme();
 
   // One-time entrance: slide down into place while fading in (~0.5s). Sticky
   // chrome, so it stays subtle — a short drop, no bounce, transform/opacity only.
@@ -64,6 +66,16 @@ export function AppHeader({
             </span>
           </div>
         )}
+        <button
+          type="button"
+          aria-label="Switch between light and dark mode"
+          onClick={() => setTheme(resolvedTheme === "dark" ? "light" : "dark")}
+          className="flex size-9 shrink-0 items-center justify-center rounded-full border border-border bg-surface-elevated text-muted-foreground transition hover:text-foreground focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500"
+        >
+          {/* both icons render; CSS shows the right one, so server and client markup match */}
+          <Sun className="hidden size-4 dark:block" aria-hidden />
+          <Moon className="size-4 dark:hidden" aria-hidden />
+        </button>
         <span
           className={cn(
             "flex shrink-0 items-center gap-1.5 rounded-full border px-3 py-1.5 text-sm font-semibold leading-[1.4]",

@@ -29,6 +29,7 @@ import {
   Zap,
   ChefHat,
   Paperclip,
+  Plus,
   PiggyBank,
   MessageCircle,
   Sparkles,
@@ -37,7 +38,7 @@ import {
 
 import { api } from "@/lib/api";
 import { clearSession } from "@/lib/session";
-import type { CardItem, DailySlot, DietPlanProposal, MemoryBullet, MenuCard, OrderOutcome, TodayView as Today } from "@/lib/types";
+import type { CardItem, ChatResult, DailySlot, DietPlanProposal, MemoryBullet, MenuCard, OrderOutcome, TodayView as Today } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import { focusRing, mealStyle } from "@/lib/design";
 import { fadeUp } from "@/lib/motion";
@@ -89,9 +90,9 @@ const BRAND = {
 function PoweredBy({ service }: { service: "Swiggy" | "Instamart" }) {
   const b = BRAND[service];
   return (
-    <span className="inline-flex items-center gap-1 whitespace-nowrap text-[11px] font-semibold text-foreground/75">
+    <span className="inline-flex h-6 items-center gap-1.5 whitespace-nowrap rounded-full border border-border bg-white px-2 text-[10px] font-semibold text-neutral-600">
       Powered by
-      <Image src={b.src} alt={service} width={b.w} height={b.h} className="h-3.5 w-auto" />
+      <Image src={b.src} alt={service} width={b.w} height={b.h} className={service === "Swiggy" ? "h-2.5 w-auto" : "h-3.5 w-auto"} />
     </span>
   );
 }
@@ -159,11 +160,6 @@ function MicroBar({ k, value, target }: { k: string; value: number; target: numb
       </div>
     </div>
   );
-}
-
-function sideLine(i: CardItem) {
-  const qty = (i.quantity ?? 1) > 1 ? ` ×${i.quantity}` : "";
-  return `${i.name}${qty} · ${formatINR(i.price * (i.quantity ?? 1))}`;
 }
 
 function MealCard({
@@ -236,20 +232,37 @@ function MealCard({
           )}
           <span>{grocery ? "Instamart, delivered in minutes" : main.restaurant_name}</span>
         </p>
-        <p className="flex flex-wrap gap-x-2">
+        <p className="flex flex-wrap gap-1.5 py-0.5">
           {!grocery && <PoweredBy service="Swiggy" />}
           {(grocery || addon) && <PoweredBy service="Instamart" />}
         </p>
-        {sides.map((s) => (
-          <p key={s.id} className="text-xs text-muted-foreground">
-            with {sideLine(s)}
-          </p>
-        ))}
-        {addon && (
-          <p className="flex items-start gap-1 text-xs text-meal-snack" title={addon.addon_reason}>
-            <ShoppingBasket className="size-3 shrink-0" aria-hidden />
-            <span className="sr-only">Instamart add-on: </span>+ {sideLine(addon)}
-          </p>
+        {(sides.length > 0 || addon) && (
+          <ul className="my-1 flex flex-col gap-1.5 rounded-xl border border-border bg-muted/50 p-2.5" aria-label="Comes with">
+            {sides.map((s) => (
+              <li key={s.id} className="flex items-center gap-2 text-[13px]">
+                <span className="flex size-6 shrink-0 items-center justify-center rounded-full bg-brand-100 text-brand-700">
+                  <Plus className="size-3.5" strokeWidth={3} aria-hidden />
+                </span>
+                <span className="min-w-0 flex-1 font-bold leading-tight">
+                  {s.name}
+                  {(s.quantity ?? 1) > 1 && <span className="text-muted-foreground"> ×{s.quantity}</span>}
+                </span>
+                <span className="shrink-0 font-bold tabular-nums">{formatINR(s.price * (s.quantity ?? 1))}</span>
+              </li>
+            ))}
+            {addon && (
+              <li className="flex items-center gap-2 text-[13px]" title={addon.addon_reason}>
+                <span className="flex size-6 shrink-0 items-center justify-center rounded-full bg-meal-snack/15 text-meal-snack">
+                  <ShoppingBasket className="size-3.5" aria-hidden />
+                </span>
+                <span className="min-w-0 flex-1 leading-tight">
+                  <span className="font-bold">{addon.name}</span>
+                  <span className="block text-[11px] text-muted-foreground">From Instamart{addon.addon_reason ? `, to ${addon.addon_reason}` : ""}</span>
+                </span>
+                <span className="shrink-0 font-bold tabular-nums">{formatINR(addon.price)}</span>
+              </li>
+            )}
+          </ul>
         )}
         {why && !why.startsWith("We'll ask") && <p className="text-xs text-muted-foreground">{why}</p>}
         {main.note && (
@@ -450,7 +463,7 @@ export function TodayView({
 }) {
   const [data, setData] = useState<Today | null>(null);
   const [memory, setMemory] = useState<{ facts: string[]; bullets: MemoryBullet[] }>({ facts: [], bullets: [] });
-  const [chat, setChat] = useState<{ role: "you" | "bot"; text: string }[]>([]);
+  const [chat, setChat] = useState<{ role: "you" | "bot"; text: string; results?: ChatResult[] }[]>([]);
   const [msg, setMsg] = useState("");
   const [thinking, setThinking] = useState(false);
   const [plan, setPlan] = useState<DietPlanProposal | null>(null);
@@ -551,7 +564,7 @@ export function TodayView({
     setThinking(true);
     try {
       const r = await api.agent(userId, m);
-      setChat((c) => [...c, { role: "bot", text: r.reply }]);
+      setChat((c) => [...c, { role: "bot", text: r.reply, results: r.results }]);
       load();
     } catch (e) {
       setChat((c) => [...c, { role: "bot", text: e instanceof Error ? e.message : "Something went wrong" }]);
@@ -615,6 +628,15 @@ export function TodayView({
     return (
       <div className="mx-auto grid w-full max-w-7xl gap-6 px-4 py-6 lg:grid-cols-[1fr_340px] lg:px-6" aria-busy="true">
         <div className="flex flex-col gap-6">
+          <div className="flex items-center gap-3 rounded-2xl bg-card p-4 shadow-soft" aria-hidden>
+            <LottiePlayer path="/animations/cooking-pot.json" className="size-12 shrink-0" />
+            <div>
+              <p className="font-extrabold">Picking today&apos;s meals from restaurants near you</p>
+              <p className="text-sm text-muted-foreground">
+                The first plan reads menus from Swiggy and can take two to three minutes. After that it opens instantly.
+              </p>
+            </div>
+          </div>
           <p className="sr-only" role="status">
             Finding meals near you on Swiggy
           </p>
@@ -1013,14 +1035,56 @@ export function TodayView({
             )}
             <AnimatePresence initial={false}>
               {chat.map((c, i) => (
-                <motion.p
+                <motion.div
                   key={i}
                   initial={{ opacity: 0, y: 6 }}
                   animate={{ opacity: 1, y: 0 }}
-                  className={cn("max-w-[85%] rounded-2xl px-3 py-2 leading-snug", c.role === "you" ? "self-end rounded-br-sm bg-brand-500 text-white" : "self-start rounded-bl-sm bg-muted")}
+                  className={cn("flex max-w-[92%] flex-col gap-2", c.role === "you" ? "self-end" : "self-start")}
                 >
-                  {c.text}
-                </motion.p>
+                  <p className={cn("w-fit rounded-2xl px-3 py-2 leading-snug", c.role === "you" ? "self-end rounded-br-sm bg-brand-500 text-white" : "rounded-bl-sm bg-muted")}>
+                    {c.text}
+                  </p>
+                  {c.results && (
+                    <ol className="flex flex-col gap-2">
+                      {c.results.map((r) => (
+                        <li key={r.index} className="flex items-center gap-3 rounded-xl border border-border bg-card p-2 shadow-soft">
+                          <span className="relative size-14 shrink-0 overflow-hidden rounded-lg bg-muted">
+                            <DishImage src={r.image_url} alt="" sizes="56px" />
+                          </span>
+                          <span className="min-w-0 flex-1">
+                            <span className="flex items-start gap-1.5 text-sm font-extrabold leading-tight">
+                              <span className="mt-0.5"><DietMarker veg={r.veg} /></span>
+                              {r.name}
+                            </span>
+                            <span className="mt-0.5 flex flex-wrap items-center gap-x-1.5 text-xs text-muted-foreground">
+                              {r.rating ? (
+                                <span className="flex items-center gap-1 font-bold text-foreground">
+                                  <RatingDot /> {r.rating.toFixed(1)}
+                                </span>
+                              ) : null}
+                              <span>{r.source === "instamart" ? "Instamart" : r.restaurant}</span>
+                            </span>
+                            <span className="text-xs font-bold tabular-nums">
+                              {formatINR(r.price)}
+                            </span>
+                          </span>
+                          <button
+                            type="button"
+                            disabled={thinking}
+                            onClick={() => send(`add ${r.index + 1}`)}
+                            className={cn(focusRing, "shrink-0 rounded-lg border border-rating px-3 py-1.5 text-xs font-extrabold text-rating transition hover:bg-rating hover:text-white active:scale-95 disabled:opacity-50")}
+                          >
+                            Add
+                          </button>
+                        </li>
+                      ))}
+                      <li className="flex gap-1.5">
+                        <PoweredBy service="Swiggy" />
+                        {c.results.some((r) => r.source === "instamart") && <PoweredBy service="Instamart" />}
+                      </li>
+                    </ol>
+                  )}
+                </motion.div>
               ))}
             </AnimatePresence>
             {plan && (

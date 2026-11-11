@@ -531,6 +531,34 @@ def test_note_reaches_place_food_order():
     assert dict(calls)["place_food_order"]["noteToRestaurant"] == "No peanut please"
 
 
+def test_city_comes_from_the_swiggy_address():
+    import app as app_mod
+    assert app_mod._city_in("vardan: 6, Shiv Puri, Mohanpuri, Meerut, Uttar Pradesh 250003, India") == "Meerut"
+    assert app_mod._city_in("Flat 2, DLF Phase 3, Gurugram, Haryana 122002, India") == "Gurugram"
+    assert app_mod._city_in("somewhere in Pune") == "Pune"
+
+
+def test_instamart_offers_only_ready_to_eat_food():
+    for bad in ("iD Idli Dosa Batter", "Aashirvaad Atta 5kg", "Raw Banana (Kachha Kela)", "Surf Excel Detergent"):
+        assert not daily._im_ready(bad), bad
+    for ok in ("Mother Dairy Classic Curd", "Robusta Banana", "Mr Makhana Piri Piri"):
+        assert daily._im_ready(ok), ok
+
+
+def test_chat_search_goes_to_swiggy_for_dishes_outside_todays_menu(conn):
+    base = next(x for x in mock_catalog() if x.veg)
+    live = [replace(base, dish_id="x1", name="Rasmalai (2 Pcs)", restaurant_id="s1", restaurant_name="Bikanervala",
+                    rating=4.6, price=120, dish_kind="sweet"),
+            replace(base, dish_id="x2", name="Kesar Rasmalai", restaurant_id="s2", restaurant_name="Haldiram",
+                    rating=4.2, price=110, dish_kind="sweet")]
+    deps = {"dishes_fn": lambda veg: [], "im_fn": lambda q: [{"id": "i1", "name": "Rasmalai Tin", "price": 99}],
+            "search_fn": lambda q, veg: live if "rasmalai" in q else []}
+    out = agent.run(conn, 1, "best rasmalai in gurugram", deps, now=NOW)
+    names = [r["name"] for r in out["results"]]
+    assert names == ["Rasmalai (2 Pcs)", "Kesar Rasmalai"]          # restaurants, best rated first, no Instamart tin
+    assert out["results"][0]["restaurant"] == "Bikanervala" and "rasmalai" in out["reply"].lower()
+
+
 def test_diet_plan_is_clamped_and_applied(conn, monkeypatch):
     import base64
     import diet_plan
@@ -609,6 +637,8 @@ def test_side_bread_is_sized_for_one_person():
 def test_unspent_budget_rolls_into_next_month(conn):
     p = daily.get_profile(conn, 1)
     assert daily.budget(conn, 1, p, DAY)["rollover"] == 0          # not on Forkcast last month
+    conn.execute("UPDATE users SET created_at = ? WHERE id = 1", (DAY.isoformat() + " 08:00:00",))
+    assert daily.budget(conn, 1, p, DAY)["saved_so_far"] == 0      # joined today: nothing "unspent so far" yet
     last = (DAY.replace(day=1) - timedelta(days=1)).isoformat()
     mid = conn.execute("INSERT INTO daily_menu (user_id, date, slot) VALUES (1, ?, 'lunch')", (last,)).lastrowid
     cid = conn.execute("INSERT INTO menu_card (menu_id, role, position, items, price, nutrients, score, reasons) "

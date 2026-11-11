@@ -91,7 +91,12 @@ export function Onboarding({
       api
         .addresses()
         .then((r) => {
-          if (active) setAddresses(r.addresses ?? []);
+          if (!active) return;
+          setAddresses(r.addresses ?? []);
+          const who = (r.addresses?.[0]?.addressLine ?? "").split(":")[0].trim();
+          if (/^[A-Za-z][A-Za-z .'-]{1,39}$/.test(who) && (r.addresses?.[0]?.addressLine ?? "").includes(":")) {
+            setName((n) => n || who.replace(/\b\w/g, (c) => c.toUpperCase()));
+          }
         })
         .catch((e) => {
           if (!active) return;

@@ -33,8 +33,12 @@ export function ConnectSwiggy({
 
   const connect = async () => {
     setPhase("running");
+    // opened synchronously in the click so the browser allows it; pointed at Swiggy
+    // once the backend has the login URL. A tab we opened can close itself afterwards.
+    const popup = window.open("about:blank", "swiggy-login");
+    let sent = false;
     try {
-      await api.authStart();
+      await api.authStart(Boolean(popup));
     } catch (e) {
       setPhase("failed");
       toast.error(e instanceof ApiError ? e.message : "Could not start login");
@@ -44,7 +48,12 @@ export function ConnectSwiggy({
     pollRef.current = setInterval(async () => {
       try {
         const s = await api.authStatus();
+        if (popup && s.url && !sent) {
+          sent = true;
+          popup.location.href = s.url;
+        }
         if (s.live || s.status === "connected") {
+          popup?.close();
           if (pollRef.current) clearInterval(pollRef.current);
           toast.success("Swiggy connected!");
           onConnected();

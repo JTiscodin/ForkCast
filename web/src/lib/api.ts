@@ -21,6 +21,7 @@ import type {
   OrderOutcome,
   MemoryBullet,
   DietPlanProposal,
+  ChatResult,
 } from "./types";
 
 const BASE =
@@ -85,10 +86,10 @@ export const api = {
     }>("/mode"),
 
   // ---- Swiggy in-app OAuth login ----
-  authStart: () =>
-    req<{ status: string }>("/auth/swiggy/start", { method: "POST" }),
+  authStart: (popup = false) =>
+    req<{ status: string }>(`/auth/swiggy/start${popup ? "?popup=true" : ""}`, { method: "POST" }),
   authStatus: () =>
-    req<{ status: "idle" | "running" | "connected" | "failed"; error: string | null; live: boolean }>(
+    req<{ status: "idle" | "running" | "connected" | "failed"; error: string | null; live: boolean; url?: string | null }>(
       "/auth/swiggy/status"
     ),
   authLogout: () =>
@@ -230,7 +231,7 @@ export const api = {
 
   // ---- daily personalization ----
   dailyProfile: (user_id: number) =>
-    req<{ profile: DailyProfile | null }>(`/daily/${user_id}/profile`),
+    req<{ profile: DailyProfile | null; quiz_picks: string[]; city_guess: string | null }>(`/daily/${user_id}/profile`),
   saveDailyProfile: (user_id: number, body: Partial<DailyProfile> & { quiz_picks?: string[] }) =>
     req<{ profile: DailyProfile; history_items: number }>(`/daily/${user_id}/profile`, {
       method: "POST",
@@ -270,7 +271,7 @@ export const api = {
       body,
     }),
   agent: (user_id: number, message: string) =>
-    req<{ reply: string }>(`/daily/${user_id}/agent`, { method: "POST", body: { message } }),
+    req<{ reply: string; results?: ChatResult[] }>(`/daily/${user_id}/agent`, { method: "POST", body: { message } }),
 };
 
 export { ApiError };

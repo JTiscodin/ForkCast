@@ -13,6 +13,7 @@ Flow:
   POST /wallet/{user}/{month}/close   month close -> rollover
 """
 import os
+import re
 import time as _time
 import config  # noqa: F401 — loads .env before anything reads os.environ
 from fastapi import FastAPI, HTTPException, Request
@@ -403,15 +404,17 @@ def get_mode():
 # ---------- in-app Swiggy OAuth login ----------
 # The OAuth flow opens the system browser and waits for the localhost callback,
 # so it runs in a background thread; the frontend polls /auth/swiggy/status.
-_AUTH = {"status": "idle", "error": None}  # idle|running|connected|failed
+_AUTH = {"status": "idle", "error": None, "url": None}  # idle|running|connected|failed
 
 
-def _run_auth():
+def _run_auth(popup=False):
     import swiggy_auth
     _AUTH["status"] = "running"
     _AUTH["error"] = None
+    _AUTH["url"] = None
     try:
-        swiggy_auth.run()          # opens browser, catches callback, writes .env + env
+        # popup: the web app opens the login URL itself, so the tab can close on its own
+        swiggy_auth.run(on_url=(lambda u: _AUTH.__setitem__("url", u)) if popup else None)
         STATE["mode"] = "mcp"
         _init_runtime()            # rebuild client from the fresh token
         if _live():
@@ -426,7 +429,7 @@ def _run_auth():
 
 
 @app.post("/auth/swiggy/start")
-def auth_start():
+def auth_start(popup: bool = False):
     """Kick off the Swiggy OAuth flow. Opens a browser on THIS machine (the one
     running the backend). Returns immediately; poll /auth/swiggy/status."""
     if _AUTH["status"] == "running":
@@ -434,7 +437,7 @@ def auth_start():
     if _live():
         return {"status": "connected"}
     import threading
-    threading.Thread(target=_run_auth, daemon=True).start()
+    threading.Thread(target=_run_auth, args=(popup,), daemon=True).start()
     return {"status": "running"}
 
 
@@ -444,6 +447,7 @@ def auth_status():
         "status": _AUTH["status"],       # idle|running|connected|failed
         "error": _AUTH["error"],
         "live": _live(),
+        "url": _AUTH["url"] if _AUTH["status"] == "running" else None,   # login page for the popup
     }
 
 
@@ -1107,7 +1111,13 @@ def _daily_deps():
             rows = _ims(im, STATE["address_id"], q, limit=10)
             _IM_CACHE[k] = (_time.time(), rows)
             return rows
-    return {"dishes_fn": lambda veg_only: get_catalog(veg_only), "im_fn": im_fn,
+    def search_fn(query, veg_only):
+        f = STATE["fetcher"]
+        if not _live() or f is None:
+            return []
+        return [d for d in (f._map_item(it, "lunch") for it in f._search(STATE["address_id"], query, veg_only, 1)) if d]
+
+    return {"dishes_fn": lambda veg_only: get_catalog(veg_only), "im_fn": im_fn, "search_fn": search_fn,
             "stock_fn": _stock if im is not None else None,
             "food_exec": _executor(), "im_client": im, "address_id": STATE["address_id"]}
 
@@ -1148,7 +1158,20 @@ def _city_from_address():
     except Exception:  # noqa: BLE001 — city only drives the soft weather signal
         return None
     a = next((x for x in addrs if str(x.get("id")) == str(STATE["address_id"])), addrs[0] if addrs else {})
-    line = (a.get("addressLine") or "").lower()
+    return _city_in(a.get("addressLine") or "")
+
+
+def _city_in(address_line):
+    """'..., Mohanpuri, Meerut, Uttar Pradesh 250003, India' -> 'Meerut'.
+
+    Swiggy writes '<city>, <state> <pincode>'; the part before the state+pincode is
+    the city. Falls back to a known-city scan for other shapes.
+    """
+    parts = [p.strip() for p in address_line.split(",") if p.strip()]
+    for i, p in enumerate(parts):
+        if i and re.search(r"\b\d{6}\b", p) and re.fullmatch(r"[A-Za-z .'-]{2,40}", parts[i - 1]):
+            return parts[i - 1]
+    line = address_line.lower()
     # longest first so "New Delhi" beats "Delhi" and "Navi Mumbai" beats "Mumbai"
     return next((c for c in sorted(_CITIES, key=len, reverse=True) if c.lower() in line), None)
 
@@ -1213,7 +1236,13 @@ def daily_nightly():
 
 @app.get("/daily/{user_id}/profile")
 def daily_get_profile(user_id: int):
-    return _daily(lambda c, d: {"profile": daily.get_profile(c, user_id)})
+    def go(c, d):
+        p = daily.get_profile(c, user_id)
+        picks = [r["key"] for r in c.execute(
+            "SELECT DISTINCT key FROM feedback_event WHERE user_id=? AND type='quiz'", (user_id,))]
+        return {"profile": p, "quiz_picks": picks,
+                "city_guess": None if (p or {}).get("city") else _city_from_address()}
+    return _daily(go)
 
 
 @app.post("/daily/{user_id}/profile")

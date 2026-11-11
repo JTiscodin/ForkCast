@@ -69,6 +69,18 @@ export function DailyOnboarding({
   const [city, setCity] = useState(initial?.city ?? "");
   const [quiz, setQuiz] = useState<string[]>([]);
   const [picks, setPicks] = useState<string[]>([]);
+  const [saved, setSaved] = useState<string[]>([]);   // picked on an earlier visit
+
+  useEffect(() => {
+    api
+      .dailyProfile(userId)
+      .then((r) => {
+        setSaved(r.quiz_picks);
+        setPicks((p) => (p.length ? p : r.quiz_picks));
+        if (r.city_guess) setCity((c) => c || r.city_guess!);
+      })
+      .catch(() => {});
+  }, [userId]);
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
@@ -110,7 +122,7 @@ export function DailyOnboarding({
         monthly_budget: amount,
         slots,
         city: city || null,
-        quiz_picks: picks,
+        quiz_picks: picks.filter((p) => !saved.includes(p.toLowerCase())),   // only new picks are learned again
       });
       if (r.history_items) toast.success(`Learned from ${r.history_items} Instamart items you buy`);
       onDone(r.profile);
@@ -223,7 +235,7 @@ export function DailyOnboarding({
         {quiz.map((d) => (
           <Chip
             key={d}
-            on={picks.includes(d)}
+            on={picks.some((p) => p.toLowerCase() === d.toLowerCase())}
             onClick={() =>
               setPicks((p) => (p.includes(d) ? p.filter((x) => x !== d) : p.length < 5 ? [...p, d] : p))
             }
