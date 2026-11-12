@@ -30,8 +30,6 @@ import {
   ChefHat,
   Paperclip,
   Plus,
-  PiggyBank,
-  MessageCircle,
   Sparkles,
   X,
 } from "lucide-react";
@@ -46,9 +44,9 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ThinkingOrb } from "thinking-orbs";
+import { LottiePlayer } from "@/components/ui/LottiePlayer";
 import Image from "next/image";
 import { TastePanel } from "./TastePanel";
-import { LogoMark } from "@/components/app/Logo";
 import { BowlIllustration } from "@/components/ui/illustrations";
 import { DishImage } from "@/components/dish/DishImage";
 import { DietMarker } from "@/components/dish/DishCard";
@@ -824,7 +822,7 @@ export function TodayView({
           }}
           className="relative flex items-center gap-2 rounded-full bg-card p-1.5 pl-5 text-foreground shadow-layered transition focus-within:ring-2 focus-within:ring-brand-500"
         >
-          <Sparkles className="size-5 shrink-0 text-brand-500" aria-hidden />
+          <ThinkingOrb state="breathing" size={20} color="#FF7A3D" dotSize={1.5} aria-hidden className="shrink-0" />
           <input name="ask" aria-label="Ask Forkcast" placeholder="Craving something? “spicy under ₹250”, “I had dal at home”…" className="min-w-0 flex-1 bg-transparent py-2 text-[15px] outline-none placeholder:text-muted-foreground" />
           <label
             title="Upload your diet plan (photo, PDF or text)"
@@ -899,7 +897,7 @@ export function TodayView({
 
             {s.cards.length === 0 ? (
               <div className="flex items-center gap-3 rounded-2xl bg-card p-4 text-sm text-muted-foreground shadow-soft">
-                <BowlIllustration className="w-14 opacity-70" />
+                <LottiePlayer path="/animations/cooking-pot.json" className="size-14 shrink-0" />
                 Nothing nearby fits your rules for this meal right now.
               </div>
             ) : (
@@ -959,7 +957,7 @@ export function TodayView({
           </dl>
           {/* Rollover: unspent budget carries into next month (a virtual ledger, no money held) */}
           <div className="flex items-start gap-2.5 rounded-xl bg-rating/10 p-3">
-            <PiggyBank className="mt-0.5 size-5 shrink-0 text-rating" aria-hidden />
+            <LottiePlayer path="/animations/coin-drop.json" loop={false} className="-my-1 size-10 shrink-0" />
             <div className="text-sm">
               <p className="font-extrabold text-rating">
                 {data.budget.rollover > 0 ? `${formatINR(data.budget.rollover)} rolled over from last month` : "Rollover savings"}
@@ -1029,7 +1027,7 @@ export function TodayView({
             className="fixed inset-y-0 right-0 z-[60] flex w-full max-w-md flex-col gap-3 border-l border-border bg-card p-4 shadow-layered"
           >
           <div className="flex items-center justify-between gap-2">
-            <h2 className="flex items-center gap-2 font-heading text-lg font-extrabold"><LogoMark className="size-7" /> Ask Forkcast</h2>
+            <h2 className="flex items-center gap-2 font-heading text-lg font-extrabold"><ThinkingOrb state={thinking ? "searching" : "breathing"} size={32} color="#FF7A3D" dotSize={1.5} aria-hidden /> Ask Forkcast</h2>
             <button type="button" aria-label="Close chat" onClick={() => setChatOpen(false)} className={cn(focusRing, "rounded-full p-2 hover:bg-muted")}><X className="size-5" /></button>
           </div>
           <p className="text-xs text-muted-foreground">Ask for a craving, log what you ate at home, or tell me what to stop suggesting. I never place orders; you do.</p>
@@ -1056,9 +1054,14 @@ export function TodayView({
                   animate={{ opacity: 1, y: 0 }}
                   className={cn("flex max-w-[92%] flex-col gap-2", c.role === "you" ? "self-end" : "self-start")}
                 >
-                  <p className={cn("w-fit rounded-2xl px-3 py-2 leading-snug", c.role === "you" ? "self-end rounded-br-sm bg-brand-500 text-white" : "rounded-bl-sm bg-muted")}>
-                    {c.text}
-                  </p>
+                  <div className={cn("flex items-end gap-2", c.role === "you" && "self-end")}>
+                    {c.role === "bot" && (
+                      <ThinkingOrb state="breathing" size={20} color="#FF7A3D" dotSize={1.5} paused={i !== chat.length - 1} aria-hidden className="mb-1 shrink-0" />
+                    )}
+                    <p className={cn("w-fit rounded-2xl px-3 py-2 leading-snug", c.role === "you" ? "rounded-br-sm bg-brand-500 text-white" : "rounded-bl-sm bg-muted")}>
+                      {c.text}
+                    </p>
+                  </div>
                   {c.results && (
                     <ol className="flex flex-col gap-2">
                       {c.results.map((r) => (
@@ -1133,8 +1136,8 @@ export function TodayView({
             )}
             {thinking && (
               <div className="flex items-center gap-2.5 self-start text-sm text-muted-foreground">
-                <ThinkingOrb state={plan === null && chat.at(-1)?.text.startsWith("Uploaded ") ? "weaving" : "searching"} size={32} color="#FF7A3D" />
-                {chat.at(-1)?.text.startsWith("Uploaded ") ? "Reading your diet plan…" : "Looking through restaurants…"}
+                <ThinkingOrb state={plan === null && chat.at(-1)?.text.startsWith("Uploaded ") ? "weaving" : "searching"} size={32} color="#FF7A3D" dotSize={1.5} />
+                {chat.at(-1)?.text.startsWith("Uploaded ") ? "Reading your diet plan…" : "Thinking…"}
               </div>
             )}
             <div ref={chatEnd} />
@@ -1170,7 +1173,7 @@ export function TodayView({
           onClick={() => setChatOpen(true)}
           className={cn(focusRing, "fixed bottom-5 right-5 z-40 flex items-center gap-2 rounded-full bg-foreground py-3 pl-3 pr-5 font-bold text-background shadow-layered transition hover:scale-[1.03] active:scale-95", cartBar && "bottom-24")}
         >
-          <MessageCircle className="size-5" aria-hidden /> Ask Forkcast
+          <ThinkingOrb state="working" size={20} color="#FF7A3D" dotSize={1.5} aria-hidden /> Ask Forkcast
         </button>
       )}
 
@@ -1185,7 +1188,8 @@ export function TodayView({
             transition={{ type: "spring", stiffness: 420, damping: 34 }}
             className="fixed inset-x-4 bottom-4 z-50 mx-auto flex max-w-xl items-center justify-between gap-3 rounded-xl bg-rating px-4 py-3 text-white shadow-layered"
           >
-            <span className="min-w-0">
+            <LottiePlayer path="/animations/delivery-bike.json" className="-my-2 size-14 shrink-0" />
+            <span className="min-w-0 flex-1">
               <span className="block truncate text-sm font-extrabold">
                 {cartBar.outcome.mode === "dry_run" ? "Cart built on Swiggy" : "Order placed"} · {cartBar.title}
               </span>
