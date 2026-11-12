@@ -45,7 +45,7 @@ import { fadeUp } from "@/lib/motion";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
-import { LottiePlayer } from "@/components/ui/LottiePlayer";
+import { ThinkingOrb } from "thinking-orbs";
 import Image from "next/image";
 import { TastePanel } from "./TastePanel";
 import { LogoMark } from "@/components/app/Logo";
@@ -194,77 +194,83 @@ function MealCard({
   const veg = card.items.every((i) => i.veg);
 
   return (
-    <article data-reveal className={cn("group/meal flex flex-col overflow-hidden rounded-2xl bg-card shadow-soft transition-shadow hover:shadow-layered", locked && "opacity-60")}>
+    <article data-reveal className={cn("group/meal flex flex-col overflow-hidden rounded-2xl border border-border/60 bg-card shadow-soft transition-shadow hover:shadow-layered", locked && "opacity-75")}>
       {/* Swiggy-style photo: label + price on a dark gradient, press-to-shrink */}
       <div className="relative aspect-[16/9] overflow-hidden bg-muted sm:aspect-[4/3]">
         <div className="absolute inset-0 transition-transform duration-500 ease-out group-hover/meal:scale-105">
           <DishImage src={main.image_url} alt={title} sizes="(min-width: 1280px) 260px, 50vw" />
         </div>
         <div aria-hidden className="absolute inset-x-0 bottom-0 h-1/2 bg-gradient-to-t from-black/75 to-transparent" />
-        <span className="absolute left-2 top-2 rounded-full bg-white/95 px-2 py-0.5 text-[11px] font-extrabold text-foreground shadow-soft">{ROLE_LABEL[card.role]}</span>
+        <span className="absolute left-2 top-2 rounded-full bg-white px-2.5 py-1 text-[11px] font-extrabold text-neutral-900 shadow-soft">{ROLE_LABEL[card.role]}</span>
         {grocery && (
           <span className="absolute right-2 top-2 inline-flex items-center gap-1 rounded-md bg-white px-1.5 py-0.5 text-[11px] font-extrabold text-meal-snack">
             <ShoppingBasket className="size-3" aria-hidden /> Instamart
           </span>
         )}
-        <div className="absolute inset-x-3 bottom-2.5 text-white">
-          <p className="text-xl font-extrabold leading-tight tracking-[-0.02em] tabular-nums">{formatINR(card.price)}</p>
+        <div className="absolute inset-x-3 bottom-2.5 flex items-end justify-between gap-2">
+          <p className="text-xl font-extrabold leading-none tracking-[-0.02em] text-white tabular-nums">{formatINR(card.price)}</p>
+          {/* one badge on the photo; an Instamart add-on carries its own logo on its line */}
+          <PoweredBy service={grocery ? "Instamart" : "Swiggy"} />
         </div>
       </div>
 
-      <div className="flex flex-1 flex-col gap-1 p-3">
-        <h3 className="flex items-start gap-1.5 text-[15px] font-extrabold leading-snug tracking-[-0.01em]">
-          <span className="mt-[3px]">
-            <DietMarker veg={veg} />
-          </span>
-          <span>{title}</span>
-        </h3>
-        <p className="flex flex-wrap items-center gap-x-1.5 text-[13px] font-bold">
-          <span>~{Math.round(card.nutrients.kcal ?? 0)} kcal</span>
-          <span className="text-muted-foreground" aria-hidden>•</span>
-          <span>{Math.round(card.nutrients.protein ?? 0)}g protein</span>
-        </p>
-        <p className="flex items-start gap-1.5 text-sm text-muted-foreground">
-          {typeof rating === "number" && !grocery && (
-            <span className="flex shrink-0 items-center gap-1 font-bold text-foreground">
-              <RatingDot /> {rating.toFixed(1)}
+      <div className="flex flex-1 flex-col gap-2 p-3.5">
+        <div className="flex flex-col gap-1">
+          <h3 className="flex items-start gap-1.5 text-[15px] font-extrabold leading-snug tracking-[-0.01em]">
+            <span className="mt-[3px] shrink-0">
+              <DietMarker veg={veg} />
             </span>
-          )}
-          <span>{grocery ? "Instamart, delivered in minutes" : main.restaurant_name}</span>
-        </p>
-        <p className="flex flex-wrap gap-1.5 py-0.5">
-          {!grocery && <PoweredBy service="Swiggy" />}
-          {(grocery || addon) && <PoweredBy service="Instamart" />}
-        </p>
+            <span>{title}</span>
+          </h3>
+          {/* rating and restaurant flow as one sentence, so a long name wraps under the start, not under an indent */}
+          <p className="text-[13px] leading-snug text-muted-foreground">
+            {typeof rating === "number" && !grocery && (
+              <span className="mr-1 inline-flex translate-y-[3px] items-center gap-1 font-bold text-foreground">
+                <RatingDot /> {rating.toFixed(1)}
+              </span>
+            )}
+            {typeof rating === "number" && !grocery && <span aria-hidden>· </span>}
+            {grocery ? "Instamart, delivered in minutes" : main.restaurant_name}
+          </p>
+          <p className="text-xs font-semibold text-muted-foreground tabular-nums">
+            ~{Math.round(card.nutrients.kcal ?? 0)} kcal · {Math.round(card.nutrients.protein ?? 0)}g protein
+          </p>
+        </div>
+
         {(sides.length > 0 || addon) && (
-          <ul className="my-1 flex flex-col gap-1.5 rounded-xl border border-border bg-muted/50 p-2.5" aria-label="Comes with">
+          <ul className="flex flex-col gap-1 border-t border-dashed border-border pt-2 text-[13px]" aria-label="Comes with">
             {sides.map((s) => (
-              <li key={s.id} className="flex items-center gap-2 text-[13px]">
-                <span className="flex size-6 shrink-0 items-center justify-center rounded-full bg-brand-100 text-brand-700">
-                  <Plus className="size-3.5" strokeWidth={3} aria-hidden />
-                </span>
-                <span className="min-w-0 flex-1 font-bold leading-tight">
+              <li key={s.id} className="flex items-baseline gap-1.5">
+                <Plus className="size-3 shrink-0 translate-y-0.5 text-brand-500" strokeWidth={3} aria-hidden />
+                <span className="min-w-0 flex-1 font-semibold">
                   {s.name}
-                  {(s.quantity ?? 1) > 1 && <span className="text-muted-foreground"> ×{s.quantity}</span>}
+                  {(s.quantity ?? 1) > 1 && <span className="font-normal text-muted-foreground"> ×{s.quantity}</span>}
                 </span>
-                <span className="shrink-0 font-bold tabular-nums">{formatINR(s.price * (s.quantity ?? 1))}</span>
+                <span className="shrink-0 text-muted-foreground tabular-nums">{formatINR(s.price * (s.quantity ?? 1))}</span>
               </li>
             ))}
             {addon && (
-              <li className="flex items-center gap-2 text-[13px]" title={addon.addon_reason}>
-                <span className="flex size-6 shrink-0 items-center justify-center rounded-full bg-meal-snack/15 text-meal-snack">
-                  <ShoppingBasket className="size-3.5" aria-hidden />
+              <li className="flex items-baseline gap-1.5" title={addon.addon_reason}>
+                <ShoppingBasket className="size-3 shrink-0 translate-y-0.5 text-meal-snack" aria-hidden />
+                <span className="min-w-0 flex-1 font-semibold">
+                  {addon.name}
+                  <span className="mt-0.5 flex flex-wrap items-center gap-x-1 text-[11px] font-normal text-muted-foreground">
+                    <PoweredBy service="Instamart" />
+                    {addon.addon_reason ? `to ${addon.addon_reason}` : ""}
+                  </span>
                 </span>
-                <span className="min-w-0 flex-1 leading-tight">
-                  <span className="font-bold">{addon.name}</span>
-                  <span className="block text-[11px] text-muted-foreground">From Instamart{addon.addon_reason ? `, to ${addon.addon_reason}` : ""}</span>
-                </span>
-                <span className="shrink-0 font-bold tabular-nums">{formatINR(addon.price)}</span>
+                <span className="shrink-0 text-muted-foreground tabular-nums">{formatINR(addon.price)}</span>
               </li>
             )}
           </ul>
         )}
-        {why && !why.startsWith("We'll ask") && <p className="text-xs text-muted-foreground">{why}</p>}
+
+        {why && !why.startsWith("We'll ask") && (
+          <p className="flex items-start gap-1.5 text-xs text-muted-foreground">
+            <Sparkles className="mt-px size-3 shrink-0 text-brand-500" aria-hidden />
+            {why}
+          </p>
+        )}
         {main.note && (
           <p className="inline-flex w-fit items-center gap-1 rounded-md bg-rating/10 px-1.5 py-0.5 text-[11px] font-bold text-rating" title={`Sent to the restaurant with your order: ${main.note}`}>
             <ChefHat className="size-3" aria-hidden /> We&apos;ll ask: {main.note}
@@ -289,7 +295,7 @@ function MealCard({
           </div>
         )}
 
-        <div className="mt-auto pt-2.5">
+        <div className="mt-auto pt-1">
           {confirming ? (
             <div className="flex flex-col gap-2">
               <div className="flex gap-2">
@@ -348,35 +354,38 @@ function MealCard({
               </p>
             </div>
           ) : (
-            <div className="flex flex-col gap-2">
-              {/* Swiggy's ADD button: white, green bold caps, soft shadow */}
-              <button
-                type="button"
-                disabled={locked}
-                onClick={() => setConfirming(true)}
-                className={cn(focusRing, "w-full rounded-xl bg-rating px-5 py-2 text-sm font-extrabold text-white transition hover:brightness-95 active:scale-[0.98] disabled:cursor-not-allowed disabled:bg-muted disabled:text-muted-foreground")}
-              >
-                {locked ? "Done" : "Order"}
-              </button>
-              <div role="group" aria-label="Teach Forkcast" className="grid grid-cols-4 gap-1">
+            <div className="flex flex-col gap-1.5">
+              {locked ? (
+                <span className="flex items-center justify-center gap-1.5 rounded-xl bg-rating/10 px-3 py-2 text-sm font-bold text-rating">
+                  <CheckCircle2 className="size-4" aria-hidden /> Ordered
+                </span>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => setConfirming(true)}
+                  className={cn(focusRing, "w-full rounded-xl bg-rating px-4 py-2 text-sm font-extrabold text-white transition hover:brightness-95 active:scale-[0.98]")}
+                >
+                  Order
+                </button>
+              )}
+              <div role="group" aria-label="Teach Forkcast" className="grid grid-cols-4">
                 {(
                   [
-                    ["up", ThumbsUp, "More", "More like this", "hover:bg-rating/10 hover:text-rating"],
-                    ["down", ThumbsDown, "Less", "Less like this", "hover:bg-warning/10 hover:text-warning"],
-                    ["not_today", Clock, "Later", "Not today, swap it", "hover:bg-muted hover:text-foreground"],
-                    ["never", Ban, "Never", "Never show this", "hover:bg-danger/10 hover:text-danger"],
+                    ["up", ThumbsUp, "More like this", "hover:bg-rating/10 hover:text-rating"],
+                    ["down", ThumbsDown, "Less like this", "hover:bg-warning/10 hover:text-warning"],
+                    ["not_today", Clock, "Not today, swap it", "hover:bg-muted hover:text-foreground"],
+                    ["never", Ban, "Never show this", "hover:bg-danger/10 hover:text-danger"],
                   ] as const
-                ).map(([t, Icon, short, label, hover]) => (
+                ).map(([t, Icon, label, hover]) => (
                   <button
                     key={t}
                     type="button"
                     aria-label={label}
                     title={label}
                     onClick={() => onFeedback(card, t)}
-                    className={cn(focusRing, "flex flex-col items-center gap-0.5 rounded-lg py-1 text-[11px] font-semibold text-muted-foreground transition active:scale-90", hover)}
+                    className={cn(focusRing, "flex justify-center rounded-lg py-1.5 text-muted-foreground transition active:scale-90", hover)}
                   >
                     <Icon className="size-4" aria-hidden />
-                    {short}
                   </button>
                 ))}
               </div>
@@ -629,7 +638,7 @@ export function TodayView({
       <div className="mx-auto grid w-full max-w-7xl gap-6 px-4 py-6 lg:grid-cols-[1fr_340px] lg:px-6" aria-busy="true">
         <div className="flex flex-col gap-6">
           <div className="flex items-center gap-3 rounded-2xl bg-card p-4 shadow-soft" aria-hidden>
-            <LottiePlayer path="/animations/cooking-pot.json" className="size-12 shrink-0" />
+            <ThinkingOrb state="composing" size={64} color="#FF7A3D" />
             <div>
               <p className="font-extrabold">Picking today&apos;s meals from restaurants near you</p>
               <p className="text-sm text-muted-foreground">
@@ -1123,9 +1132,9 @@ export function TodayView({
               </div>
             )}
             {thinking && (
-              <div className="flex items-center gap-2 self-start text-xs text-muted-foreground">
-                <LottiePlayer path="/animations/cooking-pot.json" className="size-9" />
-                Thinking…
+              <div className="flex items-center gap-2.5 self-start text-sm text-muted-foreground">
+                <ThinkingOrb state={plan === null && chat.at(-1)?.text.startsWith("Uploaded ") ? "weaving" : "searching"} size={32} color="#FF7A3D" />
+                {chat.at(-1)?.text.startsWith("Uploaded ") ? "Reading your diet plan…" : "Looking through restaurants…"}
               </div>
             )}
             <div ref={chatEnd} />
