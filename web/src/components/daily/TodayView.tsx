@@ -753,10 +753,13 @@ export function TodayView({
   return (
     <div ref={rootRef} className="mx-auto grid w-full max-w-7xl gap-8 px-4 py-6 lg:grid-cols-[1fr_340px] lg:px-6">
       <main className="flex min-w-0 flex-col gap-8">
-        {/* Header: plain, bold, Swiggy-white — the food carries the colour */}
-        <header data-reveal className="flex flex-wrap items-end justify-between gap-4">
+        {/* Hero: navy banner with an orange corner; greeting, controls and the ask bar live in it */}
+        <div data-reveal className="relative flex flex-col gap-5 overflow-hidden rounded-2xl bg-[#03081F] p-5 text-white sm:p-8">
+          <span aria-hidden className="pointer-events-none absolute -right-24 -top-28 size-72 rounded-full bg-brand-500" />
+          <span aria-hidden className="pointer-events-none absolute -bottom-32 right-24 size-56 rounded-full bg-brand-500/15" />
+        <header className="relative flex flex-wrap items-end justify-between gap-4">
           <div className="min-w-0">
-            <p className="flex items-center gap-1 text-sm font-semibold text-muted-foreground">
+            <p className="flex items-center gap-1 text-sm font-semibold text-white/70">
               {greeting(now.getHours())}
               {data.profile.city && (
                 <>
@@ -773,7 +776,7 @@ export function TodayView({
           <div className="flex items-center gap-2">
             {/* Going live spends real money: it takes a second, explicit tap */}
             {armLive ? (
-              <span className="flex items-center gap-1 rounded-full bg-card p-1 text-xs font-bold shadow-soft">
+              <span className="flex items-center gap-1 rounded-full bg-card p-1 text-xs font-bold text-foreground shadow-soft">
                 <span className="px-2 text-danger">Place real orders?</span>
                 <button type="button" onClick={() => setMode("live")} className={cn(focusRing, "rounded-full bg-danger px-2.5 py-1 text-white")}>
                   Go live
@@ -788,7 +791,7 @@ export function TodayView({
                 role="switch"
                 aria-checked={live}
                 onClick={() => (live ? setMode("dry_run") : setArmLive(true))}
-                className={cn(focusRing, "flex items-center gap-2 rounded-full bg-card py-1 pl-3 pr-1 text-xs font-bold shadow-soft")}
+                className={cn(focusRing, "flex items-center gap-2 rounded-full bg-card py-1 pl-3 pr-1 text-xs font-bold text-foreground shadow-soft")}
               >
                 <span className={live ? "text-danger" : "text-muted-foreground"}>{live ? "Live orders" : "Dry run"}</span>
                 <span className={cn("relative h-5 w-9 rounded-full transition-colors", live ? "bg-danger" : "bg-muted")}>
@@ -796,7 +799,7 @@ export function TodayView({
                 </span>
               </button>
             )}
-            <button type="button" aria-label="Edit preferences" onClick={onEditProfile} className={cn(focusRing, "rounded-full bg-card p-2 shadow-soft transition hover:bg-muted")}>
+            <button type="button" aria-label="Edit preferences" onClick={onEditProfile} className={cn(focusRing, "rounded-full bg-card p-2 text-foreground shadow-soft transition hover:bg-muted")}>
               <Settings className="size-4" />
             </button>
           </div>
@@ -804,41 +807,40 @@ export function TodayView({
 
         {/* Ask bar: chat is the fastest way to bend today's plan, so it sits up top */}
         <form
-          data-reveal
           onSubmit={(e) => {
             e.preventDefault();
             const v = (e.currentTarget.elements.namedItem("ask") as HTMLInputElement).value.trim();
             setChatOpen(true);
             if (v) { send(v); e.currentTarget.reset(); }
           }}
-          className="flex items-center gap-2 rounded-2xl border-2 border-brand-500/30 bg-card p-1.5 pl-4 shadow-soft transition focus-within:border-brand-500"
+          className="relative flex items-center gap-2 rounded-full bg-card p-1.5 pl-5 text-foreground shadow-layered transition focus-within:ring-2 focus-within:ring-brand-500"
         >
           <Sparkles className="size-5 shrink-0 text-brand-500" aria-hidden />
           <input name="ask" aria-label="Ask Forkcast" placeholder="Craving something? “spicy under ₹250”, “I had dal at home”…" className="min-w-0 flex-1 bg-transparent py-2 text-[15px] outline-none placeholder:text-muted-foreground" />
           <label
             title="Upload your diet plan (photo, PDF or text)"
-            className={cn("flex shrink-0 cursor-pointer items-center gap-1.5 rounded-xl border border-border px-3 py-2 text-sm font-bold text-foreground/80 transition hover:border-brand-500 hover:text-brand-600 focus-within:outline-2 focus-within:outline-offset-2 focus-within:outline-brand-500", "")}
+            className={cn("flex shrink-0 cursor-pointer items-center gap-1.5 rounded-full border border-border px-3 py-2 text-sm font-bold text-foreground/80 transition hover:border-brand-500 hover:text-brand-600 focus-within:outline-2 focus-within:outline-offset-2 focus-within:outline-brand-500", "")}
           >
             <Paperclip className="size-4" aria-hidden />
             <span className="hidden sm:inline">Diet plan</span>
             <input type="file" accept="image/png,image/jpeg,image/webp,application/pdf,text/plain" className="sr-only" aria-label="Upload your diet plan" onChange={(e) => { uploadPlan(e.target.files?.[0]); e.target.value = ""; }} />
           </label>
-          <button type="submit" className={cn(focusRing, "shrink-0 rounded-xl bg-brand-500 px-4 py-2 text-sm font-extrabold text-white transition hover:bg-brand-600 active:scale-95")}>Ask</button>
+          <button type="submit" className={cn(focusRing, "shrink-0 rounded-full bg-brand-500 px-6 py-2 text-sm font-extrabold text-white transition hover:bg-brand-600 active:scale-95")}>Ask</button>
         </form>
+        </div>
 
         {/* "What's on your mind?"-style slot row: round dish photos, jump to the slot */}
-        <nav data-reveal aria-label="Meals today" className="-mx-4 flex gap-5 overflow-x-auto px-4 pb-1 sm:gap-8">
+        <nav data-reveal aria-label="Meals today" className="-mx-4 flex gap-3 overflow-x-auto px-4 pb-1 sm:grid sm:grid-cols-4 sm:overflow-visible">
           {data.slots.map((s) => {
             const img = s.cards[0]?.items[0];
             const now_ = s.slot === currentSlot;
             return (
-              <a key={s.slot} href={`#slot-${s.slot}`} className={cn(focusRing, "group/chip flex shrink-0 flex-col items-center gap-2 rounded-xl")}>
-                <span
-                  className={cn(
-                    "relative size-24 overflow-hidden rounded-full bg-muted ring-offset-2 ring-offset-background transition-transform duration-200 group-hover/chip:scale-95",
-                    now_ ? "ring-[3px] ring-brand-500" : s.ordered ? "ring-[3px] ring-rating" : ""
-                  )}
-                >
+              <a
+                key={s.slot}
+                href={`#slot-${s.slot}`}
+                className={cn(focusRing, "group/chip flex w-36 shrink-0 flex-col overflow-hidden rounded-2xl shadow-soft ring-offset-2 ring-offset-background transition hover:-translate-y-0.5 hover:shadow-layered sm:w-auto", now_ ? "ring-[3px] ring-brand-500" : s.ordered ? "ring-[3px] ring-rating" : "")}
+              >
+                <span className="relative block h-24 overflow-hidden bg-muted sm:h-28">
                   {img ? <DishImage src={img.image_url} alt="" sizes="96px" /> : <BowlIllustration className="size-full p-4" />}
                   {s.ordered && (
                     <span className="absolute inset-0 flex items-center justify-center bg-black/40">
@@ -846,9 +848,9 @@ export function TodayView({
                     </span>
                   )}
                 </span>
-                <span className="text-center leading-tight">
-                  <span className="block text-sm font-extrabold">{mealStyle(s.slot).label}</span>
-                  <span className={cn("block text-xs", now_ ? "font-bold text-brand-500" : "text-muted-foreground")}>{now_ ? "Now" : `${s.window[0]}–${s.window[1]}`}</span>
+                <span className="bg-[#03081F] px-3 py-2 leading-tight">
+                  <span className="block text-sm font-extrabold text-brand-400">{mealStyle(s.slot).label}</span>
+                  <span className="block text-xs text-white/75">{now_ ? "Now" : s.ordered ? "Done" : `${s.window[0]}–${s.window[1]}`}</span>
                 </span>
               </a>
             );
@@ -920,15 +922,19 @@ export function TodayView({
       </main>
 
       <aside className="flex flex-col gap-5 lg:sticky lg:top-4 lg:max-h-[calc(100dvh-2rem)] lg:self-start lg:overflow-y-auto">
-        <section aria-label="Budget and rollover" className="flex flex-col gap-3 rounded-2xl bg-card p-4 shadow-soft">
-          <div className="flex items-baseline justify-between">
-            <h2 className="font-extrabold">{now.toLocaleString("en-IN", { month: "long" })} food budget</h2>
-            <span className="text-xs text-muted-foreground">{data.budget.days_left} days left</span>
+        <section aria-label="Budget and rollover" className="flex shrink-0 flex-col gap-3 overflow-hidden rounded-2xl bg-card p-4 shadow-soft">
+          <div className="-mx-4 -mt-4 flex items-center justify-between bg-[#03081F] px-4 py-3 text-white">
+            <h2 className="flex items-center gap-2 font-extrabold">
+              <Wallet className="size-4 text-brand-400" aria-hidden />
+              {now.toLocaleString("en-IN", { month: "long" })} food budget
+            </h2>
+            <span className="text-xs text-white/70">{data.budget.days_left} days left</span>
           </div>
-          <p className="font-heading text-3xl font-extrabold tracking-[-0.02em] tabular-nums">
-            {formatINR(data.budget.remaining)}
-            <span className="ml-1.5 text-sm font-semibold text-muted-foreground">left of {formatINR(data.budget.monthly + data.budget.rollover)}</span>
+          <p className="flex items-baseline justify-between rounded-xl bg-brand-500 px-3 py-2.5 text-white">
+            <span className="text-sm font-bold">Left to spend</span>
+            <span className="font-heading text-2xl font-extrabold tracking-[-0.02em] tabular-nums">{formatINR(data.budget.remaining)}</span>
           </p>
+          <p className="-mt-1 text-xs text-muted-foreground">of {formatINR(data.budget.monthly + data.budget.rollover)} this month</p>
           <div className="h-2 overflow-hidden rounded-full bg-muted" role="img" aria-label={`${formatINR(data.budget.spent)} spent`}>
             <div className="h-full rounded-full bg-brand-500" style={{ width: `${Math.min(100, (data.budget.spent / Math.max(1, data.budget.monthly + data.budget.rollover)) * 100)}%` }} />
           </div>
