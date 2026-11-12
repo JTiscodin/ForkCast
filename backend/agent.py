@@ -44,17 +44,30 @@ def run(conn, user_id, message, deps, now=None):
             if not step:
                 break
             if "reply" in step:
+                if trace and trace[-1]["tool"] == "search" and trace[-1]["result"].get("results"):
+                    return _answer(trace)
                 return {"reply": step["reply"], "trace": trace}
+            if step.get("tool") == "search" and re.search(r"(best|top|famous|popular)", message.lower()):
+                step.setdefault("args", {})["best"] = True   # the model often drops "best" from its query
             if any(t["tool"] == step.get("tool") and t.get("args") == step.get("args") for t in trace):
                 break   # model is looping on the same call
             trace.append({"tool": step.get("tool"), "args": step.get("args"),
                           "result": _call(conn, user_id, step.get("tool"), step.get("args") or {}, deps, now)})
         if trace:
-            return {"reply": _summarize(trace), "trace": trace}
+            return _answer(trace)
     tool, args = route(message)
     res = _call(conn, user_id, tool, args, deps, now)
     trace.append({"tool": tool, "result": res})
-    return {"reply": _summarize(trace), "trace": trace}
+    return _answer(trace)
+
+
+def _answer(trace):
+    """Reply + (for a search) the results as data, so the UI shows cards, not a paragraph."""
+    out = {"reply": _summarize(trace), "trace": trace}
+    last = trace[-1]
+    if last["tool"] == "search" and last["result"].get("results"):
+        out["results"] = last["result"]["results"]
+    return out
 
 
 def grounding(conn, user_id, now):
@@ -115,19 +128,40 @@ def _call(conn, user_id, tool, args, deps, now):
         return {"error": str(e)}
 
 
+_FILLER = {"spicy", "hot", "teekha", "something", "best", "top", "famous", "popular", "good", "near", "nearby",
+           "around", "the", "for", "and", "with", "from", "want", "need", "get", "show", "find", "some", "any",
+           "under", "below", "rupees", "please", "instamart", "grocery", "groceries", "pack", "packet",
+           "order", "can", "you", "what", "which", "where", "today", "tonight", "now", "have"}
+
+
 def _search(conn, user_id, a, deps, now):
     profile = daily.get_profile(conn, user_id)
     day, slot = now.date(), a.get("slot") or _slot_now()
-    words = [w for w in re.findall(r"[a-z]+", (a.get("query") or "").lower()) if len(w) > 2]
+    raw = (a.get("query") or "").lower()
+    words = [w for w in re.findall(r"[a-z]+", raw) if len(w) > 2]
     spicy = any(w in ("spicy", "hot", "teekha") for w in words)
-    words = [w for w in words if w not in ("spicy", "hot", "teekha", "something")]
+    best = bool(a.get("best")) or any(w in ("best", "top", "famous", "popular") for w in words)
+    grocery = any(w in ("instamart", "grocery", "groceries", "pack", "packet") for w in words)
+    city = (profile.get("city") or "").lower().split()
+    words = [w for w in words if w not in _FILLER and w not in city]
     drafts = [{"items": [daily._dish_item(d)], "price": float(d.price)}
               for d in deps["dishes_fn"](daily.diet_on(profile, day) in ("veg", "jain", "vegan"))
               if (not words or any(w in d.name.lower() or w in d.cuisine for w in words))
               and (not spicy or "spicy" in d.tags or any(s in d.name.lower() for s in
                                                           ("chilli", "65", "schezwan", "kolhapuri",
                                                            "pepper", "chettinad", "spicy")))]
-    if words:
+    # Today's cached menu is built for meals; anything else (a sweet, a specific dish)
+    # is searched on Swiggy live so the answer comes from restaurants.
+    if words and len(drafts) < 3 and deps.get("search_fn"):
+        have = {d["items"][0]["id"] for d in drafts}
+        try:
+            live = deps["search_fn"](" ".join(words), daily.diet_on(profile, day) in ("veg", "jain", "vegan"))
+        except Exception as e:  # noqa: BLE001 — live search is best-effort
+            print(f"[agent] live search failed: {e}")
+            live = []
+        drafts += [{"items": [daily._dish_item(d)], "price": float(d.price)} for d in live if d.dish_id not in have]
+    # Instamart only when asked for groceries, or when no restaurant has it
+    if words and (grocery or not drafts):
         try:
             drafts += [{"items": [daily._im_item(r)], "price": float(r["price"])}
                        for r in deps["im_fn"](" ".join(words))[:5] if r.get("price")]
@@ -137,10 +171,18 @@ def _search(conn, user_id, a, deps, now):
         drafts = [d for d in drafts if d["price"] <= float(a["max_price"])]
     ctx = daily.context(conn, user_id, profile, day)
     kept, excluded = daily.filter_and_score(conn, user_id, profile, day, slot, drafts, ctx)
-    kept.sort(key=lambda c: -c["score"])
+    if not kept and drafts and slot != "snack":   # a dessert is not "too small for dinner"
+        slot = "snack"
+        kept, excluded = daily.filter_and_score(conn, user_id, profile, day, slot, drafts, ctx)
+    kept.sort(key=(lambda c: (-(c["items"][0].get("rating") or 0), -c["score"])) if best else (lambda c: -c["score"]))
     _LAST[user_id] = kept[:5]
-    return {"results": [{"index": i, "name": c["items"][0]["name"], "price": c["price"],
-                         "restaurant": c["items"][0]["restaurant_name"]} for i, c in enumerate(kept[:5])],
+    return {"query": " ".join(words), "best": best,
+            "results": [{"index": i, "name": c["items"][0]["name"], "price": c["price"],
+                         "restaurant": c["items"][0]["restaurant_name"],
+                         "rating": c["items"][0].get("rating") or None,
+                         "image_url": c["items"][0].get("image_url") or "",
+                         "source": c["items"][0]["source"], "veg": c["items"][0].get("veg", True),
+                         "kcal": round(c["nutrients"].get("kcal") or 0)} for i, c in enumerate(kept[:5])],
             "excluded_for_allergies": len(excluded)}
 
 
@@ -223,9 +265,8 @@ def _summarize(trace):
     if t["tool"] == "search":
         if not r["results"]:
             return "Nothing nearby matches that within your diet and allergy rules."
-        return "Here's what fits: " + "; ".join(
-            f"{x['index'] + 1}. {x['name']} (Rs {x['price']:.0f}, {x['restaurant']})" for x in r["results"]) \
-            + ". Say 'add 1' to put one in today's plan."
+        what = r.get("query") or "that"
+        return (f"Best-rated {what} near you:" if r.get("best") else f"Here's what I found for {what}:")
     if t["tool"] == "add":
         return f"Added {r['name']} to {r['slot']}. Tap Confirm on its card to order."
     if t["tool"] == "order":

@@ -13,7 +13,7 @@ import { focusRing } from "@/lib/design";
 import { DUR, EASE, prefersReducedMotion } from "@/lib/motion";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { ChefHatIllustration } from "@/components/ui/illustrations";
+import { LogoMark } from "./Logo";
 import { MapPin, Loader2, ArrowRight, AlertTriangle, RefreshCw } from "lucide-react";
 import { ConnectSwiggy } from "./ConnectSwiggy";
 
@@ -62,16 +62,6 @@ export function Onboarding({
 
       // Gentle perpetual idle on the chef hat: ±3° tilt with a slight bob,
       // yoyo repeat -1 → ~2.8s round trip, pivoted near its base.
-      gsap.to(".ob-hat", {
-        rotation: 3,
-        y: -6,
-        duration: 1.4,
-        ease: EASE.loop,
-        repeat: -1,
-        yoyo: true,
-        transformOrigin: "50% 85%",
-      });
-
       // Welcome-card contents fade up in reading order: title → subtitle →
       // form/connect block (whichever branch is mounted), 70ms apart.
       gsap.from(".ob-step", {
@@ -101,7 +91,12 @@ export function Onboarding({
       api
         .addresses()
         .then((r) => {
-          if (active) setAddresses(r.addresses ?? []);
+          if (!active) return;
+          setAddresses(r.addresses ?? []);
+          const who = (r.addresses?.[0]?.addressLine ?? "").split(":")[0].trim();
+          if (/^[A-Za-z][A-Za-z .'-]{1,39}$/.test(who) && (r.addresses?.[0]?.addressLine ?? "").includes(":")) {
+            setName((n) => n || who.replace(/\b\w/g, (c) => c.toUpperCase()));
+          }
         })
         .catch((e) => {
           if (!active) return;
@@ -173,17 +168,25 @@ export function Onboarding({
           "w-full max-w-md rounded-lg border border-border bg-card p-8 shadow-soft"
         )}
       >
-        <div className="mb-6 flex justify-center">
-          <ChefHatIllustration className="ob-hat h-40 w-40" />
+        <div className="mb-6 flex items-center justify-between">
+          <span className="flex items-center gap-2 font-heading text-lg font-extrabold">
+            <LogoMark className="ob-hat size-9" /> Forkcast
+          </span>
+          {/* three real steps: connect, you, tastes */}
+          <ol aria-label={`Step ${showConnect ? 1 : 2} of 3`} className="flex gap-1.5">
+            {[1, 2, 3].map((n) => (
+              <li key={n} className={cn("h-1.5 w-7 rounded-full", n <= (showConnect ? 1 : 2) ? "bg-brand-500" : "bg-muted")} />
+            ))}
+          </ol>
         </div>
 
         <h1 className="ob-step font-heading text-3xl font-extrabold tracking-[-0.02em] text-foreground">
-          {showConnect ? "Connect your Swiggy" : "Plan your month of meals"}
+          {showConnect ? "Your meals for today, already picked" : "Where should we deliver?"}
         </h1>
         <p className="ob-step mt-2 text-sm leading-[1.4] text-muted-foreground">
           {showConnect
-            ? "Link Swiggy for real restaurants and orders, or skip to try it in demo mode."
-            : "Set a monthly food budget and your must-haves. I'll build a full calendar of breakfast, lunch & dinner within budget, and roll unused money into next month as Swiggy Cash."}
+            ? "Forkcast picks breakfast, lunch, a snack and dinner from Swiggy restaurants near you, inside your budget, diet and allergies. Connect Swiggy to see real dishes and prices."
+            : "Tell us your name and pick a saved Swiggy address. Next you'll set your diet, allergies and budget."}
         </p>
 
         {showConnect ? (
@@ -206,7 +209,7 @@ export function Onboarding({
               id="onboarding-name"
               value={name}
               onChange={(e) => setName(e.target.value)}
-              placeholder="e.g. Jatin"
+              placeholder="Your first name"
               onKeyDown={(e) => e.key === "Enter" && canStart && start()}
               autoFocus
             />
@@ -320,11 +323,16 @@ export function Onboarding({
               <>
                 {live && !selected
                   ? "Continue without an address"
-                  : "Start planning"}{" "}
+                  : "Continue"}{" "}
                 <ArrowRight className="size-4" strokeWidth={2.4} />
               </>
             )}
           </Button>
+
+          <p className="text-center text-xs leading-[1.4] text-muted-foreground">
+            We store your name, food preferences and what you order through Forkcast to improve your picks.
+            Nothing is ordered without your tap, and you can delete everything any time.
+          </p>
 
           {!live && (
             <p className="text-center text-sm leading-[1.4] text-muted-foreground">

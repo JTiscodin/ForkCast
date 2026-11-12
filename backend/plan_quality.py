@@ -37,6 +37,10 @@ def check_day(conn, view):
                     bad(slot, c, "not_a_snack", f"{main['name']} is a {p['kind']}, not a chai-time snack")
                 if p["kind"] == "curry" and not any(prof[x["name"]]["kind"] in ("bread", "rice") for x in sides):
                     bad(slot, c, "curry_without_carb", f"{main['name']} has no roti or rice")
+                for x in sides:   # 12 chapatis is not one person's lunch
+                    from daily import _side_qty
+                    if _side_qty(x["name"], 1) == 0 or x.get("quantity", 1) > 2:
+                        bad(slot, c, "oversized_side", f"{x['name']} x{x.get('quantity', 1)} is too much for one person")
                 if p["serves"] > 1:
                     bad(slot, c, "sharing_portion", f"{main['name']} serves {p['serves']}")
                 if jain:
@@ -49,6 +53,8 @@ def check_day(conn, view):
                 bad(slot, c, "duplicate", f"{main['name']} repeats {seen[key]}")
             seen[key] = main["name"]
             for a in (i for i in c["items"] if i.get("addon")):
-                if slot in ("lunch", "dinner") and (prof[a["name"]]["kind"] == "drink" or "milk" in a["name"].lower()):
+                if slot in ("lunch", "dinner") and (prof[a["name"]]["kind"] == "drink" or ("milk" in a["name"].lower()
+                                                        # curd "set using farm-fresh milk" is still curd
+                                                        and not any(w in a["name"].lower() for w in ("curd", "dahi", "chaas", "buttermilk", "paneer")))):
                     bad(slot, c, "odd_addon", f"{a['name']} doesn't go with {slot}")
     return out

@@ -9,7 +9,8 @@ CREATE TABLE IF NOT EXISTS users (
     id         INTEGER PRIMARY KEY AUTOINCREMENT,
     name       TEXT NOT NULL,
     area       TEXT,
-    created_at TEXT DEFAULT (datetime('now'))
+    created_at TEXT DEFAULT (datetime('now')),
+    swiggy_key TEXT
 );
 
 CREATE TABLE IF NOT EXISTS budget_cycles (
@@ -235,6 +236,8 @@ def get_conn(db_path=DB_PATH):
 # Columns added after the original schema shipped. Existing dev DBs created with
 # CREATE TABLE IF NOT EXISTS won't have them, so ALTER them in idempotently.
 _MIGRATIONS = [
+    # Swiggy account this user signed in with (auth: sign back in through Swiggy)
+    ("users", "swiggy_key", "TEXT"),
     ("meal_slots", "restaurant_name", "TEXT"),
     ("meal_slots", "image_url", "TEXT"),
     ("meal_slots", "why_text", "TEXT"),
@@ -268,7 +271,8 @@ def migrate(conn):
             conn.execute(f"ALTER TABLE {table} ADD COLUMN {col} {coltype}")
         except sqlite3.OperationalError as e:
             # "duplicate column name" -> already migrated; anything else re-raises
-            if "duplicate column" not in str(e).lower():
+            # "no such table": SCHEMA creates it complete, nothing to add
+            if "duplicate column" not in str(e).lower() and "no such table" not in str(e).lower():
                 raise
     conn.commit()
 

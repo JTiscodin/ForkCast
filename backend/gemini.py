@@ -46,7 +46,7 @@ def has_key() -> bool:
 _EXHAUSTED = set()
 
 
-def chat(prompt, system=None, timeout=30) -> str:
+def chat(prompt, system=None, timeout=30, file=None) -> str:
     """Return Gemini's text reply, or "" if no key / all models exhausted.
 
     Never raises — every caller has a deterministic fallback. Walks the model
@@ -60,7 +60,7 @@ def chat(prompt, system=None, timeout=30) -> str:
     for model in [GEMINI_MODEL] + FALLBACK_MODELS:
         if model in _EXHAUSTED:
             continue
-        text, quota_spent = _call(model, key, prompt, system, timeout)
+        text, quota_spent = _call(model, key, prompt, system, timeout, file)
         if text:
             return text
         if quota_spent == "day":
@@ -79,12 +79,15 @@ def chat(prompt, system=None, timeout=30) -> str:
     return ""
 
 
-def _call(model, key, prompt, system, timeout):
+def _call(model, key, prompt, system, timeout, file=None):
     """One attempt. Returns (text, quota) where quota is None|"minute"|"day"."""
     try:
         url = (f"https://generativelanguage.googleapis.com/v1beta/models/"
                f"{model}:generateContent")
-        body = {"contents": [{"parts": [{"text": prompt}]}]}
+        parts = [{"text": prompt}]
+        if file:   # (mime, base64): an image or PDF for the model to read
+            parts.append({"inline_data": {"mime_type": file[0], "data": file[1]}})
+        body = {"contents": [{"parts": parts}]}
         if system:
             body["system_instruction"] = {"parts": [{"text": system}]}
         req = urllib.request.Request(

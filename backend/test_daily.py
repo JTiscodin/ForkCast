@@ -473,11 +473,25 @@ def test_food_order_history_teaches_once_per_order(conn):
         def call(self, tool, args):
             assert tool == "get_food_orders" and args["orderCount"] == 15 and args["addressId"]
             return {"data": {"orders": [{"orderId": "o1", "restaurantName": "Haldiram",
-                                         "orderedItems": "1 x Rajma Chawal, 2 x Butter Roti"}]}}
+                                         "orderedItems": "1 x Rajma Chawal, 2 x Butter Roti, Afghani Chaap (1)"}]}}
     assert daily.pull_food_orders(conn, 1, Food(), "a1") == 1
     assert daily.pull_food_orders(conn, 1, Food(), "a1") == 0          # same order not learned twice
     w, _ = daily.weights(conn, 1)
     assert w[("dish", "rajma chawal")] == pytest.approx(2, abs=0.01) and ("dish", "butter roti") in w
+    assert ("dish", "afghani chaap") in w                              # "(1)" quantity is not part of the name
+
+
+def test_grocery_history_counts_each_product_once(conn):
+    class IM:
+        def get_orders(self):
+            return [{"displayName": "Amul Curd"}]
+
+        def your_go_to_items(self, address_id):
+            return []
+    daily.pull_history(conn, 1, IM(), "a1")
+    daily.pull_history(conn, 1, IM(), "a1")
+    w, _ = daily.weights(conn, 1)
+    assert w[("grocery", "amul curd")] == pytest.approx(2, abs=0.01)
 
 
 def test_meals_must_be_filling_and_soda_combos_are_out(conn):
@@ -515,6 +529,124 @@ def test_note_reaches_place_food_order():
 
     OrderExecutor(mode="mcp", mcp_client=FakeMCP(), address_id="a").place("d", "r", 150, note="No peanut please")
     assert dict(calls)["place_food_order"]["noteToRestaurant"] == "No peanut please"
+
+
+def test_city_comes_from_the_swiggy_address():
+    import app as app_mod
+    assert app_mod._city_in("vardan: 6, Shiv Puri, Mohanpuri, Meerut, Uttar Pradesh 250003, India") == "Meerut"
+    assert app_mod._city_in("Flat 2, DLF Phase 3, Gurugram, Haryana 122002, India") == "Gurugram"
+    assert app_mod._city_in("somewhere in Pune") == "Pune"
+
+
+def test_instamart_offers_only_ready_to_eat_food():
+    for bad in ("iD Idli Dosa Batter", "Aashirvaad Atta 5kg", "Raw Banana (Kachha Kela)", "Surf Excel Detergent"):
+        assert not daily._im_ready(bad), bad
+    for ok in ("Mother Dairy Classic Curd", "Robusta Banana", "Mr Makhana Piri Piri"):
+        assert daily._im_ready(ok), ok
+
+
+def test_chat_search_goes_to_swiggy_for_dishes_outside_todays_menu(conn):
+    base = next(x for x in mock_catalog() if x.veg)
+    live = [replace(base, dish_id="x1", name="Rasmalai (2 Pcs)", restaurant_id="s1", restaurant_name="Bikanervala",
+                    rating=4.6, price=120, dish_kind="sweet"),
+            replace(base, dish_id="x2", name="Kesar Rasmalai", restaurant_id="s2", restaurant_name="Haldiram",
+                    rating=4.2, price=110, dish_kind="sweet")]
+    deps = {"dishes_fn": lambda veg: [], "im_fn": lambda q: [{"id": "i1", "name": "Rasmalai Tin", "price": 99}],
+            "search_fn": lambda q, veg: live if "rasmalai" in q else []}
+    out = agent.run(conn, 1, "best rasmalai in gurugram", deps, now=NOW)
+    names = [r["name"] for r in out["results"]]
+    assert names == ["Rasmalai (2 Pcs)", "Kesar Rasmalai"]          # restaurants, best rated first, no Instamart tin
+    assert out["results"][0]["restaurant"] == "Bikanervala" and "rasmalai" in out["reply"].lower()
+
+
+def test_diet_plan_is_clamped_and_applied(conn, monkeypatch):
+    import base64
+    import diet_plan
+    monkeypatch.setattr(gemini, "has_key", lambda: True)
+    monkeypatch.setattr(gemini, "chat", lambda *a, **k: json.dumps({
+        "diet_type": "vegan", "goal": "become a wizard", "allergies": ["peanut", "kryptonite"],
+        "prefer": ["Oats", "sprouts"], "avoid": ["sugar", "DROP TABLE users;"], "summary": "Low sugar vegan plan",
+        "mode": "live"}))
+    b64 = base64.b64encode(b"plan").decode()
+    prop = diet_plan.read("application/pdf", b64)
+    assert prop["diet_type"] == "vegan" and prop["goal"] is None       # unknown values are dropped
+    assert prop["allergies"] == ["peanut"] and "mode" not in prop
+    assert prop["avoid"] == ["sugar", "drop table users"]              # reduced to harmless words
+    with pytest.raises(ValueError):
+        diet_plan.read("application/x-msdownload", b64)                # only photos, PDFs and text
+    p = diet_plan.apply(conn, 1, prop)
+    assert p["diet_type"] == "vegan" and p["mode"] == "dry_run"
+    assert {"name": "peanut", "severe": False} in p["allergies"]
+    w, _ = daily.weights(conn, 1)
+    assert w[("ingredient", "oats")] > 0 and w[("ingredient", "sugar")] < 0
+    diet_plan.apply(conn, 1, {"avoid": ["fried"]})
+    w, _ = daily.weights(conn, 1)
+    assert w[("ingredient", "bhature")] < 0                             # "avoid fried" reaches chole bhature
+
+
+def test_rain_brings_chai_pakora_weather():
+    rain, dry = {"rain": True}, {}
+    assert daily.weather_score("Onion Pakoda", DAY, rain) > daily.weather_score("Onion Pakoda", DAY, dry)
+    assert daily.weather_score("Bhel Puri", DAY, rain) < 0                 # raw street food drops in the rain
+    assert daily.weather_reason("Onion Pakoda", DAY, rain) == "Raining today: chai and pakora weather"
+    assert daily.weather_reason("Onion Pakoda", DAY, dry) is None
+    assert daily.weather_reason("Steak", DAY, rain) is None                # "tea" must not match inside "steak"
+
+
+def test_rainy_snack_gets_chai_from_the_same_restaurant(conn, monkeypatch):
+    monkeypatch.setattr(daily, "weather", lambda city, day: {"rain": True})
+    base = next(x for x in mock_catalog() if x.veg)
+    pool = [replace(base, dish_id="p1", name="Onion Pakoda", restaurant_id="r1", meal_type="snack", price=90, dish_kind="snack"),
+            replace(base, dish_id="t1", name="Masala Chai", restaurant_id="r1", meal_type="snack", price=30, dish_kind="beverage")]
+    drafts = daily.candidates("snack", DAY, daily.get_profile(conn, 1), lambda *a, **k: pool, lambda q: [])
+    pak = next(d for d in drafts if d["items"][0]["name"] == "Onion Pakoda")
+    assert [i["name"] for i in pak["items"]] == ["Onion Pakoda", "Masala Chai"]
+
+
+def test_dairy_allergy_blocks_instamart_and_addons(conn):
+    al = [{"name": "dairy", "severe": False}]
+    assert daily._name_allergen("Amul Calci+ Milk Tetra", al) == "dairy"
+    assert daily._name_allergen("Epigamia Mango Flavoured Yogurt", al) == "dairy"
+    assert daily._name_allergen("Butter Tandoori Roti", al) == "dairy"
+    assert daily._name_allergen("Robusta Banana", al) is None
+    assert daily._name_allergen("Salted Peanuts", [{"name": "peanut", "severe": True}]) == "peanut"
+    daily.save_profile(conn, 1, {"diet_type": "veg", "allergies": al})
+    for s in view(conn)["slots"]:
+        for c in s["cards"]:
+            for i in c["items"]:
+                if i["source"] == "instamart":
+                    assert not daily._name_allergen(i["name"], al), i["name"]
+
+
+def test_hidden_for_allergies_lists_each_dish_once(conn):
+    daily.save_profile(conn, 1, {"allergies": [{"name": "peanut", "severe": True}]})
+    for s in view(conn)["slots"]:
+        names = [daily._norm(e["items"][0]["name"]) for e in s["excluded"]]
+        assert len(names) == len(set(names)), names
+
+
+def test_side_bread_is_sized_for_one_person():
+    assert daily._side_qty("Tawa Roti", 2) == 2
+    assert daily._side_qty("Butter Roti (2 Pcs)", 2) == 1          # a pack is ordered once
+    assert daily._side_qty("Rumali Roti Pack of 3", 2) == 1
+    assert daily._side_qty("Chapati Tub (6-pcs)", 2) == 0          # sharing pack: never a one-person side
+    assert daily._side_qty("Roti Basket", 2) == 0
+    assert daily._side_qty("Steamed Rice", 1) == 1
+
+
+def test_unspent_budget_rolls_into_next_month(conn):
+    p = daily.get_profile(conn, 1)
+    assert daily.budget(conn, 1, p, DAY)["rollover"] == 0          # not on Forkcast last month
+    conn.execute("UPDATE users SET created_at = ? WHERE id = 1", (DAY.isoformat() + " 08:00:00",))
+    assert daily.budget(conn, 1, p, DAY)["saved_so_far"] == 0      # joined today: nothing "unspent so far" yet
+    last = (DAY.replace(day=1) - timedelta(days=1)).isoformat()
+    mid = conn.execute("INSERT INTO daily_menu (user_id, date, slot) VALUES (1, ?, 'lunch')", (last,)).lastrowid
+    cid = conn.execute("INSERT INTO menu_card (menu_id, role, position, items, price, nutrients, score, reasons) "
+                       "VALUES (?, 'usual', 0, '[]', 500, '{}', 0, '[]')", (mid,)).lastrowid
+    conn.execute("INSERT INTO order_record (card_id, platform, order_id, status, mode, amount) "
+                 "VALUES (?, 'food', 'o', 'placed', 'live', 500)", (cid,))
+    b = daily.budget(conn, 1, p, DAY)
+    assert b["rollover"] == 8500 and b["remaining"] == 17500       # 9000 budget, 500 spent last month
 
 
 def test_delete_user_erases_every_row(conn):

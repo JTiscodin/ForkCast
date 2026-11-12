@@ -265,7 +265,7 @@ export interface TodayView {
   season: string;
   weather: { hot?: boolean; rain?: boolean };
   profile: DailyProfile;
-  budget: { monthly: number; spent: number; remaining: number; days_left: number; daily_cap: number };
+  budget: { monthly: number; spent: number; remaining: number; days_left: number; daily_cap: number; rollover: number; saved_so_far: number };
   nutrition: {
     today: Nutrients;
     week_avg: Nutrients;
@@ -282,6 +282,29 @@ export interface OrderOutcome {
     error: string | null; fallback_url: string | null }[];
 }
 
+/** What Forkcast read from an uploaded diet plan; applied only after the user confirms. */
+export interface DietPlanProposal {
+  diet_type: string | null;
+  goal: string | null;
+  allergies: string[];
+  prefer: string[];
+  avoid: string[];
+  summary: string;
+}
+
+/** One dish found by Ask Forkcast; "add N" puts it into today's plan. */
+export interface ChatResult {
+  index: number;
+  name: string;
+  price: number;
+  restaurant: string;
+  rating: number | null;
+  image_url: string;
+  source: "food" | "instamart";
+  veg: boolean;
+  kcal: number;
+}
+
 export interface MemoryBullet {
   id: string;
   dimension: string;
@@ -289,4 +312,5 @@ export interface MemoryBullet {
   weight: number;
   blocked: boolean;
   text: string;
+  why?: string;   // plain-words source of the belief
 }

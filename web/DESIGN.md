@@ -1,4 +1,4 @@
-# Budget Meal Planner — Design System
+# Forkcast — Design System
 
 Premium, dark-first meal-planning UI. Swiggy orange accent over warm-charcoal
 surfaces. Tailwind v4 (CSS-first, `@theme` in `globals.css`) + shadcn/ui.
@@ -31,7 +31,7 @@ Semantic (theme-flipping) — use these in components, not raw scale steps:
 | `--warning` | `text-warning` | Rescheduled |
 | `--danger` | `text-danger` | Non-veg, skipped, destructive |
 
-Brand scale: `brand-50 … brand-900` (`brand-500` = Swiggy `#FC8019`). Warm
+Brand scale: `brand-50 … brand-900` (`brand-500` = Swiggy `#FF5200`). Warm
 partner: `amber-300 … amber-600`. Meal accents: `meal-breakfast` (amber),
 `meal-lunch` (orange), `meal-dinner` (violet), `meal-snack` (teal).
 

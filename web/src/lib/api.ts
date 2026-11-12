@@ -1,4 +1,4 @@
-import { clearSession, loadSession } from "./session";
+import { clearSession, loadSession, saveSession } from "./session";
 // Typed API client for the Forkcast backend (FastAPI on :8000).
 import type {
   ParsedIntake,
@@ -20,6 +20,8 @@ import type {
   TodayView,
   OrderOutcome,
   MemoryBullet,
+  DietPlanProposal,
+  ChatResult,
 } from "./types";
 
 const BASE =
@@ -65,6 +67,9 @@ async function req<T>(
     }
     throw new ApiError(res.status, detail);
   }
+  // sliding session: the backend sends a renewed token with every signed-in response
+  const fresh = res.headers.get("X-Forkcast-Token");
+  if (fresh) saveSession({ token: fresh });
   return res.json() as Promise<T>;
 }
 
@@ -81,17 +86,17 @@ export const api = {
     }>("/mode"),
 
   // ---- Swiggy in-app OAuth login ----
-  authStart: () =>
-    req<{ status: string }>("/auth/swiggy/start", { method: "POST" }),
+  authStart: (popup = false) =>
+    req<{ status: string }>(`/auth/swiggy/start${popup ? "?popup=true" : ""}`, { method: "POST" }),
   authStatus: () =>
-    req<{ status: "idle" | "running" | "connected" | "failed"; error: string | null; live: boolean }>(
+    req<{ status: "idle" | "running" | "connected" | "failed"; error: string | null; live: boolean; url?: string | null }>(
       "/auth/swiggy/status"
     ),
   authLogout: () =>
     req<{ live: boolean }>("/auth/swiggy/logout", { method: "POST" }),
 
-  createUser: (name: string, area?: string) =>
-    req<{ user_id: number; token: string }>("/user", { method: "POST", body: { name, area } }),
+  createUser: (name: string, area?: string, address_id?: string) =>
+    req<{ user_id: number; token: string; returning?: boolean }>("/user", { method: "POST", body: { name, area, address_id } }),
 
   addresses: () =>
     req<{ addresses: SwiggyAddress[] }>("/mcp/addresses"),
@@ -226,7 +231,7 @@ export const api = {
 
   // ---- daily personalization ----
   dailyProfile: (user_id: number) =>
-    req<{ profile: DailyProfile | null }>(`/daily/${user_id}/profile`),
+    req<{ profile: DailyProfile | null; quiz_picks: string[]; city_guess: string | null }>(`/daily/${user_id}/profile`),
   saveDailyProfile: (user_id: number, body: Partial<DailyProfile> & { quiz_picks?: string[] }) =>
     req<{ profile: DailyProfile; history_items: number }>(`/daily/${user_id}/profile`, {
       method: "POST",
@@ -238,6 +243,10 @@ export const api = {
     req<{ ok: boolean }>(`/daily/${user_id}/regenerate${slot ? `?slot=${slot}` : ""}`, {
       method: "POST",
     }),
+  readDietPlan: (user_id: number, mime: string, data: string) =>
+    req<{ proposal: DietPlanProposal }>(`/daily/${user_id}/diet-plan`, { method: "POST", body: { mime, data } }),
+  applyDietPlan: (user_id: number, proposal: DietPlanProposal) =>
+    req<{ profile: DailyProfile }>(`/daily/${user_id}/diet-plan/apply`, { method: "POST", body: { proposal } }),
   deleteAccount: (user_id: number) => req<{ deleted: number }>(`/daily/${user_id}`, { method: "DELETE" }),
   orderCard: (user_id: number, card_id: number, preview = false) =>
     req<OrderOutcome>(`/daily/${user_id}/order/${card_id}${preview ? "?preview=true" : ""}`, { method: "POST" }),
@@ -262,7 +271,7 @@ export const api = {
       body,
     }),
   agent: (user_id: number, message: string) =>
-    req<{ reply: string }>(`/daily/${user_id}/agent`, { method: "POST", body: { message } }),
+    req<{ reply: string; results?: ChatResult[] }>(`/daily/${user_id}/agent`, { method: "POST", body: { message } }),
 };
 
 export { ApiError };

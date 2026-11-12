@@ -157,7 +157,7 @@
   --brand-200: #ffc58c;
   --brand-300: #ff9f50;
   --brand-400: #ff8f3f;
-  --brand-500: #fc8019;
+  --brand-500: #FF5200;
   --brand-600: #d9670b;
   --brand-700: #b84f06;
   --brand-800: #923d05;
@@ -173,7 +173,7 @@
   --surface: #ffffff;
   --surface-elevated: #ffffff;
   --muted-foreground: #686b78;
-  --accent-brand: #fc8019;
+  --accent-brand: #FF5200;
 
   --success: #16803c;
   --success-foreground: #ffffff;
@@ -183,7 +183,7 @@
 
   /* Taxonomy markers stay secondary to the Orange Thread. */
   --meal-breakfast: #c48100;
-  --meal-lunch: #fc8019;
+  --meal-lunch: #FF5200;
   --meal-dinner: #7965a9;
   --meal-snack: #008f82;
   --diet-veg: #357a4b;
@@ -194,7 +194,7 @@
   --card-foreground: #282c3f;
   --popover: #ffffff;
   --popover-foreground: #282c3f;
-  --primary: #fc8019;
+  --primary: #FF5200;
   --primary-foreground: #ffffff;
   --secondary: #e9e9eb;
   --secondary-foreground: #282c3f;
@@ -204,24 +204,24 @@
   --destructive: #c9352b;
   --border: #e9e9eb;
   --input: #e9e9eb;
-  --ring: #fc8019;
-  --chart-1: #fc8019;
+  --ring: #FF5200;
+  --chart-1: #FF5200;
   --chart-2: #f3c334;
   --chart-3: #7965a9;
   --chart-4: #008f82;
   --chart-5: #16803c;
   --sidebar: #ffffff;
   --sidebar-foreground: #282c3f;
-  --sidebar-primary: #fc8019;
+  --sidebar-primary: #FF5200;
   --sidebar-primary-foreground: #ffffff;
   --sidebar-accent: #f3c334;
   --sidebar-accent-foreground: #282c3f;
   --sidebar-border: #e9e9eb;
-  --sidebar-ring: #fc8019;
+  --sidebar-ring: #FF5200;
 
   /* Branded gradients are accents, not default card surfaces.
      The brand CTA gradient is gone — Swiggy CTAs are FLAT solid orange. */
-  --gradient-brand: linear-gradient(135deg, #fc8019 0%, #fb8b2e 100%);
+  --gradient-brand: linear-gradient(135deg, #FF5200 0%, #fb8b2e 100%);
   --gradient-surface: linear-gradient(180deg, #ffffff 0%, #fdfdfe 100%);
   --gradient-glow: radial-gradient(
     60% 60% at 50% 0%,
@@ -278,7 +278,7 @@
   --brand-200: rgb(252 128 25 / 0.28);
   --brand-300: #ff9f50;
   --brand-400: #ff8f3f;
-  --brand-500: #fc8019;
+  --brand-500: #FF5200;
   --brand-600: #ff9440;
   --brand-700: #ffa763;
   --brand-800: #ffbd8a;
@@ -294,7 +294,7 @@
   --surface: #1a1a1a;
   --surface-elevated: #1a1a1a;
   --muted-foreground: #93959f;
-  --accent-brand: #fc8019;
+  --accent-brand: #FF5200;
 
   --success: #7bd99a;
   --success-foreground: #121212;
@@ -303,7 +303,7 @@
   --danger-foreground: #121212;
 
   --meal-breakfast: #f3c334;
-  --meal-lunch: #fc8019;
+  --meal-lunch: #FF5200;
   --meal-dinner: #b6a1f7;
   --meal-snack: #55c4ba;
   --diet-veg: #78bf8b;
@@ -314,7 +314,7 @@
   --card-foreground: #e9e9eb;
   --popover: #1a1a1a;
   --popover-foreground: #e9e9eb;
-  --primary: #fc8019;
+  --primary: #FF5200;
   --primary-foreground: #121212;
   --secondary: #282c3f;
   --secondary-foreground: #e9e9eb;
@@ -324,22 +324,22 @@
   --destructive: #ff8b80;
   --border: #282c3f;
   --input: #282c3f;
-  --ring: #fc8019;
-  --chart-1: #fc8019;
+  --ring: #FF5200;
+  --chart-1: #FF5200;
   --chart-2: #f3c334;
   --chart-3: #b6a1f7;
   --chart-4: #55c4ba;
   --chart-5: #7bd99a;
   --sidebar: #1a1a1a;
   --sidebar-foreground: #e9e9eb;
-  --sidebar-primary: #fc8019;
+  --sidebar-primary: #FF5200;
   --sidebar-primary-foreground: #121212;
   --sidebar-accent: #f3c334;
   --sidebar-accent-foreground: #121212;
   --sidebar-border: #282c3f;
-  --sidebar-ring: #fc8019;
+  --sidebar-ring: #FF5200;
 
-  --gradient-brand: linear-gradient(135deg, #fc8019 0%, #f3c334 100%);
+  --gradient-brand: linear-gradient(135deg, #FF5200 0%, #f3c334 100%);
   --gradient-surface: linear-gradient(180deg, #1a1a1a 0%, #121212 100%);
   --gradient-glow: radial-gradient(
     60% 60% at 50% 0%,
@@ -393,7 +393,7 @@
     --brand-200: rgb(252 128 25 / 0.28);
     --brand-300: #ff9f50;
     --brand-400: #ff8f3f;
-    --brand-500: #fc8019;
+    --brand-500: #FF5200;
     --brand-600: #ff9440;
     --brand-700: #ffa763;
     --brand-800: #ffbd8a;
@@ -407,7 +407,7 @@
     --surface: #1a1a1a;
     --surface-elevated: #1a1a1a;
     --muted-foreground: #93959f;
-    --accent-brand: #fc8019;
+    --accent-brand: #FF5200;
     --success: #7bd99a;
     --success-foreground: #121212;
     --warning: #f3c334;
@@ -417,7 +417,7 @@
     --card-foreground: #e9e9eb;
     --popover: #1a1a1a;
     --popover-foreground: #e9e9eb;
-    --primary: #fc8019;
+    --primary: #FF5200;
     --primary-foreground: #121212;
     --secondary: #282c3f;
     --secondary-foreground: #e9e9eb;
@@ -427,29 +427,29 @@
     --destructive: #ff8b80;
     --border: #282c3f;
     --input: #282c3f;
-    --ring: #fc8019;
-    --chart-1: #fc8019;
+    --ring: #FF5200;
+    --chart-1: #FF5200;
     --chart-2: #f3c334;
     --chart-3: #b6a1f7;
     --chart-4: #55c4ba;
     --chart-5: #7bd99a;
     --sidebar: #1a1a1a;
     --sidebar-foreground: #e9e9eb;
-    --sidebar-primary: #fc8019;
+    --sidebar-primary: #FF5200;
     --sidebar-primary-foreground: #121212;
     --sidebar-accent: #f3c334;
     --sidebar-accent-foreground: #121212;
     --sidebar-border: #282c3f;
-    --sidebar-ring: #fc8019;
+    --sidebar-ring: #FF5200;
 
     --meal-breakfast: #f3c334;
-    --meal-lunch: #fc8019;
+    --meal-lunch: #FF5200;
     --meal-dinner: #b6a1f7;
     --meal-snack: #55c4ba;
     --diet-veg: #78bf8b;
     --diet-nonveg: #e58a80;
 
-    --gradient-brand: linear-gradient(135deg, #fc8019 0%, #f3c334 100%);
+    --gradient-brand: linear-gradient(135deg, #FF5200 0%, #f3c334 100%);
     --gradient-surface: linear-gradient(180deg, #1a1a1a 0%, #121212 100%);
     --gradient-glow: radial-gradient(
       60% 60% at 50% 0%,

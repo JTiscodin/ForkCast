@@ -94,7 +94,10 @@ class _Catcher(BaseHTTPRequestHandler):
         self.end_headers()
         msg = ("Swiggy connected. You can close this tab."
                if _Catcher.code else f"Auth failed: {_Catcher.error}")
-        self.wfile.write(f"<html><body><h2>{msg}</h2></body></html>".encode())
+        # window.close() works because the app opened this tab itself (popup flow)
+        self.wfile.write((f"<html><body style='font-family:sans-serif;text-align:center;padding-top:20vh'>"
+                          f"<h2>{msg}</h2><script>setTimeout(function(){{window.close()}},600)</script>"
+                          f"</body></html>").encode())
 
     def log_message(self, *a):
         pass
@@ -128,7 +131,9 @@ def _write_env(updates: dict):
 
 
 # ---------- flow ----------
-def run():
+def run(on_url=None):
+    """on_url(url): hand the login URL to the caller (the web app opens it in its own
+    popup) instead of opening a browser on this machine."""
     print("1/5 discovering OAuth metadata ...")
     meta = _get_json(WELL_KNOWN)
     authorize_url = meta["authorization_endpoint"]
@@ -167,7 +172,7 @@ def run():
 
     print("3/5 opening browser — log into Swiggy and approve ...")
     print(f"    if it doesn't open, paste this URL:\n    {url}\n")
-    webbrowser.open(url)
+    on_url(url) if on_url else webbrowser.open(url)
 
     print(f"4/5 waiting for redirect on {REDIRECT_URI} ...")
     code, got_state, err = _wait_for_code()

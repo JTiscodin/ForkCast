@@ -13,6 +13,7 @@ gap add-on -> persist daily_menu + menu_card + excluded_card.
 import json
 import math
 import re
+import threading
 import urllib.parse
 import urllib.request
 from datetime import date as _date, datetime, timedelta, timezone
@@ -21,6 +22,8 @@ from pathlib import Path
 import dish_profile
 import nutrition
 import taste_profile as tp
+
+_BUILD_LOCK = threading.RLock()   # re-entrant: today() holds it while calling build_day
 
 SLOTS = ("breakfast", "lunch", "snack", "dinner")
 DIETS = ("veg", "eggetarian", "nonveg", "jain", "vegan")
@@ -183,11 +186,22 @@ def _norm(s):
 
 # ---------------------------------------------------------------- memory
 
+MEMORY_WHY = (("never", "You said never"), ("diet_plan", "From your diet plan"), ("memory_edit", "You set this"), ("ordered", "You ordered it here"),
+              ("up", "You liked it"), ("down", "You disliked it"), ("quiz", "You picked it at setup"),
+              ("history", "From your Swiggy orders"), ("off_plan", "You logged eating it"),
+              ("not_today", "You said not today"), ("no_reorder", "You stopped ordering it"),
+              ("skip", "You skipped it"))
+
+
 def memory(conn, user_id):
     """'What we know about you' bullets, strongest first."""
     p = get_profile(conn, user_id)
     w, blocks = weights(conn, user_id)
     out = []
+    # why we think so, in the user's terms (strongest source first)
+    seen = {}
+    for e in conn.execute("SELECT dimension, key, type FROM feedback_event WHERE user_id=?", (user_id,)):
+        seen.setdefault((e["dimension"], e["key"]), set()).add(e["type"])
     for (dim, key), val in sorted(w.items(), key=lambda kv: -abs(kv[1])):
         if (dim, key) in blocks:
             text = f"Never show {key} ({dim})"
@@ -196,7 +210,8 @@ def memory(conn, user_id):
         else:
             text = f"{'Likes' if val > 0 else 'Not keen on'} {key} ({dim})"
         out.append({"id": f"{dim}:{key}", "dimension": dim, "key": key,
-                    "weight": round(val, 2), "blocked": (dim, key) in blocks, "text": text})
+                    "weight": round(val, 2), "blocked": (dim, key) in blocks, "text": text,
+                    "why": next((label for t, label in MEMORY_WHY if t in seen.get((dim, key), ())), "")})
     facts = []
     if p:
         facts.append(f"Diet: {p['diet_type']}" + (
@@ -245,7 +260,29 @@ COOLING = ("curd", "dahi", "raita", "lassi", "chaas", "buttermilk", "coconut", "
 WARM = ("soup", "dal", "khichdi", "paratha", "halwa", "biryani", "curry", "rasam",
         "thukpa", "makki", "tea", "pongal")
 RAW_STREET = ("salad", "chaat", "pani puri", "golgappa", "bhel", "sev puri", "cut fruit")
+# Rainy-day cravings: chai-pakora weather. Fried, hot, eaten with tea.
+RAINY = ("pakora", "pakoda", "pakode", "bhajiya", "bhajji", "bhaji", "fritter", "samosa", "kachori", "vada",
+         "bonda", "maggi", "momo", "soup", "bhutta", "corn", "chai", "tea")
 _WEATHER_CACHE = {}
+
+
+def _has(name, words):
+    n = name.lower()
+    return any(re.search(rf"\b{re.escape(w)}", n) for w in words)
+
+
+def weather_reason(name, day, wx):
+    """Plain-words reason shown on the card when the weather is why it ranks high."""
+    s = season(day)
+    if wx.get("rain") and _has(name, RAINY):
+        return "Raining today: chai and pakora weather"
+    if s == "monsoon" and _has(name, RAINY):
+        return "Monsoon favourite, served hot"
+    if (wx.get("hot") or s == "summer") and _has(name, COOLING):
+        return "Hot day: something cooling"
+    if s == "winter" and _has(name, WARM):
+        return "Cold day: warm and filling"
+    return None
 
 
 def season(day):
@@ -289,7 +326,7 @@ def weather_score(name, day, wx):
     if s == "summer" or wx.get("hot"):
         x += cool - 0.5 * warm
     if s == "monsoon" or wx.get("rain"):
-        x += 0.5 * warm - raw
+        x += 0.5 * warm - raw + (1.0 if _has(n, RAINY) else 0.0)
     if s == "winter":
         x += warm - 0.5 * cool
     return max(-1.0, min(1.0, x))
@@ -297,17 +334,35 @@ def weather_score(name, day, wx):
 # ---------------------------------------------------------------- budget
 
 def budget(conn, user_id, profile, day):
-    """Daily soft cap = remaining monthly budget / days left in the cycle."""
-    month = day.strftime("%Y-%m")
-    spent = conn.execute(
-        "SELECT COALESCE(SUM(o.amount),0) FROM order_record o JOIN menu_card c ON c.id=o.card_id "
-        "JOIN daily_menu m ON m.id=c.menu_id WHERE m.user_id=? AND substr(m.date,1,7)=? "
-        "AND o.status='placed'", (user_id, month)).fetchone()[0]
+    """Daily soft cap = (monthly budget + last month's rollover - spent) / days left.
+
+    Rollover: whatever last month's budget didn't spend carries into this month,
+    if the user was on Forkcast that month. A virtual ledger: no money is held.
+    """
+    def spent_in(month):
+        return conn.execute(
+            "SELECT COALESCE(SUM(o.amount),0) FROM order_record o JOIN menu_card c ON c.id=o.card_id "
+            "JOIN daily_menu m ON m.id=c.menu_id WHERE m.user_id=? AND substr(m.date,1,7)=? "
+            "AND o.status='placed'", (user_id, month)).fetchone()[0]
+
+    monthly = profile["monthly_budget"]
+    spent = spent_in(day.strftime("%Y-%m"))
+    prev = (day.replace(day=1) - timedelta(days=1)).strftime("%Y-%m")
+    was_here = conn.execute("SELECT 1 FROM daily_menu WHERE user_id=? AND substr(date,1,7)=? LIMIT 1",
+                            (user_id, prev)).fetchone()
+    rollover = max(0.0, monthly - spent_in(prev)) if was_here else 0.0
     nxt = (day.replace(day=28) + timedelta(days=4)).replace(day=1)
     days_left = (nxt - day).days
-    remaining = profile["monthly_budget"] - spent
-    return {"monthly": profile["monthly_budget"], "spent": round(spent, 2),
+    days_in_month = (nxt - day.replace(day=1)).days
+    remaining = monthly + rollover - spent
+    # "unspent so far" only counts days this person has actually been on Forkcast
+    joined = conn.execute("SELECT date(created_at) FROM users WHERE id=?", (user_id,)).fetchone()
+    start = max(day.replace(day=1), _date.fromisoformat(joined[0]) if joined and joined[0] else day.replace(day=1))
+    days_here = max(0, (day - start).days)
+    return {"monthly": monthly, "spent": round(spent, 2), "rollover": round(rollover, 2),
             "remaining": round(remaining, 2), "days_left": days_left,
+            # unspent so far = budget for the days already gone, minus what was spent
+            "saved_so_far": round(max(0.0, monthly / days_in_month * days_here - spent), 2),
             "daily_cap": round(max(0.0, remaining) / days_left, 2)}
 
 # ---------------------------------------------------------------- nutrition state
@@ -428,6 +483,33 @@ _ALLERGY_ALIASES = {"tree nut": "tree_nut", "nuts": "tree_nut", "cashew": "tree_
                     "milk": "dairy", "lactose": "dairy", "wheat": "gluten", "prawn": "shellfish", "eggs": "egg"}
 
 
+# Name words that mean an allergen is in the food. Used for anything without a dish
+# profile: Instamart products, add-ons, and dishes the classifier hasn't seen yet.
+ALLERGEN_WORDS = {
+    "dairy": ("milk", "curd", "dahi", "paneer", "cheese", "butter", "ghee", "lassi", "chaas", "buttermilk",
+              "yogurt", "yoghurt", "cream", "kheer", "raita", "makhani", "malai", "khoya", "mawa", "rabri"),
+    "peanut": ("peanut", "groundnut", "moongfali", "mungfali"),
+    "tree_nut": ("cashew", "kaju", "almond", "badam", "pista", "pistachio", "walnut", "akhrot", "hazelnut", "nuts"),
+    "gluten": ("wheat", "atta", "maida", "roti", "chapati", "naan", "bread", "paratha", "pasta", "noodles",
+               "suji", "rava", "kulcha", "bhatura", "puri", "sandwich", "burger", "pizza", "maggi"),
+    "egg": ("egg", "eggs", "omelette", "omelet", "anda", "bhurji egg"),
+    "soy": ("soy", "soya", "tofu"),
+    "fish": ("fish", "surmai", "pomfret", "rohu", "tuna", "salmon"),
+    "shellfish": ("prawn", "prawns", "shrimp", "crab", "lobster"),
+    "sesame": ("sesame", "til", "tahini"),
+}
+
+
+def _name_allergen(name, allergies):
+    """The user's allergy that this product NAME points to, or None."""
+    words = set(re.findall(r"[a-z]+", (name or "").lower()))
+    for a in allergies:
+        key = _ALLERGY_ALIASES.get(a["name"], a["name"].replace(" ", "_"))
+        if words & set(ALLERGEN_WORDS.get(key, ())) or a["name"].lower() in (name or "").lower():
+            return a["name"]
+    return None
+
+
 def _allergy_check(items, allergies):
     """Profiled allergens vs the user's: (blocking allergen, note to restaurant).
 
@@ -473,6 +555,17 @@ def _fits_slot(d, slot):
         d.meal_type == slot or (slot != "breakfast" and d.meal_type in ("lunch", "dinner")))
 
 
+# Not something you eat as it comes: cooking ingredients, raw produce for cooking, non-food.
+_IM_NOT_READY = ("batter", "atta", "flour", "maida", "besan", "dough", "premix", "ready to cook", "raw ",
+                 "kachha", "kaccha", "frozen", "oil", "ghee", "masala", "powder", "spice", "seeds", "dal ",
+                 "rice ", "sugar", "salt", "detergent", "soap", "shampoo", "cleaner", "tissue", "toothpaste")
+
+
+def _im_ready(name):
+    """Instamart product you can eat as it comes (restaurant dishes never go through this)."""
+    return not any(w in f"{name.lower()} " for w in _IM_NOT_READY)
+
+
 def _im_safe(name, diet):
     n = name.lower()
     if diet == "vegan" and any(w in n for w in _ANIMAL):
@@ -493,6 +586,22 @@ def _fits_profile(d, slot, prof):
     return prof["kind"] in ("meal", "curry")
 
 
+def _side_qty(name, q):
+    """How many of this roti/rice item one person needs with a curry (0 = don't use it).
+
+    q is the per-piece default (2 roti, 1 rice). A pack already holds several
+    pieces, so it is ordered once; a sharing pack (more than 4 pieces, or a
+    tub/basket/family size) is never a one-person side.
+    """
+    n = name.lower()
+    if not q or re.search(r"\b(tub|basket|bucket|family|party|jumbo|platter)\b", n):
+        return 0
+    m = (re.search(r"pack of\s*(\d+)", n) or re.search(r"(\d+)\s*[- ]?\s*(?:pcs|pc|pieces|piece|nos)\b", n)
+         or re.search(r"\((\d+)\)", n))
+    pieces = int(m.group(1)) if m else 1
+    return 0 if pieces > 4 else 1 if pieces > 1 else q
+
+
 def candidates(slot, day, profile, dishes_fn, im_fn, conn=None):
     """-> list of card drafts {items, price, kind} before filtering.
 
@@ -509,8 +618,7 @@ def candidates(slot, day, profile, dishes_fn, im_fn, conn=None):
             q = {"bread": 2, "rice": 1}.get(p["kind"], 0)
         else:
             q = ACC_QTY.get(d.course, 0) if d.dish_kind == "meal" else 0
-        # already a multi-piece pack ("Pack of 3", "(2 Pcs)", "4 Nos"): order it once
-        return 1 if q and re.search(r"pack of\s*[2-9]|\b[2-9]\s*(pcs|pc|pieces|nos)\b", d.name.lower()) else q
+        return _side_qty(d.name, q)
 
     acc = {}   # restaurant -> cheapest roti/rice serving, so a curry is a whole meal
     for d in pool:
@@ -519,6 +627,13 @@ def candidates(slot, day, profile, dishes_fn, im_fn, conn=None):
             cur = acc.get(d.restaurant_id)
             if cur is None or d.price * q < cur.price * carb_qty(cur):
                 acc[d.restaurant_id] = d
+    rainy = season(day) == "monsoon" or bool(weather(profile.get("city"), day).get("rain"))
+    tea = {}   # restaurant -> cheapest plain chai
+    if rainy and slot == "snack":
+        for d in pool:
+            if _has(d.name, ("chai", "tea")) and not _has(d.name, ("iced", "cold", "lemon")) and d.price <= 80:
+                if d.restaurant_id not in tea or d.price < tea[d.restaurant_id].price:
+                    tea[d.restaurant_id] = d
     out = []
     for d in pool:
         p = profs.get(d.name)
@@ -532,17 +647,25 @@ def candidates(slot, day, profile, dishes_fn, im_fn, conn=None):
         if p and p.get("source") != "rules":   # rule guesses must not override the Jain safe-list
             item.update(canonical=p.get("canonical"), onion_garlic=p["onion_garlic"], allergens=p.get("allergens"))
         items = [item]
+        if slot == "snack" and rainy and _has(d.name, RAINY) and not _has(d.name, ("chai", "tea", "soup")):
+            cup = tea.get(d.restaurant_id)
+            if cup is not None:
+                items.append({**_dish_item(cup), "quantity": 1, "side": True})
         if needs_carb:
             side = acc.get(d.restaurant_id)
             if side is None:
                 continue
-            items.append({**_dish_item(side), "quantity": carb_qty(side), "side": True})
+            sp = profs.get(side.name)
+            items.append({**_dish_item(side), "quantity": carb_qty(side), "side": True,
+                          **({"allergens": sp.get("allergens")} if sp and sp.get("source") != "rules" else {})})
         out.append({"items": items})
     for qa, qb in IM_BUNDLES.get(slot, ()):
         picked = []
         for q in (qa, qb):
             try:
-                rows = [r for r in im_fn(q) if r.get("price") and _im_safe(r.get("name") or "", diet)]
+                rows = [r for r in im_fn(q) if r.get("price") and _im_safe(r.get("name") or "", diet)
+                        and _im_ready(r.get("name") or "")
+                        and not _name_allergen(f"{q} {r.get('name') or ''}", profile.get("allergies") or [])]
             except Exception as e:  # noqa: BLE001 — Instamart outage = restaurant-only cards
                 print(f"[daily] instamart '{q}' failed: {e}")
                 rows = []
@@ -600,9 +723,13 @@ def filter_and_score(conn, user_id, profile, day, slot, drafts, ctx):
             continue
         if any(not _im_safe(i["name"], diet_on(profile, day)) for i in items):
             continue
+        if any(i["source"] == "instamart" and not _im_ready(i["name"]) for i in items):
+            continue
         hit, note = _allergy_check(items, profile["allergies"])
-        if hit is None and not any("allergens" in i for i in items):   # unprofiled: name rules
-            hit = next((a for a in (tp.allergy_blocked(_as_dish(i), with_allergy) for i in items) if a), None)
+        if hit is None:   # items without a profile (Instamart, unseen dishes): judge by name
+            bare = [i for i in items if i.get("allergens") is None]
+            hit = next((a for a in (_name_allergen(i["name"], profile["allergies"]) for i in bare) if a), None) \
+                or next((a for a in (tp.allergy_blocked(_as_dish(i), with_allergy) for i in bare) if a), None)
         if note:
             items = [{**items[0], "note": note}] + items[1:]
             c = {**c, "items": items}
@@ -753,7 +880,9 @@ def _addon(conn, profile, day, slot, card, gap, im_fn, cache):
             continue   # already on the plate (curd rice + dahi) or no fit for this diet
         if q not in cache:
             try:
-                rows = [r for r in im_fn(q) if r.get("price") and _im_safe(r.get("name") or "", diet)]
+                rows = [r for r in im_fn(q) if r.get("price") and _im_safe(r.get("name") or "", diet)
+                        and _im_ready(r.get("name") or "")
+                        and not _name_allergen(f"{q} {r.get('name') or ''}", profile.get("allergies") or [])]
             except Exception:  # noqa: BLE001 — add-on is optional
                 rows = []
             cache[q] = _im_item(min(rows, key=lambda r: r["price"])) if rows else None
@@ -763,7 +892,13 @@ def _addon(conn, profile, day, slot, card, gap, im_fn, cache):
     return None
 
 
-def build_day(conn, user_id, day, dishes_fn, im_fn, slots=None):
+def build_day(*args, **kwargs):
+    """Serialised: every path that builds menus (today, regenerate, nightly) takes the same lock."""
+    with _BUILD_LOCK:
+        return _build_day(*args, **kwargs)
+
+
+def _build_day(conn, user_id, day, dishes_fn, im_fn, slots=None):
     """Generate (or regenerate) menus for every active slot of `day`."""
     profile = get_profile(conn, user_id)
     if not profile:
@@ -792,7 +927,8 @@ def build_day(conn, user_id, day, dishes_fn, im_fn, slots=None):
         # one add-on per slot, offered on the gap card first: on every card it's noise
         addon_for = next((c for c, (r, _) in picks if r == "gap"), picks[0][0] if picks else None)
         for pos, (c, (role, why)) in enumerate(picks):
-            reasons = [why]
+            wr = weather_reason(" ".join(i["name"] for i in c["items"]), day, ctx["wx"])
+            reasons = [wr, why] if wr else [why]
             add = _addon(conn, profile, day, slot, c, ctx["gap"], im_fn, addon_cache) if c is addon_for else None
             items = list(c["items"])
             if add and c["price"] + add["price"] < MAX_ORDER:
@@ -812,7 +948,11 @@ def build_day(conn, user_id, day, dishes_fn, im_fn, slots=None):
                 (mid, role, pos, json.dumps(items), _total(items),
                  json.dumps({**nut, "confidence": conf, "source": sources}),
                  c["score"], json.dumps(reasons)))
-        for c in sorted(excluded, key=lambda c: -c.get("score", 0))[:5]:
+        # one row per dish: the same poha from five restaurants is one hidden item, not five
+        hidden = {}
+        for c in sorted(excluded, key=lambda c: -c.get("score", 0)):
+            hidden.setdefault(_norm(c["items"][0].get("canonical") or c["items"][0]["name"]), c)
+        for c in list(hidden.values())[:5]:
             conn.execute("INSERT INTO excluded_card (menu_id, items, allergen_hit) VALUES (?,?,?)",
                          (mid, json.dumps(c["items"]), c["allergen_hit"]))
         conn.commit()
@@ -863,12 +1003,16 @@ def today(conn, user_id, day, now, dishes_fn, im_fn, stock_fn=None):
     profile = get_profile(conn, user_id)
     if not profile:
         return None
-    stale = [s for s in profile["slots"]
-             if not _menu_fresh(conn, user_id, day, s)
-             or (stock_fn and not _ordered(conn, user_id, day, s)
-                 and _gone(conn, user_id, day, s, stock_fn))]
-    if stale:
-        build_day(conn, user_id, day, dishes_fn, im_fn, slots=stale)
+    # One build at a time: the page asks for today twice on load, and two builds
+    # writing at once ended in "database is locked". The second caller waits, then
+    # finds the menus fresh and builds nothing.
+    with _BUILD_LOCK:
+        stale = [s for s in profile["slots"]
+                 if not _menu_fresh(conn, user_id, day, s)
+                 or (stock_fn and not _ordered(conn, user_id, day, s)
+                     and _gone(conn, user_id, day, s, stock_fn))]
+        if stale:
+            build_day(conn, user_id, day, dishes_fn, im_fn, slots=stale)
     slots = []
     for s in profile["slots"]:
         m = conn.execute("SELECT * FROM daily_menu WHERE user_id=? AND date=? AND slot=?",
@@ -1066,6 +1210,11 @@ def quiz(diet):
             ("egg" in n.lower() or diet == "nonveg")]
 
 
+def _order_item_name(item):
+    """'Afghani Chaap (1)' / '2 x Butter Naan' -> the dish name without the quantity."""
+    return re.sub(r"^\s*\d+\s*[x×]\s*|\s*[x×]\s*\d+\s*$|\s*\(\d+\)\s*$", "", item).strip()
+
+
 def pull_food_orders(conn, user_id, food_client, address_id):
     """Swiggy Food order history (get_food_orders, docs: addressId + orderCount<=15) ->
     +2 per dish, +2/3 per restaurant, once per orderId. Also catches orders placed
@@ -1085,14 +1234,20 @@ def pull_food_orders(conn, user_id, food_client, address_id):
                                    "AND key=?", (user_id, oid)).fetchone():
             continue
         record(conn, user_id, "history", "order", oid, value=0)   # seen-marker: learn each order once
-        for item in re.split(r",|\n", o.get("orderedItems") or ""):
-            name = re.sub(r"^\s*\d+\s*[x×]\s*|\s*[x×]\s*\d+\s*$", "", item).strip()
-            if name:
-                record(conn, user_id, "history", "dish", name)
+        names = [n for n in (_order_item_name(i) for i in re.split(r",|\n", o.get("orderedItems") or "")) if n]
+        # learn on the standard dish name, the same key the cards are scored on
+        prof = dish_profile.profiles(conn, names)
+        for name in names:
+            record(conn, user_id, "history", "dish", (prof.get(name) or {}).get("canonical") or name)
         if o.get("restaurantName"):
             record(conn, user_id, "history", "restaurant", o["restaurantName"], value=EVENT_DELTAS["history"] / 3)
         learned += 1
     return learned
+
+
+_IM_FOODS = ("curd", "dahi", "yogurt", "yoghurt", "banana", "fruit", "apple", "orange", "papaya", "egg", "bread",
+             "poha", "makhana", "chaas", "chach", "buttermilk", "lassi", "sprout", "milk", "paneer", "tofu",
+             "dates", "chana", "cucumber", "salad", "juice", "coconut water", "oats", "muesli", "nuts")
 
 
 def pull_history(conn, user_id, im_client, address_id):
@@ -1105,8 +1260,13 @@ def pull_history(conn, user_id, im_client, address_id):
             names += _names(fn(*args))
         except Exception as e:  # noqa: BLE001 — cold start is best-effort
             print(f"[daily] history pull failed: {e}")
+    # only things Forkcast would actually offer (curd, fruit, makhana...), not the whole basket
+    names = [n for n in names if _im_ready(n) and any(w in n.lower() for w in _IM_FOODS)]
     for n in dict.fromkeys(names):
-        record(conn, user_id, "history", "grocery", n)
+        # once per product: this runs on every profile save, and repeats used to pile up
+        if not conn.execute("SELECT 1 FROM feedback_event WHERE user_id=? AND type='history' AND dimension='grocery' "
+                            "AND key=?", (user_id, _norm(n))).fetchone():
+            record(conn, user_id, "history", "grocery", n)
     return len(names)
 
 

@@ -13,9 +13,10 @@ Flow:
   POST /wallet/{user}/{month}/close   month close -> rollover
 """
 import os
+import re
 import time as _time
 import config  # noqa: F401 — loads .env before anything reads os.environ
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, field_validator
 
@@ -114,8 +115,10 @@ _init_runtime()
 app = FastAPI(title="Forkcast")
 # per-user tokens (auth.py); registered before CORS so CORS wraps its 403s
 app.middleware("http")(auth.middleware(get_conn))
-app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"],
-                   allow_headers=["*"])
+# only our own web app may call the API from a browser (FORKCAST_ORIGINS: comma-separated)
+app.add_middleware(CORSMiddleware, allow_origins=os.environ.get(
+    "FORKCAST_ORIGINS", "http://localhost:6001,http://localhost:3000").split(","), allow_methods=["*"],
+                   allow_headers=["*"], expose_headers=["X-Forkcast-Token"])
 
 class _AppetiteCache(dict):
     """user_id -> AppetiteProfile.
@@ -318,6 +321,7 @@ class SwapIn(BaseModel):
 class UserIn(BaseModel):
     name: str
     area: str = None
+    address_id: str = None    # a saved Swiggy address: proves which Swiggy account this is
 
 
 class ChatIn(BaseModel):
@@ -336,11 +340,55 @@ class AdjustIn(BaseModel):
 
 # ---------- endpoints ----------
 @app.post("/user")
-def create_user(body: UserIn):
+def create_user(body: UserIn, request: Request):
     conn, w, _ = svc()
-    uid = w.create_user(body.name, body.area)
-    conn.close()
-    return {"user_id": uid, "token": auth.bearer(uid)}
+    try:
+        # Sign-back-in is local only: the server holds ONE Swiggy login, so only the
+        # person at this machine (who owns that login) may reclaim its account. A
+        # remote caller always gets a fresh, empty account.
+        key = _swiggy_key(body.address_id) if auth.is_local(request) else None
+        if key:   # sign back in: same Swiggy account -> same Forkcast account
+            row = conn.execute("SELECT id FROM users WHERE swiggy_key = ? ORDER BY id LIMIT 1", (key,)).fetchone()
+            if row:
+                return {"user_id": row[0], "token": auth.bearer(row[0]), "returning": True}
+        uid = w.create_user(body.name, body.area)
+        if key:
+            conn.execute("UPDATE users SET swiggy_key = ? WHERE id = ?", (key, uid))
+            conn.commit()
+        return {"user_id": uid, "token": auth.bearer(uid), "returning": False}
+    finally:
+        conn.close()
+
+
+def _owns_swiggy_login(conn, user_id):
+    """True for the account that signed in from the server's own machine with the
+    connected Swiggy account. Its order history is personal data: nobody else's
+    taste profile may be seeded from it."""
+    r = conn.execute("SELECT swiggy_key FROM users WHERE id = ?", (user_id,)).fetchone()
+    return bool(r and r[0])
+
+
+def _swiggy_key(address_id):
+    """Identity of the connected Swiggy account, or None when it can't be proven.
+
+    The address must be one the server's live Swiggy login actually owns
+    (get_addresses), so a made-up id can't claim someone's account.
+    Never an authentication factor for remote callers (create_user gates this to
+    loopback): the address list is readable by anyone who can reach this server.
+    shortcut: Swiggy address ids look like "<customer>__<address>" and we key on
+    the customer part (falls back to the whole id); with per-user Swiggy OAuth,
+    key on that user's own token subject instead.
+    """
+    if not address_id or not _live():
+        return None
+    try:
+        raw = STATE["client"].call("get_addresses", {})
+    except Exception as e:  # noqa: BLE001 — no proof, so no sign-in; a new account is created
+        print(f"[auth] address check failed: {e}")
+        return None
+    entries = (raw.get("addresses") or raw.get("data") or []) if isinstance(raw, dict) else []
+    owned = {str(a.get("id") or a.get("addressId")) for a in entries if isinstance(a, dict)}
+    return str(address_id).split("__")[0] if str(address_id) in owned else None
 
 
 @app.get("/mode")
@@ -356,15 +404,17 @@ def get_mode():
 # ---------- in-app Swiggy OAuth login ----------
 # The OAuth flow opens the system browser and waits for the localhost callback,
 # so it runs in a background thread; the frontend polls /auth/swiggy/status.
-_AUTH = {"status": "idle", "error": None}  # idle|running|connected|failed
+_AUTH = {"status": "idle", "error": None, "url": None}  # idle|running|connected|failed
 
 
-def _run_auth():
+def _run_auth(popup=False):
     import swiggy_auth
     _AUTH["status"] = "running"
     _AUTH["error"] = None
+    _AUTH["url"] = None
     try:
-        swiggy_auth.run()          # opens browser, catches callback, writes .env + env
+        # popup: the web app opens the login URL itself, so the tab can close on its own
+        swiggy_auth.run(on_url=(lambda u: _AUTH.__setitem__("url", u)) if popup else None)
         STATE["mode"] = "mcp"
         _init_runtime()            # rebuild client from the fresh token
         if _live():
@@ -379,7 +429,7 @@ def _run_auth():
 
 
 @app.post("/auth/swiggy/start")
-def auth_start():
+def auth_start(popup: bool = False):
     """Kick off the Swiggy OAuth flow. Opens a browser on THIS machine (the one
     running the backend). Returns immediately; poll /auth/swiggy/status."""
     if _AUTH["status"] == "running":
@@ -387,7 +437,7 @@ def auth_start():
     if _live():
         return {"status": "connected"}
     import threading
-    threading.Thread(target=_run_auth, daemon=True).start()
+    threading.Thread(target=_run_auth, args=(popup,), daemon=True).start()
     return {"status": "running"}
 
 
@@ -397,6 +447,7 @@ def auth_status():
         "status": _AUTH["status"],       # idle|running|connected|failed
         "error": _AUTH["error"],
         "live": _live(),
+        "url": _AUTH["url"] if _AUTH["status"] == "running" else None,   # login page for the popup
     }
 
 
@@ -425,7 +476,7 @@ def _mark_expired_token(e):
 
 
 @app.get("/mcp/addresses")
-def mcp_addresses():
+def mcp_addresses(request: Request):
     """Live only: list saved Swiggy addresses to pick an addressId for ordering.
 
     Normalizes the raw Swiggy payload to the shape the frontend expects:
@@ -460,7 +511,8 @@ def mcp_addresses():
             continue  # an entry with no id can't be selected or ordered against
         out.append({
             "id": str(aid),
-            "addressLine": a.get("addressLine") or a.get("address") or a.get("label"),
+            # the full street address is shown only on the owner's machine
+            "addressLine": (a.get("addressLine") or a.get("address") or a.get("label")) if auth.is_local(request) else None,
             "addressCategory": a.get("addressCategory") or a.get("type"),
             "addressTag": a.get("addressTag") or a.get("label"),
             "label": a.get("label"),
@@ -1059,7 +1111,13 @@ def _daily_deps():
             rows = _ims(im, STATE["address_id"], q, limit=10)
             _IM_CACHE[k] = (_time.time(), rows)
             return rows
-    return {"dishes_fn": lambda veg_only: get_catalog(veg_only), "im_fn": im_fn,
+    def search_fn(query, veg_only):
+        f = STATE["fetcher"]
+        if not _live() or f is None:
+            return []
+        return [d for d in (f._map_item(it, "lunch") for it in f._search(STATE["address_id"], query, veg_only, 1)) if d]
+
+    return {"dishes_fn": lambda veg_only: get_catalog(veg_only), "im_fn": im_fn, "search_fn": search_fn,
             "stock_fn": _stock if im is not None else None,
             "food_exec": _executor(), "im_client": im, "address_id": STATE["address_id"]}
 
@@ -1100,7 +1158,20 @@ def _city_from_address():
     except Exception:  # noqa: BLE001 — city only drives the soft weather signal
         return None
     a = next((x for x in addrs if str(x.get("id")) == str(STATE["address_id"])), addrs[0] if addrs else {})
-    line = (a.get("addressLine") or "").lower()
+    return _city_in(a.get("addressLine") or "")
+
+
+def _city_in(address_line):
+    """'..., Mohanpuri, Meerut, Uttar Pradesh 250003, India' -> 'Meerut'.
+
+    Swiggy writes '<city>, <state> <pincode>'; the part before the state+pincode is
+    the city. Falls back to a known-city scan for other shapes.
+    """
+    parts = [p.strip() for p in address_line.split(",") if p.strip()]
+    for i, p in enumerate(parts):
+        if i and re.search(r"\b\d{6}\b", p) and re.fullmatch(r"[A-Za-z .'-]{2,40}", parts[i - 1]):
+            return parts[i - 1]
+    line = address_line.lower()
     # longest first so "New Delhi" beats "Delhi" and "Navi Mumbai" beats "Mumbai"
     return next((c for c in sorted(_CITIES, key=len, reverse=True) if c.lower() in line), None)
 
@@ -1165,22 +1236,35 @@ def daily_nightly():
 
 @app.get("/daily/{user_id}/profile")
 def daily_get_profile(user_id: int):
-    return _daily(lambda c, d: {"profile": daily.get_profile(c, user_id)})
+    def go(c, d):
+        p = daily.get_profile(c, user_id)
+        picks = [r["key"] for r in c.execute(
+            "SELECT DISTINCT key FROM feedback_event WHERE user_id=? AND type='quiz'", (user_id,))]
+        return {"profile": p, "quiz_picks": picks,
+                "city_guess": None if (p or {}).get("city") else _city_from_address()}
+    return _daily(go)
 
 
 @app.post("/daily/{user_id}/profile")
-def daily_save_profile(user_id: int, body: DailyProfileIn):
+def daily_save_profile(user_id: int, body: DailyProfileIn, request: Request):
     def go(conn, deps):
         if not conn.execute("SELECT 1 FROM users WHERE id=?", (user_id,)).fetchone():
             raise ValueError("unknown user")
+        # The server holds ONE Swiggy login. A visitor from the internet must never be
+        # able to place real orders on it; only the owner's machine (or an explicit
+        # FORKCAST_ALLOW_LIVE=1, once per-user Swiggy sign-in exists) can go live.
+        if body.mode == "live" and not (auth.is_local(request) or os.environ.get("FORKCAST_ALLOW_LIVE") == "1"):
+            raise ValueError("Live ordering is switched off on this server. Dry run still builds the real cart.")
         data = body.model_dump(exclude={"quiz_picks"})
         if not data.get("city") and not (daily.get_profile(conn, user_id) or {}).get("city"):
             data["city"] = _city_from_address()
         p = daily.save_profile(conn, user_id, data)
         for name in body.quiz_picks[:10]:
             daily.record(conn, user_id, "quiz", "dish", str(name))
-        pulled = daily.pull_history(conn, user_id, deps["im_client"], deps["address_id"])
-        pulled += daily.pull_food_orders(conn, user_id, STATE["client"] if _live() else None, deps["address_id"])
+        pulled = 0
+        if _owns_swiggy_login(conn, user_id):
+            pulled = daily.pull_history(conn, user_id, deps["im_client"], deps["address_id"])
+            pulled += daily.pull_food_orders(conn, user_id, STATE["client"] if _live() else None, deps["address_id"])
         daily.write_memory_md(conn, user_id)
         # a profile change (weekday diet, allergies…) invalidates unordered menus from today
         # on; the live/dry-run switch alone changes no card, so it keeps them
@@ -1289,6 +1373,31 @@ def daily_agent(user_id: int, body: AgentIn):
     return _daily(lambda c, d: agent.run(c, user_id, body.message, d))
 
 
+class DietPlanIn(BaseModel):
+    mime: str
+    data: str                  # base64 file contents
+
+
+class DietPlanApplyIn(BaseModel):
+    proposal: dict
+
+
+@app.post("/daily/{user_id}/diet-plan")
+def daily_diet_plan(user_id: int, body: DietPlanIn):
+    """Read an uploaded diet plan (photo/PDF/text) -> a proposal the user confirms. Nothing is saved."""
+    import diet_plan
+    try:
+        return {"proposal": diet_plan.read(body.mime, body.data)}
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+
+
+@app.post("/daily/{user_id}/diet-plan/apply")
+def daily_diet_plan_apply(user_id: int, body: DietPlanApplyIn):
+    import diet_plan
+    return _daily(lambda c, d: {"profile": diet_plan.apply(c, user_id, body.proposal)})
+
+
 @app.delete("/daily/{user_id}")
 def daily_delete_account(user_id: int):
     """Account deletion: erases the user's profile, plans, feedback, orders and memory."""
@@ -1305,7 +1414,8 @@ def run_nightly():
     try:
         deps = _daily_deps()
         for r in conn.execute("SELECT user_id FROM user_profile").fetchall():
-            daily.pull_food_orders(conn, r["user_id"], STATE["client"] if _live() else None, deps["address_id"])
+            if _owns_swiggy_login(conn, r["user_id"]):
+                daily.pull_food_orders(conn, r["user_id"], STATE["client"] if _live() else None, deps["address_id"])
         return daily.nightly(conn, deps["dishes_fn"], deps["im_fn"])
     finally:
         conn.close()

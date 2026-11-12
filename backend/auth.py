@@ -7,8 +7,9 @@ DB, and it can't be forged without the server secret.
 Secret: FORKCAST_SECRET env var, else a random one generated once into
 backend/.auth_secret (gitignored). Rotating it signs every user out.
 
-shortcut: tokens never expire; add an issued-at + expiry (or Swiggy OAuth sign-in)
-when there are real multi-user accounts.
+Tokens last TTL_DAYS and every authenticated response carries a fresh one in
+X-Forkcast-Token, so active users stay signed in and idle sessions die. Signing back in after
+expiry is only possible from the server's own machine (see app._swiggy_key).
 """
 import hashlib
 import hmac
@@ -16,6 +17,7 @@ import json
 import os
 import re
 import secrets
+import time
 from pathlib import Path
 
 from fastapi.responses import JSONResponse
@@ -49,22 +51,31 @@ def _secret():
     return _SECRET_FILE.read_text().strip().encode()
 
 
-def token_for(user_id):
-    return hmac.new(_secret(), str(int(user_id)).encode(), hashlib.sha256).hexdigest()
+TTL_DAYS = 30
 
 
-def user_from(header):
-    """'Bearer <uid>.<sig>' -> uid, or None if missing/forged."""
+def token_for(user_id, exp=""):
+    return hmac.new(_secret(), f"{int(user_id)}.{exp}".rstrip(".").encode(), hashlib.sha256).hexdigest()
+
+
+def user_from(header, now=None):
+    """'Bearer <uid>.<exp>.<sig>' -> uid, or None if missing, forged or expired."""
     if not header or not header.startswith("Bearer "):
         return None
-    uid, _, sig = header[7:].strip().partition(".")
-    if not uid.isdigit() or not hmac.compare_digest(sig, token_for(uid)):
+    parts = header[7:].strip().split(".")
+    if len(parts) != 3 or not parts[1].isdigit():
+        return None
+    uid, exp, sig = parts
+    if int(exp) < (time.time() if now is None else now):
+        return None
+    if not uid.isdigit() or not hmac.compare_digest(sig, token_for(uid, exp)):
         return None
     return int(uid)
 
 
-def bearer(user_id):
-    return f"{int(user_id)}.{token_for(user_id)}"
+def bearer(user_id, now=None):
+    exp = int((time.time() if now is None else now) + TTL_DAYS * 86400)
+    return f"{int(user_id)}.{exp}.{token_for(user_id, exp)}"
 
 
 def owner_of(conn, path):
@@ -79,6 +90,14 @@ def owner_of(conn, path):
     return None
 
 
+def is_local(request):
+    """True only for a caller on the server itself. Behind the reverse proxy every
+    request comes from 127.0.0.1, so anything the proxy forwarded is NOT local."""
+    host = request.client.host if request.client else ""
+    return host in ("127.0.0.1", "::1") and not any(
+        h in request.headers for h in ("x-forwarded-for", "x-real-ip", "forwarded", "via"))
+
+
 def _deny(code, msg):
     return JSONResponse({"detail": msg}, status_code=code)
 
@@ -89,8 +108,7 @@ def middleware(get_conn):
         if request.method == "OPTIONS" or key in PUBLIC:
             return await call_next(request)
         if key in LOOPBACK_ONLY:
-            host = request.client.host if request.client else ""
-            return await call_next(request) if host in ("127.0.0.1", "::1") else _deny(403, "local only")
+            return await call_next(request) if is_local(request) else _deny(403, "local only")
         uid = user_from(request.headers.get("authorization"))
         if uid is None:
             return _deny(403, "Sign in again: missing or invalid session")
@@ -99,9 +117,13 @@ def middleware(get_conn):
             return _deny(403, "Not your account")
         conn = get_conn()
         try:
+            # a deleted account's token is dead even before it expires
+            alive = conn.execute("SELECT 1 FROM users WHERE id = ?", (uid,)).fetchone()
             owner = owner_of(conn, path)
         finally:
             conn.close()
+        if not alive:
+            return _deny(403, "Sign in again: missing or invalid session")
         if owner is not None and owner != uid:
             return _deny(403 if owner != -1 else 404, "Not your plan" if owner != -1 else "Not found")
         # any user_id the request carries (query or body, whatever the content-type) must be the caller's
@@ -116,5 +138,10 @@ def middleware(get_conn):
                 claimed.append(data.get("user_id"))
         if any(c is not None and str(c) != str(uid) for c in claimed):
             return _deny(403, "Not your account")
-        return await call_next(request)
+        response = await call_next(request)
+        if response.status_code < 400 and not (request.method == "DELETE" and _USER_PATH.match(path)):
+            response.headers["X-Forkcast-Token"] = bearer(uid)   # sliding renewal
+            response.headers["Cache-Control"] = "no-store, private"   # a token must never sit in a cache
+            response.headers["Vary"] = "Authorization"
+        return response
     return check

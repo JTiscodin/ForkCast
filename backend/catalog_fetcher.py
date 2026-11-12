@@ -18,6 +18,7 @@ Real-schema notes (mcp.swiggy.com/builders/docs/reference/food):
 The optimizer never imports this module's transport detail. It just eats a Dish list.
 """
 import os
+from concurrent.futures import ThreadPoolExecutor
 
 from catalog import Dish, mock_catalog
 from course import course_of, classify_unknown, kind_unknown
@@ -42,6 +43,7 @@ DESCRIPTION_PAGES = int(os.environ.get("DESCRIPTION_PAGES", "1"))
 # left the optimizer staring at ~5 dishes per meal and recycling them across
 # 30 days; a second page (following the response's nextOffset) roughly doubles
 # the pool for one extra ~0.7s round-trip per query.
+SEARCH_WORKERS = int(os.environ.get("SEARCH_WORKERS", "2"))   # parallel Swiggy searches (4 got rate-limited); 1 = one by one
 SEARCH_PAGES = int(os.environ.get("SEARCH_PAGES", "2"))
 
 # Query seeds per meal slot — drives the live search_menu fan-out to build a pool.
@@ -156,32 +158,24 @@ class CatalogFetcher:
             seeds.setdefault("lunch", []).extend(bucket[:2])
             seeds.setdefault("dinner", []).extend(bucket[2:] or bucket[:1])
 
-        for meal_type, queries in seeds.items():
-            for q in queries:
-                attempts += 1
-                items = self._search(address_id, q, veg_only, pages=SEARCH_PAGES)
-                if not items:
-                    # Every page of this query failed — count it, then keep
-                    # building the pool from the queries that work.
-                    errors += 1
-                    continue
-                for item in items:
-                    dish = self._map_item(item, meal_type)
-                    if dish and dish.dish_id not in seen:
-                        seen[dish.dish_id] = dish
-
-        # Accompaniment pass: breads/rice for pairing with curries. Tagged
-        # meal_type "dinner" only as a placeholder — the optimizer selects
-        # accompaniments by COURSE, never by meal_type, so this doesn't make
-        # them eligible as dinners. One page is plenty of bread stock.
-        for q in ACCOMPANIMENT_QUERIES:
+        # Every seed search is an independent network call, so they run a few at a
+        # time: this is what the first plan waits on. Results are merged in seed
+        # order, so the pool is the same as a one-by-one fetch.
+        # Accompaniments (breads/rice for curries) ride along with one page each,
+        # tagged "dinner" only as a placeholder: they are picked by COURSE.
+        jobs = [(m, q, SEARCH_PAGES) for m, queries in seeds.items() for q in queries]
+        jobs += [("dinner", q, 1) for q in ACCOMPANIMENT_QUERIES]
+        with ThreadPoolExecutor(max_workers=SEARCH_WORKERS) as pool:
+            results = list(pool.map(lambda j: self._search(address_id, j[1], veg_only, pages=j[2]), jobs))
+        # a search Swiggy rate-limited is asked again, one at a time, instead of being lost
+        results = [r or self._search(address_id, j[1], veg_only, pages=j[2]) for j, r in zip(jobs, results)]
+        for (meal_type, _q, _pages), items in zip(jobs, results):
             attempts += 1
-            items = self._search(address_id, q, veg_only, pages=1)
             if not items:
-                errors += 1
+                errors += 1   # every page of this query failed; the rest still build the pool
                 continue
             for item in items:
-                dish = self._map_item(item, "dinner")
+                dish = self._map_item(item, meal_type)
                 if dish and dish.dish_id not in seen:
                     seen[dish.dish_id] = dish
 
