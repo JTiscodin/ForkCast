@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { toast } from "sonner";
 
 import { api } from "@/lib/api";
+import { disablePush, enablePush, remindersOn, setReminders } from "@/lib/reminders";
 import type { DailyProfile, DailySlotName, DietType, Goal } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import { focusRing, surfaces } from "@/lib/design";
@@ -18,6 +19,13 @@ const GOALS: { id: Goal; label: string }[] = [
   { id: "high_protein", label: "High protein" },
 ];
 const SLOTS: DailySlotName[] = ["breakfast", "lunch", "snack", "dinner"];
+// same as backend daily.DEFAULT_WINDOWS
+const DEFAULT_WINDOWS: Record<DailySlotName, [string, string]> = {
+  breakfast: ["07:00", "10:00"],
+  lunch: ["12:00", "15:00"],
+  snack: ["16:30", "18:30"],
+  dinner: ["19:30", "22:30"],
+};
 const DAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 const COMMON_ALLERGENS = ["peanut", "shellfish", "dairy", "gluten", "soy", "egg", "tree nut", "fish"];
 const SEVERE_DEFAULT = new Set(["peanut", "shellfish", "tree nut"]);
@@ -66,6 +74,8 @@ export function DailyOnboarding({
   const [goal, setGoal] = useState<Goal>(initial?.goal ?? "maintain");
   const [budget, setBudget] = useState(String(initial?.monthly_budget ?? 6000));
   const [slots, setSlots] = useState<DailySlotName[]>(initial?.slots ?? ["breakfast", "lunch", "snack", "dinner"]);
+  const [windows, setWindows] = useState<Record<DailySlotName, [string, string]>>(initial?.windows ?? DEFAULT_WINDOWS);
+  const [remind, setRemind] = useState(() => remindersOn());
   const [city, setCity] = useState(initial?.city ?? "");
   const [quiz, setQuiz] = useState<string[]>([]);
   const [picks, setPicks] = useState<string[]>([]);
@@ -84,7 +94,11 @@ export function DailyOnboarding({
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
-    api.quiz(diet).then((r) => setQuiz(r.dishes)).catch(() => setQuiz([]));
+    let stale = false;   // a slow reply for the previous diet must not show meat dishes under "veg"
+    api.quiz(diet).then((r) => !stale && setQuiz(r.dishes)).catch(() => !stale && setQuiz([]));
+    return () => {
+      stale = true;
+    };
   }, [diet]);
 
   const toggleAllergy = (name: string) =>
@@ -107,6 +121,8 @@ export function DailyOnboarding({
     const amount = Number(budget);
     if (!amount || amount <= 0) return toast.error("Enter a monthly budget");
     if (!slots.length) return toast.error("Pick at least one meal slot");
+    const badTime = slots.find((s) => !(windows[s][0] && windows[s][1] && windows[s][0] < windows[s][1]));
+    if (badTime) return toast.error(`Set a ${badTime} time where the start is before the end`);
     setSaving(true);
     try {
       const extra = otherAllergy
@@ -121,6 +137,7 @@ export function DailyOnboarding({
         goal,
         monthly_budget: amount,
         slots,
+        windows,
         city: city || null,
         quiz_picks: picks.filter((p) => !saved.includes(p.toLowerCase())),   // only new picks are learned again
       });
@@ -209,16 +226,65 @@ export function DailyOnboarding({
         />
       </Section>
 
-      <Section n={6} title="Meals to plan">
-        {SLOTS.map((s) => (
-          <Chip
-            key={s}
-            on={slots.includes(s)}
-            onClick={() => setSlots((x) => (x.includes(s) ? x.filter((y) => y !== s) : [...x, s]))}
-          >
-            {s}
-          </Chip>
-        ))}
+      <Section n={6} title="Meals to plan, and when you usually eat them">
+        <div className="flex w-full flex-col gap-2">
+          {SLOTS.map((s) => {
+            const on = slots.includes(s);
+            return (
+              <div key={s} className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
+                <span className="w-28">
+                  <Chip on={on} onClick={() => setSlots((x) => (x.includes(s) ? x.filter((y) => y !== s) : [...x, s]))}>
+                    {s}
+                  </Chip>
+                </span>
+                {on && (
+                  <span className="flex items-center gap-2 text-sm text-muted-foreground">
+                    {([0, 1] as const).map((i) => (
+                      <span key={i} className="contents">
+                        {i === 1 && <span>to</span>}
+                        <input
+                          type="time"
+                          aria-label={`${s} ${i ? "ends" : "starts"}`}
+                          value={windows[s][i]}
+                          onChange={(e) =>
+                            setWindows((w) => ({ ...w, [s]: (i ? [w[s][0], e.target.value] : [e.target.value, w[s][1]]) as [string, string] }))
+                          }
+                          className="h-9 rounded-lg border border-border bg-card px-2 font-semibold text-foreground tabular-nums"
+                        />
+                      </span>
+                    ))}
+                  </span>
+                )}
+              </div>
+            );
+          })}
+          <label className="mt-1 flex cursor-pointer items-start gap-2.5 rounded-xl bg-muted/60 p-3 text-sm">
+            <input
+              type="checkbox"
+              checked={remind}
+              onChange={async (e) => {
+                const want = e.target.checked;
+                if (want && "Notification" in window && Notification.permission !== "granted") {
+                  if ((await Notification.requestPermission()) !== "granted") {
+                    toast.error("Your browser blocked notifications. Allow them in site settings to get reminders.");
+                    return;
+                  }
+                }
+                setReminders(want);
+                setRemind(want);
+                // push failing (unsupported browser, no HTTPS) leaves the in-page reminder working
+                (want ? enablePush(userId) : disablePush(userId)).catch(() => {});
+              }}
+              className="mt-0.5 size-4 accent-brand-500"
+            />
+            <span>
+              <span className="block font-bold">Remind me at meal times</span>
+              <span className="text-muted-foreground">
+                When a meal&apos;s time starts, Forkcast sends a notification with its top pick and where it will deliver, so you can order in one tap.
+              </span>
+            </span>
+          </label>
+        </div>
       </Section>
 
       <Section n={7} title="City (for weather and season)">
@@ -237,7 +303,10 @@ export function DailyOnboarding({
             key={d}
             on={picks.some((p) => p.toLowerCase() === d.toLowerCase())}
             onClick={() =>
-              setPicks((p) => (p.includes(d) ? p.filter((x) => x !== d) : p.length < 5 ? [...p, d] : p))
+              setPicks((p) => {
+                const same = (x: string) => x.toLowerCase() === d.toLowerCase();
+                return p.some(same) ? p.filter((x) => !same(x)) : p.length < 5 ? [...p, d] : p;
+              })
             }
           >
             {d}

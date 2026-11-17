@@ -93,8 +93,12 @@ def save_profile(conn, user_id, data):
         name = str(a.get("name", "")).strip().lower()
         if name:
             allergies.append({"name": name, "severe": bool(a.get("severe"))})
-    windows = {k: v for k, v in {**(cur.get("windows") or {}), **(data.get("windows") or {})}.items()
-               if k in SLOTS and DEFAULT_WINDOWS.get(k) != v}
+    windows = {k: list(v) for k, v in {**(cur.get("windows") or {}), **(data.get("windows") or {})}.items()
+               if k in SLOTS and DEFAULT_WINDOWS.get(k) != list(v)}
+    for k, v in windows.items():
+        if not (len(v) == 2 and all(isinstance(t, str) and re.fullmatch(r"([01]\d|2[0-3]):[0-5]\d", t) for t in v)
+                and v[0] < v[1]):
+            raise ValueError(f"{k} time must be two HH:MM times, start before end")
     conn.execute(
         "INSERT OR REPLACE INTO user_profile (user_id, diet_type, weekday_overrides, "
         "allergies, goal, slots, windows, monthly_budget, city, mode, updated_at) "
@@ -1099,7 +1103,17 @@ def parse_food_text(text):
 
 # ---------------------------------------------------------------- ordering
 
-def order(conn, user_id, card_id, food_exec, im_client, address_id, confirm=False, preview=False):
+_ORDER_LOCK = threading.Lock()
+
+
+def order(*a, **k):
+    """Serialised so a double-tapped Confirm can't pass the already-ordered check twice."""
+    # shortcut: one lock for all users; fine for a single small server, make it per-user if orders queue up
+    with _ORDER_LOCK:
+        return _order(*a, **k)
+
+
+def _order(conn, user_id, card_id, food_exec, im_client, address_id, confirm=False, preview=False):
     # confirm must come from a user click (the HTTP order endpoint), never from the agent
     """One tap -> one or two orders (restaurant + Instamart). Honours profile.mode.
 
@@ -1125,7 +1139,7 @@ def order(conn, user_id, card_id, food_exec, im_client, address_id, confirm=Fals
         f = food[0]
         try:
             r = food_exec.place(f["id"], f["restaurant_id"], _total(food),
-                                raw_variant=f.get("raw_variant"), dry_run=dry, note=f.get("note"),
+                                raw_variant=f.get("raw_variant"), dry_run=dry, note=f.get("note"), address_id=address_id,
                                 extra_items=[{"id": i["id"], "quantity": _qty(i),
                                               "raw_variant": i.get("raw_variant")} for i in food[1:]])
             results.append(rec(card_id, "food", r.get("order_id"), r["status"] if r["status"] != "confirmed" else "placed",
@@ -1312,8 +1326,103 @@ def delete_user(conn, user_id):
     conn.execute("DELETE FROM notifications WHERE meal_slot_id IN (SELECT s.id FROM meal_slots s JOIN plans p ON s.plan_id = p.id WHERE p.user_id = ?)", u)
     conn.execute("DELETE FROM meal_slots WHERE plan_id IN (SELECT id FROM plans WHERE user_id = ?)", u)
     for t in ("daily_menu", "plans", "consumption_log", "feedback_event", "pref_weight", "ledger_transactions",
-              "budget_cycles", "appetite_profiles", "user_profile"):
+              "budget_cycles", "appetite_profiles", "user_profile", "push_subscription"):
         conn.execute(f"DELETE FROM {t} WHERE user_id = ?", u)
     conn.execute("DELETE FROM users WHERE id = ?", u)
     conn.commit()
     (MEMORY_DIR / f"{int(user_id)}.md").unlink(missing_ok=True)
+
+
+# ---------------------------------------------------------------- customise a card
+
+def _addon_queries(slot, diet):
+    """(query, gap) pairs of Instamart add-ons that suit this slot and diet."""
+    out = []
+    for g, q in GAP_ADDON.get(slot, {}).items():
+        if diet == "vegan" and q in ("curd", "milk", "eggs"):
+            q = "tofu" if g == "protein" else None
+        elif diet in ("veg", "jain") and q == "eggs":
+            q = "paneer"
+        if q and q not in [x for x, _ in out]:
+            out.append((q, g))
+    return out
+
+
+def card_options(conn, user_id, card_id, dishes_fn, im_fn):
+    """What a card's sides and add-on can be swapped for: everything else the same
+    restaurant sells (breads and rice first) and Instamart add-ons for the slot.
+    Diet and allergy rules apply exactly as when the card was built."""
+    card = get_card(conn, card_id)
+    if not card or card["user_id"] != user_id:
+        raise ValueError("card not found")
+    profile = get_profile(conn, user_id)
+    day = _date.fromisoformat(card["date"])
+    diet = diet_on(profile, day)
+    allergies = profile.get("allergies") or []
+    main = card["items"][0]
+    sides = []
+    if main["source"] == "food":
+        pool = [d for d in dishes_fn(diet in ("veg", "jain", "vegan"))
+                if d.restaurant_id == main["restaurant_id"] and d.dish_id != main["id"]]
+        profs = dish_profile.profiles(conn, [d.name for d in pool])
+        seen = set()
+        for d in pool:
+            p = profs.get(d.name)
+            ruled = p and p.get("source") != "rules"
+            kind = p["kind"] if ruled else ({"bread": "bread", "staple": "rice"}.get(d.course) if d.dish_kind == "meal" else d.dish_kind)
+            if (diet == "jain" and ruled and p.get("onion_garlic")) or not _im_safe(d.name, diet) \
+                    or _name_allergen(d.name, allergies) or d.dish_id in seen or not d.price:
+                continue
+            seen.add(d.dish_id)
+            carb = kind in ("bread", "rice")
+            q = _side_qty(d.name, 2 if kind == "bread" else 1) if carb else 1
+            sides.append({**_dish_item(d), "quantity": q or 1, "side": True, "group": "Breads and rice" if carb else "More from this restaurant"})
+        sides.sort(key=lambda i: (i["group"] != "Breads and rice", i["price"]))
+    addons = []
+    for q, g in _addon_queries(card["slot"], diet):
+        try:
+            rows = [r for r in im_fn(q) if r.get("price") and _im_safe(r.get("name") or "", diet)
+                    and _im_ready(r.get("name") or "")
+                    and not _name_allergen(f"{q} {r.get('name') or ''}", allergies)]
+        except Exception:  # noqa: BLE001 — add-ons are optional
+            rows = []
+        for r in sorted(rows, key=lambda r: r["price"])[:3]:
+            addons.append({**_im_item(r), "addon": True,
+                           "addon_reason": f"add {ADDON_LABEL.get(q, q)} for {GAP_LABEL.get(g, g)}"})
+    return {"sides": sides[:60], "addons": addons}
+
+
+def edit_card(conn, user_id, card_id, sides, addon_id, dishes_fn, im_fn):
+    """Replace a card's sides ([{id, quantity}], may be empty) and add-on (id or None).
+    Only ids from card_options are accepted, so the client can't inject items or prices."""
+    card = get_card(conn, card_id)
+    if not card or card["user_id"] != user_id:
+        raise ValueError("card not found")
+    if _ordered(conn, user_id, _date.fromisoformat(card["date"]), card["slot"]):
+        raise ValueError("this meal is already ordered")
+    opts = card_options(conn, user_id, card_id, dishes_fn, im_fn)
+    by_id = {o["id"]: o for o in opts["sides"]}
+    keep = [i for i in card["items"] if not i.get("side") and not i.get("addon")]
+    items = list(keep)
+    for s in sides or []:
+        o = by_id.get(str(s.get("id")))
+        qty = int(s.get("quantity") or 1)
+        if o is None or not 1 <= qty <= 6:
+            raise ValueError("that side isn't available from this restaurant")
+        items.append({**{k: v for k, v in o.items() if k != "group"}, "quantity": qty})
+    reasons = [r for r in card["reasons"] if not r.startswith("add ")]
+    if addon_id:
+        add = next((a for a in opts["addons"] if a["id"] == addon_id), None)
+        if add is None:
+            raise ValueError("that add-on isn't available")
+        items.append(add)
+        reasons.append(add["addon_reason"])
+    price = _total(items)
+    if price >= MAX_ORDER:
+        raise ValueError(f"order total must stay under Rs {MAX_ORDER}")
+    nut, conf, sources = _card_nutrition(conn, items, llm=False)
+    conn.execute("UPDATE menu_card SET items=?, price=?, nutrients=?, reasons=? WHERE id=?",
+                 (json.dumps(items), price, json.dumps({**nut, "confidence": conf, "source": sources}),
+                  json.dumps(reasons), card_id))
+    conn.commit()
+    return get_card(conn, card_id)

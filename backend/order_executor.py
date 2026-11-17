@@ -19,7 +19,7 @@ class OrderExecutor:
         self._mock_seq = 0
 
     def place(self, dish_id, restaurant_id, price, portion_variant="regular",
-              raw_variant=None, dry_run=False, extra_items=None, note=None):
+              raw_variant=None, dry_run=False, extra_items=None, note=None, address_id=None):
         """Returns {order_id, status, eta_min, amount}. Does NOT touch wallet;
         caller debits ledger on success to keep money logic in one place.
         dry_run builds the real cart and stops before place_food_order.
@@ -31,7 +31,7 @@ class OrderExecutor:
                 res.update(order_id=None, status="dry_run")
             return res
         return self._mcp_place(dish_id, restaurant_id, portion_variant, price,
-                               raw_variant, dry_run, extra_items, note)
+                               raw_variant, dry_run, extra_items, note, address_id)
 
     def track(self, order_id):
         if self.mode == "mock":
@@ -51,7 +51,7 @@ class OrderExecutor:
 
     # ---- live MCP (verified Swiggy Food schema) ----
     def _mcp_place(self, dish_id, restaurant_id, variant, price, raw_variant=None,
-                   dry_run=False, extra_items=None, note=None):
+                   dry_run=False, extra_items=None, note=None, address_id=None):
         """Real workflow: update_food_cart -> get_food_cart -> validate -> place.
 
         Swiggy guardrails enforced here (docs):
@@ -61,7 +61,7 @@ class OrderExecutor:
         cartItems echoes the item's own variant format ('variations'|'variantsV2');
         raw_variant carries whatever search_menu returned so we don't invent a shape.
         """
-        address_id = self._address_id()
+        address_id = address_id or self._address_id()   # per-order pick wins
 
         cart_items = [_cart_line(dish_id, 1, raw_variant)] + [
             _cart_line(x["id"], x.get("quantity", 1), x.get("raw_variant"))
@@ -80,13 +80,14 @@ class OrderExecutor:
         if total is not None and total >= 1000:
             raise ValueError(
                 f"Swiggy blocks orders >= ₹1000 (cart ₹{total}). Split the order.")
+        # checked before the dry-run return so the preview fails the same way the real order would.
+        # live API names cash-on-delivery "Cash"; the user confirmed cash in the UI
+        if pay_methods and not {"Cash", "COD"} & set(pay_methods):
+            raise ValueError("Cash on delivery not offered for this cart; only cash is supported")
         if dry_run:
             return {"order_id": None, "status": "dry_run", "eta_min": None,
                     "amount": total if total is not None else price,
                     "dish_id": dish_id, "message": "cart built, order not placed"}
-        # live API names cash-on-delivery "Cash"; the user confirmed cash in the UI
-        if pay_methods and not {"Cash", "COD"} & set(pay_methods):
-            raise ValueError("Cash on delivery not offered for this cart; only cash is supported")
         payment = "Cash"
 
         res = self.mcp.call("place_food_order", {

@@ -1,27 +1,55 @@
 <p align="center"><img src="web/public/brand/forkcast.png" width="96" alt="Forkcast logo"></p>
 
-# Forkcast
+<h1 align="center">Forkcast</h1>
 
-**Your meals for the day, already picked from Swiggy.**
+<p align="center"><b>Your meals for the day, already picked from Swiggy.</b></p>
 
-Forkcast is a daily meal recommender built on the [Swiggy MCP](https://mcp.swiggy.com/builders).
-Every morning it lays out breakfast, lunch, an evening snack and dinner: real dishes
-from restaurants that deliver to you, plus small Instamart add-ons that cover what your
-day is missing. It stays inside your monthly food budget, follows your diet, keeps your
-allergies off the plate, reacts to the weather, and learns from what you order, like and skip.
+<p align="center">
+Built on the <a href="https://mcp.swiggy.com/builders">Swiggy MCP</a> ·
+Dry run by default · Allergy-safe · Learns from you
+</p>
 
-You stay in charge of ordering: one tap builds the real Swiggy cart and shows what
-you'll pay, a second tap places it.
+Forkcast is a daily meal recommender built on the Swiggy MCP. Every morning it lays out
+breakfast, lunch, an evening snack and dinner: real dishes from restaurants that deliver
+to you, plus small Instamart add-ons that cover what your day is missing. It stays inside
+your monthly food budget, follows your diet, keeps your allergies off the plate, reacts to
+the weather, and learns from what you order, like and skip.
+
+You stay in charge of ordering: one tap builds the real Swiggy cart and shows what you'll
+pay, a second tap places it. Out of the box it runs in **dry run**, which stops before
+the order is placed.
 
 > **Status:** working prototype against the live Swiggy Food and Instamart MCP servers.
-> Built by Vardan Agarwal and Jatin Tilwani.
+> Built by **Vardan Agarwal** and **Jatin Tilwani**.
 > Production access application: [`docs/PRODUCTION-APPLICATION.md`](docs/PRODUCTION-APPLICATION.md) ·
-> Hosting guide: [`docs/DEPLOY.md`](docs/DEPLOY.md)
+> Hosting guides: [`docs/DEPLOY.md`](docs/DEPLOY.md), [`docs/DEPLOY-GCP.md`](docs/DEPLOY-GCP.md), [`docs/DEPLOY-HF.md`](docs/DEPLOY-HF.md)
+
+---
+
+## Screenshots
+
+| Today (light) | Today (dark) |
+|---|---|
+| ![Today page, light mode](docs/screenshots/today-light.png) | ![Today page, dark mode](docs/screenshots/today-dark.png) |
+
+| Meal cards with roles | Ask Forkcast |
+|---|---|
+| ![Breakfast cards: your usual, fixes your gap, try something new, budget pick](docs/screenshots/meal-card.png) | ![Chat panel answering a craving](docs/screenshots/ask-chat.png) |
+
+| You tab: taste profile | Meal times and reminders |
+|---|---|
+| ![What Forkcast knows about you](docs/screenshots/taste-profile.png) | ![Meal windows and the reminder toggle](docs/screenshots/onboarding-times.png) |
+
+<p align="center"><img src="docs/screenshots/mobile.png" width="300" alt="Today page on a phone"></p>
+
+---
 
 ## Contents
+- [How it works](#how-it-works)
 - [Features](#features)
 - [Ordering safety](#ordering-safety)
-- [How it works](#how-it-works)
+- [Architecture](#architecture)
+- [Tech stack](#tech-stack)
 - [Run it locally](#run-it-locally)
 - [Configuration](#configuration)
 - [Tests](#tests)
@@ -29,6 +57,32 @@ you'll pay, a second tap places it.
 - [Repository map](#repository-map)
 - [Known limits](#known-limits)
 - [Credits](#credits)
+
+---
+
+## How it works
+
+```mermaid
+flowchart LR
+    A[Connect Swiggy<br/>OAuth 2.1 + PKCE] --> B[Name and address]
+    B --> C[Diet, allergies,<br/>budget, meal times,<br/>favourite dishes]
+    C --> D[Today page:<br/>4 meals x 3-4 cards]
+    D --> E{Build cart}
+    E --> F[Live Swiggy cart summary:<br/>items, total, address, COD]
+    F -->|dry run| G[Stops here]
+    F -->|live mode, second tap| H[Order placed]
+    D --> I[Like / skip / never /<br/>rate / log a meal]
+    I --> J[Taste weights<br/>14-day half-life]
+    J --> D
+```
+
+1. **Set up once.** Connect Swiggy on Swiggy's own sign-in page, pick a saved address, then
+   set diet, allergies, goal, monthly budget, meal windows and a few dishes you like.
+2. **Every day.** A nightly job builds the next day's plan. The Today page shows four meals,
+   each with three or four cards that each have a job (your usual, fixes your gap, try
+   something new, budget pick).
+3. **Order or not.** Tap **Build cart** to see Swiggy's live cart. In dry run it stops there.
+4. **Feedback.** Every like, skip, "never", rating and order changes tomorrow's plan.
 
 ---
 
@@ -121,6 +175,16 @@ The assistant has no ordering tool. Asked to order, it points you to the card's 
 Everything learned is visible and editable on the You tab, and
 **Delete my account and data** erases the profile, plans, feedback, orders and taste memory.
 
+### Meal-time reminders
+In settings each meal has a time window (breakfast 07:00 to 10:00 by default). Turn on
+**Remind me at meal times** and, when a window opens, the browser gets a Web Push
+notification with that meal's top pick and the delivery address. Reminders are a
+per-device choice.
+
+### Dark mode
+The header has a light/dark toggle. Dark mode was checked card by card so role labels
+and attribution badges stay readable.
+
 ---
 
 ## Ordering safety
@@ -136,24 +200,44 @@ Everything learned is visible and editable on the You tab, and
 
 ---
 
-## How it works
+## Architecture
 
+```mermaid
+flowchart TB
+    subgraph Browser["Browser · Next.js 16 (web/)"]
+        T[Today] --- Y[You] --- S[Setup] --- CH[Ask Forkcast chat]
+    end
+    Browser -- "signed per-user token" --> API
+
+    subgraph API["FastAPI backend (backend/)"]
+        APP[app.py routes] --> AUTH[auth.py<br/>HMAC tokens, ownership checks]
+        APP --> DAILY[daily.py<br/>plan builder]
+        APP --> AGENT[agent.py<br/>chat tools, no ordering tool]
+        APP --> DIET[diet_plan.py<br/>upload to proposal]
+        APP --> ORDER[order_executor.py]
+        APP --> PUSH[push.py<br/>meal-time Web Push]
+        DAILY --> DP[dish_profile.py]
+        DAILY --> NUT[nutrition.py<br/>INDB]
+        DAILY --> PQ[plan_quality.py]
+        ORDER --> MCPC[swiggy_mcp.py / instamart.py]
+        DAILY --> MCPC
+    end
+
+    MCPC -- "JSON-RPC" --> SW[(Swiggy MCP<br/>Food + Instamart)]
+    DAILY --> WX[(Open-Meteo)]
+    DP & DIET & AGENT --> GEM[(Gemini, optional)]
+    API --> DB[(SQLite: profiles, feedback,<br/>taste weights, plans, orders)]
 ```
-Browser (Next.js 16, web/)
-   │  signed token per user
-   ▼
-FastAPI backend (backend/)
-   ├── daily.py           plan builder: candidates → hard filters → scoring → role cards
-   ├── dish_profile.py    one AI-classified profile per dish name, stored in SQLite
-   ├── plan_quality.py    audits every built day against plain meal rules
-   ├── nutrition.py       Indian Nutrient Databank → hand table → fuzzy match → estimate
-   ├── diet_plan.py       reads an uploaded diet plan into a proposal the user confirms
-   ├── agent.py           chat assistant with read/adjust tools (no ordering tool)
-   ├── order_executor.py  update_food_cart → get_food_cart → place_food_order
-   ├── instamart.py       Instamart search / cart / checkout
-   ├── swiggy_mcp.py      JSON-RPC client for mcp.swiggy.com
-   ├── auth.py            per-user signed tokens, ownership checks on every route
-   └── SQLite             profiles, feedback, taste weights, plans, orders, dish profiles
+
+### Plan pipeline
+
+```mermaid
+flowchart LR
+    C[Candidates<br/>Swiggy Food + Instamart bundles] --> F[Hard filters<br/>diet, Jain, allergies, never,<br/>meal size, sharing packs, price]
+    F --> S[Score<br/>0.35 pref + 0.25 gap +<br/>0.15 budget + 0.15 novelty +<br/>0.10 weather]
+    S --> R[Pick one card per role<br/>no repeated restaurant or dish]
+    R --> A[Instamart add-on<br/>on the gap card]
+    A --> Q[Quality audit]
 ```
 
 ### Building a day
@@ -185,6 +269,21 @@ Food: `get_addresses`, `search_restaurants`, `search_menu`, `get_restaurant_menu
 `get_food_orders`. Instamart: `search_products`, `update_cart`, `get_cart`, `checkout`,
 `get_orders`. Menus are cached for the day, `Retry-After` is honoured on HTTP 429, and
 errors Swiggy returns inside a successful response are raised, not ignored.
+
+---
+
+## Tech stack
+
+| Layer | Used |
+|---|---|
+| Web | Next.js 16, React, TypeScript, Tailwind |
+| API | Python 3.11, FastAPI, uvicorn |
+| Storage | SQLite |
+| Food data and ordering | Swiggy MCP (Food + Instamart), OAuth 2.1 + PKCE |
+| AI (optional) | Gemini for dish classification, diet-plan reading, chat |
+| Nutrition | Indian Nutrient Databank |
+| Weather | Open-Meteo |
+| Reminders | Web Push (VAPID) |
 
 ---
 

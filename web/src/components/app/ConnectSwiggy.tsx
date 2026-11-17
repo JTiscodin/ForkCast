@@ -40,6 +40,7 @@ export function ConnectSwiggy({
     try {
       await api.authStart(Boolean(popup));
     } catch (e) {
+      popup?.close();   // don't leave a blank tab behind
       setPhase("failed");
       toast.error(e instanceof ApiError ? e.message : "Could not start login");
       return;
@@ -58,6 +59,7 @@ export function ConnectSwiggy({
           toast.success("Swiggy connected!");
           onConnected();
         } else if (s.status === "failed") {
+          popup?.close();
           if (pollRef.current) clearInterval(pollRef.current);
           setPhase("failed");
           toast.error(s.error ?? "Login failed");

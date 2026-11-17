@@ -130,7 +130,7 @@ export function Onboarding({
   const canStart = name.trim().length > 0 && (!live || selected !== null || addrError !== null);
 
   const start = async () => {
-    if (!canStart) return;
+    if (!canStart || starting) return;   // Enter twice must not create two accounts
     setStarting(true);
     await onStart(name.trim(), selected);
     setStarting(false);

@@ -31,8 +31,8 @@ _SECRET_FILE = Path(__file__).parent / ".auth_secret"
 PUBLIC = {("POST", "/user"), ("GET", "/mode"), ("GET", "/daily/quiz"),
           ("POST", "/auth/swiggy/start"), ("GET", "/auth/swiggy/status"),
           ("GET", "/mcp/addresses"), ("GET", "/mcp/tools"), ("GET", "/im/search"),
-          ("GET", "/docs"), ("GET", "/openapi.json")}
-LOOPBACK_ONLY = {("POST", "/daily/nightly")}
+          ("GET", "/push/vapid-public-key"), ("GET", "/docs"), ("GET", "/openapi.json"), ("GET", "/ping")}
+LOOPBACK_ONLY = {("POST", "/daily/nightly"), ("POST", "/auth/swiggy/logout")}   # server-wide Swiggy state
 _USER_PATH = re.compile(r"^/(?:daily|wallet)/(\d+)(?:/|$)")
 _PLAN_PATH = re.compile(r"^/plan/(\d+)(?:/|$)")
 _SLOT_PATH = re.compile(r"^/slot/(\d+)(?:/|$)")

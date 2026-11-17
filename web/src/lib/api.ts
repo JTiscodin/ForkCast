@@ -22,6 +22,8 @@ import type {
   MemoryBullet,
   DietPlanProposal,
   ChatResult,
+  CardItem,
+  MenuCard,
 } from "./types";
 
 const BASE =
@@ -239,6 +241,13 @@ export const api = {
     }),
   quiz: (diet: string) => req<{ dishes: string[] }>(`/daily/quiz?diet=${diet}`),
   today: (user_id: number) => req<TodayView>(`/daily/${user_id}/today`),
+  vapidKey: () => req<{ key: string }>("/push/vapid-public-key"),
+  pushSubscribe: (user_id: number, sub: PushSubscriptionJSON) =>
+    req<{ status: string }>(`/daily/${user_id}/push`, { method: "POST", body: sub }),
+  pushUnsubscribe: (user_id: number, endpoint?: string) =>
+    req<{ status: string }>(`/daily/${user_id}/push${endpoint ? `?endpoint=${encodeURIComponent(endpoint)}` : ""}`, {
+      method: "DELETE",
+    }),
   regenerate: (user_id: number, slot?: string) =>
     req<{ ok: boolean }>(`/daily/${user_id}/regenerate${slot ? `?slot=${slot}` : ""}`, {
       method: "POST",
@@ -248,8 +257,16 @@ export const api = {
   applyDietPlan: (user_id: number, proposal: DietPlanProposal) =>
     req<{ profile: DailyProfile }>(`/daily/${user_id}/diet-plan/apply`, { method: "POST", body: { proposal } }),
   deleteAccount: (user_id: number) => req<{ deleted: number }>(`/daily/${user_id}`, { method: "DELETE" }),
-  orderCard: (user_id: number, card_id: number, preview = false) =>
-    req<OrderOutcome>(`/daily/${user_id}/order/${card_id}${preview ? "?preview=true" : ""}`, { method: "POST" }),
+  cardOptions: (user_id: number, card_id: number) =>
+    req<{ sides: (CardItem & { group?: string })[]; addons: CardItem[] }>(`/daily/${user_id}/card/${card_id}/options`),
+  editCard: (user_id: number, card_id: number, body: { sides: { id: string; quantity: number }[]; addon_id: string | null }) =>
+    req<MenuCard>(`/daily/${user_id}/card/${card_id}/edit`, { method: "POST", body }),
+  orderCard: (user_id: number, card_id: number, preview = false, address_id?: string) => {
+    const q = new URLSearchParams();
+    if (preview) q.set("preview", "true");
+    if (address_id) q.set("address_id", address_id);
+    return req<OrderOutcome>(`/daily/${user_id}/order/${card_id}${q.size ? `?${q}` : ""}`, { method: "POST" });
+  },
   feedback: (user_id: number, card_id: number, type: string, value?: number) =>
     req<{ ok: boolean }>(`/daily/${user_id}/feedback`, {
       method: "POST",
