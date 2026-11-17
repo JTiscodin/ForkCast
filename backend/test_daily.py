@@ -689,8 +689,32 @@ def test_swap_sides_and_addon(conn):
     if opts["addons"]:
         c4 = daily.edit_card(conn, 1, card["id"], [], opts["addons"][0]["id"], dishes_fn, im_fn)
         assert c4["items"][-1]["addon"]
+        many = [{"id": a["id"], "quantity": 2} for a in opts["addons"][:2]]
+        c5 = daily.edit_card(conn, 1, card["id"], [], many, dishes_fn, im_fn)
+        assert [(i["id"], i["quantity"]) for i in c5["items"] if i.get("addon")] == [(a["id"], 2) for a in many]
     # forged ids and other people's cards are refused
     with pytest.raises(ValueError):
         daily.edit_card(conn, 1, card["id"], [{"id": "not-on-menu", "quantity": 1}], None, dishes_fn, im_fn)
     with pytest.raises(ValueError):
         daily.edit_card(conn, 2, card["id"], [], None, dishes_fn, im_fn)
+
+
+def test_side_options_from_full_menu(conn):
+    daily.save_profile(conn, 1, {"allergies": [{"name": "peanut", "severe": True}]})
+    card = next(c for s in view(conn)["slots"] for c in s["cards"] if c["items"][0]["source"] == "food")
+    menu = [{"id": "n1", "name": "Butter Naan", "price": 50, "isVeg": True, "category": "Breads"},
+            {"id": "r1", "name": "Jeera Rice", "price": 120, "isVeg": True, "category": "Rice"},
+            {"id": "s1", "name": "Peanut Salad", "price": 90, "isVeg": True, "category": "Salads"},
+            {"id": "v1", "name": "Masala Papad", "price": 40, "isVeg": True, "category": "Starters"},
+            {"id": "t1", "name": "Deluxe Veg Thali", "price": 180, "isVeg": True, "category": "Thalis"},
+            {"id": "k1", "name": "Kadai Paneer", "price": 160, "isVeg": True, "category": "Main Course"},
+            {"id": "x1", "name": "Family Biryani", "price": 300, "hasVariants": True, "category": "Rice"},
+            {"id": "o1", "name": "Lassi", "price": 60, "inStock": 0, "category": "Drinks"}]
+    opts = daily.card_options(conn, 1, card["id"], dishes_fn, im_fn, menu_fn=lambda rid: menu)
+    ids = [o["id"] for o in opts["sides"]]
+    assert ids[:2] == ["n1", "r1"] and "v1" in ids          # breads and rice first, then the rest
+    assert not {"s1", "x1", "o1", "t1", "k1"} & set(ids)     # allergen, variant, sold out, meals
+    assert next(o for o in opts["sides"] if o["id"] == "n1")["quantity"] == 2
+    c2 = daily.edit_card(conn, 1, card["id"], [{"id": "r1", "quantity": 1}], None, dishes_fn, im_fn,
+                         menu_fn=lambda rid: menu)
+    assert [i["name"] for i in c2["items"] if i.get("side")] == ["Jeera Rice"]

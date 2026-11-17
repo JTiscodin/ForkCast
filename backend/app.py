@@ -1108,6 +1108,9 @@ def _ensure_address():
             print(f"[daily] could not resolve an address: {e}")
 
 
+_MENU_CACHE = {}
+
+
 def _daily_deps():
     _ensure_address()
     im = _im_client()
@@ -1130,7 +1133,30 @@ def _daily_deps():
             return []
         return [d for d in (f._map_item(it, "lunch") for it in f._search(STATE["address_id"], query, veg_only, 1)) if d]
 
-    return {"dishes_fn": lambda veg_only: get_catalog(veg_only), "im_fn": im_fn, "search_fn": search_fn,
+    def menu_fn(restaurant_id):
+        """One restaurant's full menu (get_restaurant_menu), flattened; cached like the catalogue."""
+        f = STATE["fetcher"]
+        if not _live() or f is None:
+            return None
+        k = (STATE["address_id"], str(restaurant_id))
+        hit = _MENU_CACHE.get(k)
+        if hit and _time.time() - hit[0] < CATALOG_TTL_S:
+            return hit[1]
+        rows = []
+        for page in range(1, 4):
+            resp = f.mcp.call("get_restaurant_menu", {"restaurantId": str(restaurant_id),
+                                                      "addressId": STATE["address_id"], "page": page, "pageSize": 8})
+            data = resp.get("data", resp) if isinstance(resp, dict) else {}
+            for cat in data.get("categories") or []:
+                for sub in [cat, *(cat.get("subcategories") or [])]:
+                    for it in sub.get("items") or []:
+                        rows.append({**it, "category": sub.get("title") or cat.get("title") or ""})
+            if not data.get("hasMore"):
+                break
+        _MENU_CACHE[k] = (_time.time(), rows)
+        return rows
+
+    return {"dishes_fn": lambda veg_only: get_catalog(veg_only), "im_fn": im_fn, "search_fn": search_fn, "menu_fn": menu_fn,
             "stock_fn": _stock if im is not None else None,
             "food_exec": _executor(), "im_client": im, "address_id": STATE["address_id"]}
 
@@ -1313,18 +1339,19 @@ def daily_regenerate(user_id: int, slot: str = None):
 
 class CardEditIn(BaseModel):
     sides: list[dict] = []
-    addon_id: str | None = None
+    addons: list[dict] = []
+    addon_id: str | None = None   # older clients: a single add-on
 
 
 @app.get("/daily/{user_id}/card/{card_id}/options")
 def daily_card_options(user_id: int, card_id: int):
-    return _daily(lambda c, d: daily.card_options(c, user_id, card_id, d["dishes_fn"], d["im_fn"]))
+    return _daily(lambda c, d: daily.card_options(c, user_id, card_id, d["dishes_fn"], d["im_fn"], d["menu_fn"]))
 
 
 @app.post("/daily/{user_id}/card/{card_id}/edit")
 def daily_card_edit(user_id: int, card_id: int, body: CardEditIn):
-    return _daily(lambda c, d: daily.edit_card(c, user_id, card_id, body.sides, body.addon_id,
-                                               d["dishes_fn"], d["im_fn"]))
+    return _daily(lambda c, d: daily.edit_card(c, user_id, card_id, body.sides, body.addons or body.addon_id,
+                                               d["dishes_fn"], d["im_fn"], d["menu_fn"]))
 
 
 @app.post("/daily/{user_id}/order/{card_id}")

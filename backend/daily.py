@@ -1335,6 +1335,24 @@ def delete_user(conn, user_id):
 
 # ---------------------------------------------------------------- customise a card
 
+_BREADS = ("roti", "naan", "kulcha", "paratha", "chapati", "phulka", "bhatura", "puri", "poori", "rumali", "lachha")
+_BREAD_RICE = _BREADS + ("rice", "pulao", "pulav")
+# what counts as a side next to a dish; anything else on the menu (thalis, curries, combos) is a meal of its own
+_SIDE_WORDS = ("raita", "salad", "papad", "dahi", "curd", "chaas", "buttermilk", "lassi", "pickle", "achar",
+               "chutney", "soup", "fries", "gulab jamun", "jamun", "kheer", "halwa", "rasgulla", "rasmalai",
+               "ice cream", "brownie", "cold drink", "coke", "pepsi", "sprite", "thums up", "water", "soda",
+               "lemonade", "nimbu", "shikanji", "jaljeera", "boondi", "sweet", "mithai", "gajar", "phirni")
+_NOT_SIDE = ("thali", "combo", "meal", "biryani", "platter", "family", "bucket", "feast", "box", "bowl",
+             "fried rice", "khichdi", "pulao combo", "curry", "masala dosa")
+SIDE_PRICE_CAP = 200   # a side costs less than the dish it goes with
+
+
+def _is_side(name, price):
+    n = name.lower()
+    if _has(n, _NOT_SIDE) or price > SIDE_PRICE_CAP:
+        return False
+    return _has(n, _BREAD_RICE) or _has(n, _SIDE_WORDS)
+
 def _addon_queries(slot, diet):
     """(query, gap) pairs of Instamart add-ons that suit this slot and diet."""
     out = []
@@ -1348,7 +1366,7 @@ def _addon_queries(slot, diet):
     return out
 
 
-def card_options(conn, user_id, card_id, dishes_fn, im_fn):
+def card_options(conn, user_id, card_id, dishes_fn, im_fn, menu_fn=None):
     """What a card's sides and add-on can be swapped for: everything else the same
     restaurant sells (breads and rice first) and Instamart add-ons for the slot.
     Diet and allergy rules apply exactly as when the card was built."""
@@ -1361,7 +1379,36 @@ def card_options(conn, user_id, card_id, dishes_fn, im_fn):
     allergies = profile.get("allergies") or []
     main = card["items"][0]
     sides = []
-    if main["source"] == "food":
+    menu = None
+    if main["source"] == "food" and menu_fn is not None:
+        try:
+            menu = menu_fn(main["restaurant_id"])
+        except Exception as e:  # noqa: BLE001 — fall back to the dishes we already know
+            print(f"[options] menu fetch failed: {e}")
+    if menu:
+        veg_only = diet in ("veg", "jain", "vegan")
+        seen = set()
+        for it in menu:
+            iid, name, price = str(it.get("id") or ""), str(it.get("name") or ""), float(it.get("price") or 0)
+            # items with variants need a variant pick we can't make here, so they're left out
+            if (not iid or iid == str(main["id"]) or iid in seen or price <= 0 or it.get("hasVariants")
+                    or not _is_side(name, price)
+                    or str(it.get("inStock", 1)) in ("0", "False", "false")
+                    or (veg_only and it.get("isVeg") is False) or not _im_safe(name, diet)
+                    or (diet == "jain" and _has(name, ("onion", "garlic")))
+                    or _name_allergen(name, allergies)):
+                continue
+            seen.add(iid)
+            carb = _has(name, _BREAD_RICE)
+            q = _side_qty(name, 2 if _has(name, _BREADS) else 1) if carb else 1
+            sides.append({"source": "food", "id": iid, "name": name, "restaurant_id": main["restaurant_id"],
+                          "restaurant_name": main["restaurant_name"], "price": price,
+                          "image_url": it.get("imageUrl") or "", "veg": bool(it.get("isVeg", True)),
+                          "cuisine": main.get("cuisine"), "kind": "bread" if carb else "side",
+                          "rating": None, "raw_variant": None, "quantity": q or 1, "side": True,
+                          "group": "Breads and rice" if carb else (it.get("category") or "More from this restaurant")})
+        sides.sort(key=lambda i: (i["group"] != "Breads and rice", i["group"], i["price"]))
+    elif main["source"] == "food":
         pool = [d for d in dishes_fn(diet in ("veg", "jain", "vegan"))
                 if d.restaurant_id == main["restaurant_id"] and d.dish_id != main["id"]]
         profs = dish_profile.profiles(conn, [d.name for d in pool])
@@ -1371,7 +1418,7 @@ def card_options(conn, user_id, card_id, dishes_fn, im_fn):
             ruled = p and p.get("source") != "rules"
             kind = p["kind"] if ruled else ({"bread": "bread", "staple": "rice"}.get(d.course) if d.dish_kind == "meal" else d.dish_kind)
             if (diet == "jain" and ruled and p.get("onion_garlic")) or not _im_safe(d.name, diet) \
-                    or _name_allergen(d.name, allergies) or d.dish_id in seen or not d.price:
+                    or _name_allergen(d.name, allergies) or d.dish_id in seen or not d.price                     or not _is_side(d.name, float(d.price)):
                 continue
             seen.add(d.dish_id)
             carb = kind in ("bread", "rice")
@@ -1389,10 +1436,10 @@ def card_options(conn, user_id, card_id, dishes_fn, im_fn):
         for r in sorted(rows, key=lambda r: r["price"])[:3]:
             addons.append({**_im_item(r), "addon": True,
                            "addon_reason": f"add {ADDON_LABEL.get(q, q)} for {GAP_LABEL.get(g, g)}"})
-    return {"sides": sides[:60], "addons": addons}
+    return {"sides": sides[:120], "addons": addons}
 
 
-def edit_card(conn, user_id, card_id, sides, addon_id, dishes_fn, im_fn):
+def edit_card(conn, user_id, card_id, sides, addons, dishes_fn, im_fn, menu_fn=None):
     """Replace a card's sides ([{id, quantity}], may be empty) and add-on (id or None).
     Only ids from card_options are accepted, so the client can't inject items or prices."""
     card = get_card(conn, card_id)
@@ -1400,7 +1447,7 @@ def edit_card(conn, user_id, card_id, sides, addon_id, dishes_fn, im_fn):
         raise ValueError("card not found")
     if _ordered(conn, user_id, _date.fromisoformat(card["date"]), card["slot"]):
         raise ValueError("this meal is already ordered")
-    opts = card_options(conn, user_id, card_id, dishes_fn, im_fn)
+    opts = card_options(conn, user_id, card_id, dishes_fn, im_fn, menu_fn)
     by_id = {o["id"]: o for o in opts["sides"]}
     keep = [i for i in card["items"] if not i.get("side") and not i.get("addon")]
     items = list(keep)
@@ -1411,12 +1458,14 @@ def edit_card(conn, user_id, card_id, sides, addon_id, dishes_fn, im_fn):
             raise ValueError("that side isn't available from this restaurant")
         items.append({**{k: v for k, v in o.items() if k != "group"}, "quantity": qty})
     reasons = [r for r in card["reasons"] if not r.startswith("add ")]
-    if addon_id:
-        add = next((a for a in opts["addons"] if a["id"] == addon_id), None)
-        if add is None:
+    by_add = {a["id"]: a for a in opts["addons"]}
+    for a in ([{"id": addons, "quantity": 1}] if isinstance(addons, str) else addons or []):
+        add, qty = by_add.get(str(a.get("id"))), int(a.get("quantity") or 1)
+        if add is None or not 1 <= qty <= 6:
             raise ValueError("that add-on isn't available")
-        items.append(add)
-        reasons.append(add["addon_reason"])
+        items.append({**add, "quantity": qty})
+        if add["addon_reason"] not in reasons:
+            reasons.append(add["addon_reason"])
     price = _total(items)
     if price >= MAX_ORDER:
         raise ValueError(f"order total must stay under Rs {MAX_ORDER}")
