@@ -41,3 +41,7 @@ web/src/.swarm/
 !web/public/brand/*.png
 !web/src/app/icon.png
 backend/.vapid.json
+
+# README screenshots
+!docs/screenshots/
+!docs/screenshots/*.png
