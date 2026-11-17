@@ -22,7 +22,8 @@ the order is placed.
 > **Status:** working prototype against the live Swiggy Food and Instamart MCP servers.
 > Built by **Vardan Agarwal** and **Jatin Tilwani**.
 > Production access application: [`docs/PRODUCTION-APPLICATION.md`](docs/PRODUCTION-APPLICATION.md) ·
-> Hosting guides: [`docs/DEPLOY.md`](docs/DEPLOY.md), [`docs/DEPLOY-GCP.md`](docs/DEPLOY-GCP.md), [`docs/DEPLOY-HF.md`](docs/DEPLOY-HF.md)
+> Hosting: [`docs/DEPLOY-HF.md`](docs/DEPLOY-HF.md) (chosen: Hugging Face Space + Vercel + UptimeRobot).
+> Alternatives: [`docs/DEPLOY.md`](docs/DEPLOY.md) (Oracle Cloud VM), [`docs/DEPLOY-GCP.md`](docs/DEPLOY-GCP.md) (Google Cloud).
 
 ---
 
@@ -47,15 +48,21 @@ the order is placed.
 ## Contents
 - [How it works](#how-it-works)
 - [Features](#features)
+- [Customise a card](#customise-a-card)
+- [Meal-time reminders flow](#meal-time-reminders-flow)
 - [Ordering safety](#ordering-safety)
 - [Architecture](#architecture)
 - [Tech stack](#tech-stack)
 - [Run it locally](#run-it-locally)
+- [Deploy](#deploy)
 - [Configuration](#configuration)
+- [API routes](#api-routes)
+- [Data model](#data-model)
 - [Tests](#tests)
 - [Security and privacy](#security-and-privacy)
 - [Repository map](#repository-map)
 - [Known limits](#known-limits)
+- [Team](#team)
 - [Credits](#credits)
 
 ---
@@ -98,6 +105,9 @@ Every meal shows three or four cards, and each card has a role:
 | **Try something new** | A dish you haven't had in the last two weeks |
 | **Budget pick** | The cheapest option that still rates well |
 
+Where: `ROLES` and the per-role picker in `backend/daily.py`; cards render in
+`web/src/components/daily/TodayView.tsx`.
+
 A restaurant appears at most once a day, and the same dish never shows up twice, even
 under a different name ("Kadchi Plain Rajma-Chawal" and "Rajma Chawal" count as one).
 
@@ -122,10 +132,23 @@ Veg, eggetarian, non-veg, Jain or vegan, with per-weekday overrides such as
 | The allergen can be left out (peanuts in poha, a cashew garnish) | Kept, and the order carries a note to the restaurant: *"No peanut please, severe allergy"* |
 | Packaged Instamart items, sides and add-ons | Checked by name; anything matching is never offered |
 
+### Change sides and add-ons on a card
+Each card has **Change sides and add-on**. Sides come from the same restaurant's full
+menu (`get_restaurant_menu`), limited to real sides by `_is_side` in `backend/daily.py`:
+breads, rice and side dishes under a price cap, never another main. Allergy and diet
+filters still apply. Breads default to 2, rice to 1. Instamart add-ons can be stacked,
+each with its own quantity (1 to 6). `card_options` returns the choices; `edit_card`
+checks every id and quantity against those choices before saving, so the browser
+cannot add an item that wasn't offered. UI: `web/src/components/daily/CustomiseCard.tsx`.
+
 ### Budget and rollover savings
 You set a monthly food budget. Forkcast turns what's left into an amount for today and
 flags cards that go over it. Whatever you don't spend carries into next month's budget,
 shown in a budget card on the Today page. This is a running total only: Forkcast never holds money.
+
+How: daily cap = (monthly budget + last month's rollover − spent this month) / days left,
+where rollover = max(0, last month's budget − last month's spend). Code: budget helper in
+`backend/daily.py`.
 
 ### Nutrition
 Every card shows calories and protein; the sidebar shows today's energy, protein, carbs,
@@ -154,11 +177,15 @@ flavours, Instamart basket, showing less of, never shown). Each item shows how s
 the belief is and where it came from ("You liked it", "From your Swiggy orders",
 "From your diet plan"), and can be strengthened, weakened or forgotten.
 
+Where: `HALF_LIFE_DAYS = 14` in `backend/daily.py`; the panel is
+`web/src/components/daily/TastePanel.tsx`.
+
 ### Upload a diet plan
 Next to the Ask button is **Diet plan**. Upload a photo, PDF or text file of a diet
 chart and Forkcast reads out the diet type, goal, allergies, foods to eat more of and
 foods to avoid. It shows what it understood in the chat and changes nothing until you
-tap **Use this plan**. "Avoid fried" also reaches dishes like chole bhature and poori
+tap **Use this plan** (`POST /daily/{user}/diet-plan`, then `/diet-plan/apply`;
+code in `backend/diet_plan.py`). "Avoid fried" also reaches dishes like chole bhature and poori
 that don't say "fried" in their name. The file is read once and not stored.
 
 ### Chat: Ask Forkcast
@@ -169,17 +196,25 @@ A bar at the top of Today and a slide-in panel:
 - *"What am I low on?"* reads your week.
 - *"Stop suggesting paneer"* changes what you see.
 
-The assistant has no ordering tool. Asked to order, it points you to the card's button.
+How it decides (`backend/agent.py`): Gemini picks one tool per step as JSON
+(`search`, `add`, `log`, `pref`, `explain`, `gaps`, `order`) for a few steps, and the
+reply is written from the tool results. Without Gemini a keyword router picks one tool,
+so every capability still works offline. Search runs live against Swiggy with the
+planner's hard filters. The `order` tool only asks you to confirm in the UI; the
+assistant cannot place an order itself.
 
 ### Your data
 Everything learned is visible and editable on the You tab, and
 **Delete my account and data** erases the profile, plans, feedback, orders and taste memory.
 
 ### Meal-time reminders
-In settings each meal has a time window (breakfast 07:00 to 10:00 by default). Turn on
+In settings each meal has a time window (defaults: breakfast 07:00–10:00, lunch
+12:00–15:00, snack 16:30–18:30, dinner 19:30–22:30; `DEFAULT_WINDOWS` in `daily.py`;
+set in `web/src/components/daily/DailyOnboarding.tsx`). Turn on
 **Remind me at meal times** and, when a window opens, the browser gets a Web Push
 notification with that meal's top pick and the delivery address. Reminders are a
-per-device choice.
+per-device choice. A meal already ordered that day is not reminded. See the
+[flow](#meal-time-reminders-flow) below; code in `backend/push.py`.
 
 ### Dark mode
 The header has a light/dark toggle. Dark mode was checked card by card so role labels
@@ -187,13 +222,74 @@ and attribution badges stay readable.
 
 ---
 
+## Customise a card
+
+```mermaid
+sequenceDiagram
+    participant U as User
+    participant W as CustomiseCard.tsx
+    participant A as FastAPI
+    participant D as daily.py
+    participant S as Swiggy MCP
+    U->>W: Change sides and add-on
+    W->>A: GET /daily/{user}/card/{card}/options
+    A->>D: card_options()
+    D->>S: get_restaurant_menu (same restaurant)
+    D->>S: Instamart search_products (add-ons)
+    D-->>W: sides (_is_side, diet, allergies) + add-ons
+    U->>W: pick sides, add-ons, quantities
+    W->>A: POST /daily/{user}/card/{card}/edit
+    A->>D: edit_card(): every id must be an offered option, qty 1-6
+    D-->>W: updated card (items, price, nutrition)
+```
+
+## Meal-time reminders flow
+
+```mermaid
+sequenceDiagram
+    participant B as Browser + service worker
+    participant A as FastAPI
+    participant P as push.py
+    participant PS as Browser push service
+    B->>A: GET /push/vapid-public-key
+    B->>B: ask notification permission, pushManager.subscribe
+    B->>A: POST /daily/{user}/push (subscription)
+    loop every minute
+        A->>P: tick() in TZ (default Asia/Kolkata)
+        P->>P: due_slots: window opens now, not ordered, not sent today
+        P->>PS: Web Push (VAPID): top pick + delivery address
+    end
+    PS->>B: notification
+    B->>B: click opens Today at that meal
+```
+
+Subscriptions whose endpoint answers 404 or 410 are deleted. VAPID keys come from
+`VAPID_PUBLIC_KEY` / `VAPID_PRIVATE_KEY`, or are generated once into `backend/.vapid.json`.
+
+---
+
 ## Ordering safety
+
+```mermaid
+flowchart LR
+    A[Build cart] --> B[order_executor.py:<br/>fill Swiggy cart]
+    B --> C[read live cart:<br/>items, total, address]
+    C --> D{total < ₹1000?}
+    D -- no --> X[Refused: split the order]
+    D -- yes --> E[Summary, COD only]
+    E --> F{dry run?}
+    F -- yes --> G[Stop, status dry_run]
+    F -- "no, second tap" --> H[place_food_order]
+```
 
 - **Dry run is the default.** It builds your real Swiggy cart and stops before ordering.
 - **Live mode** needs a second, explicit confirmation to switch on.
 - Before the final tap, every order shows a summary from Swiggy's live cart: items,
   amount to pay, delivery address and payment (cash on delivery).
-- Carts at ₹1000 or more are refused, as Swiggy requires.
+- Carts at ₹1000 or more are refused, as Swiggy requires (`backend/order_executor.py`).
+- Payment is cash on delivery only.
+- Each order goes to the address chosen for it. Only loopback requests may pass an
+  `address_id`; a request from the internet cannot redirect an order.
 - On a shared server, visitors from the internet cannot switch on Live ordering at all.
 - "Powered by Swiggy" / "Powered by Instamart", with the official logos, appear on every
   card, the order summary and the confirmation.
@@ -216,6 +312,7 @@ flowchart TB
         APP --> DIET[diet_plan.py<br/>upload to proposal]
         APP --> ORDER[order_executor.py]
         APP --> PUSH[push.py<br/>meal-time Web Push]
+    APP --> HFB[hf_backup.py<br/>SQLite snapshot]
         DAILY --> DP[dish_profile.py]
         DAILY --> NUT[nutrition.py<br/>INDB]
         DAILY --> PQ[plan_quality.py]
@@ -227,6 +324,7 @@ flowchart TB
     DAILY --> WX[(Open-Meteo)]
     DP & DIET & AGENT --> GEM[(Gemini, optional)]
     API --> DB[(SQLite: profiles, feedback,<br/>taste weights, plans, orders)]
+    HFB --> HFD[(Private HF dataset)]
 ```
 
 ### Plan pipeline
@@ -249,7 +347,8 @@ flowchart LR
 3. **Score.**
    `0.35·preference + 0.25·nutrient gap + 0.15·budget fit + 0.15·novelty + 0.10·weather`
 4. **Roles.** The best card for each role is picked, without repeating a restaurant or dish.
-5. **Add-on.** One Instamart add-on per meal, on the gap card, if it closes a real gap.
+5. **Add-on.** An Instamart add-on on the gap card, if it closes a real gap. Sides and
+   add-ons can be changed per card afterwards.
 6. **Quality check.** The finished day is audited: not-a-meal, curry without roti or rice,
    oversized side, Jain-unsafe, duplicates, too small, odd add-on. `GET /daily/{user}/quality`
    returns the result, and the nightly job logs it.
@@ -310,6 +409,20 @@ live catalogue takes about three minutes to load.
 First run walks through three steps: connect Swiggy, name and delivery address, then
 diet, allergies, budget and favourite dishes.
 
+## Deploy
+
+Chosen hosting ([`docs/DEPLOY-HF.md`](docs/DEPLOY-HF.md)):
+
+- **Backend:** free Hugging Face Docker Space. Free Spaces lose their disk on restart, so
+  `backend/hf_backup.py` restores the SQLite DB from a private HF dataset at boot and
+  uploads a snapshot every `HF_BACKUP_MINUTES` (default 15) and on shutdown.
+- **Website:** Vercel, with `NEXT_PUBLIC_API_URL` set to the Space URL and
+  `FORKCAST_ORIGINS` on the Space set to the Vercel URL.
+- **Keep-alive:** UptimeRobot calls `GET /ping` every 5 minutes so the Space doesn't sleep.
+
+Alternatives: [`docs/DEPLOY.md`](docs/DEPLOY.md) (Oracle Cloud VM, systemd + Caddy from
+`deploy/`) and [`docs/DEPLOY-GCP.md`](docs/DEPLOY-GCP.md) (Google Cloud).
+
 ## Configuration
 
 Settings live in `backend/.env` (never committed; see `backend/.env.example`).
@@ -324,17 +437,74 @@ Settings live in `backend/.env` (never committed; see `backend/.env.example`).
 | `FORKCAST_ORIGINS` | Comma-separated web origins allowed to call the API (default `http://localhost:6001,http://localhost:3000`). |
 | `FORKCAST_ALLOW_LIVE` | `1` lets visitors from the internet switch on Live ordering. Leave unset while the server holds one shared Swiggy login. |
 | `DAILY_NIGHTLY_HOUR` | Hour the nightly job runs (default 2). |
+| `VAPID_PUBLIC_KEY` / `VAPID_PRIVATE_KEY` / `VAPID_SUBJECT` | Web Push keys. If unset, generated once into `backend/.vapid.json`. |
+| `HF_TOKEN` / `HF_BACKUP_REPO` | Turn on SQLite backup to a private Hugging Face dataset. Both are needed. |
+| `HF_BACKUP_MINUTES` | Backup interval (default 15). |
+| `TZ` | Time zone for reminders (default `Asia/Kolkata`). |
+| `GEMINI_MODEL` | Override the Gemini model. |
+| `NEXT_PUBLIC_API_URL` | (web) Backend URL the website calls. |
+
+## API routes
+
+**public**: no token. **user**: the signed token for the user in the path, plus an
+ownership check on any card, plan or slot (middleware in `backend/auth.py`).
+**loopback**: only from 127.0.0.1 with no proxy headers.
+
+| Method | Path | Auth |
+|---|---|---|
+| GET | `/ping` | public |
+| POST | `/user` | public |
+| GET | `/mode` | public |
+| POST / GET | `/auth/swiggy/start`, `/auth/swiggy/status` | public |
+| POST | `/auth/swiggy/logout` | loopback |
+| GET | `/mcp/addresses`, `/mcp/tools`, `/im/search` | public |
+| GET | `/push/vapid-public-key` | public |
+| GET | `/daily/quiz` | public |
+| POST | `/daily/nightly` | loopback |
+| GET / POST | `/daily/{user}/profile` | user |
+| GET | `/daily/{user}/today` | user |
+| POST | `/daily/{user}/regenerate` | user |
+| GET | `/daily/{user}/card/{card}/options` | user |
+| POST | `/daily/{user}/card/{card}/edit` | user |
+| POST | `/daily/{user}/order/{card}` (`?preview=true` builds the cart only) | user |
+| POST | `/daily/{user}/feedback`, `/daily/{user}/log` | user |
+| GET | `/daily/{user}/quality` | user |
+| GET / POST | `/daily/{user}/memory` | user |
+| POST | `/daily/{user}/agent` | user |
+| POST | `/daily/{user}/diet-plan`, `/daily/{user}/diet-plan/apply` | user |
+| POST / DELETE | `/daily/{user}/push` | user |
+| DELETE | `/daily/{user}` | user |
+
+Routes from the earlier budget-plan flow (`/plan`, `/slot/...`, `/wallet/...`, `/chat`,
+`/intake`, `/appetite`, `/address`) are still in `backend/app.py` and need a token.
+
+## Data model
+
+SQLite; schema in `backend/db.py`.
+
+| Table | Holds |
+|---|---|
+| `user_profile` | Diet, weekday overrides, allergies, goal, budget, meal windows |
+| `daily_menu` / `menu_card` | One plan per user per day and its cards (role, items, sides, add-ons, price, nutrition) |
+| `excluded_card` | Dishes hidden for allergies ("Hidden for your allergies") |
+| `feedback_event` | Likes, skips, never, ratings, orders |
+| `pref_weight` | Learned taste weights |
+| `consumption_log` | Meals logged as eaten elsewhere or skipped |
+| `order_record` | Orders built or placed through Forkcast |
+| `push_subscription` | Web Push endpoints, per user and device |
+| `nutrition_ref` | Cached nutrition lookups |
+| `users`, `budget_cycles`, `ledger_transactions`, `appetite_profiles`, `plans`, `meal_slots`, `notifications` | Earlier budget-plan flow |
 
 ## Tests
 
 ```bash
-cd backend
-python -m pytest -q
+cd backend && python -m pytest -q      # 289+ tests
+cd web && npx tsc --noEmit -p .        # type check
 ```
 
-About 280 tests cover the planner rules, allergies, portions, the quality check,
+The backend tests cover card options and edits, the planner rules, allergies, portions, the quality check,
 nutrition lookups, learning signals, rollover, weather, diet-plan upload, the order flow
-against a fake Swiggy, and access control.
+against a fake Swiggy, reminders, and access control.
 
 ## Security and privacy
 
@@ -357,18 +527,27 @@ against a fake Swiggy, and access control.
 | `deploy/` | systemd unit and Caddy config for the server |
 | `docs/SPEC-daily-personalization.md` | Product spec for the daily recommender |
 | `docs/PRODUCTION-APPLICATION.md` | Answers for Swiggy's production access form |
-| `docs/DEPLOY.md` | Free hosting setup: Oracle Cloud VM + Vercel |
+| `docs/DEPLOY-HF.md` | Chosen hosting: Hugging Face Space + Vercel + UptimeRobot |
+| `docs/DEPLOY.md`, `docs/DEPLOY-GCP.md` | Alternative hosting: Oracle Cloud VM, Google Cloud |
 
 ## Known limits
 
-- **One Swiggy login per server.** Everyone using a deployment sees restaurants for
-  that account's address. Per-user Swiggy sign-in is the main thing left before real users.
+- **One Swiggy login per server.** Everyone using a deployment shares one Swiggy
+  account. Per-user Swiggy OAuth needs production access from Swiggy; until then Live
+  ordering stays off for internet visitors.
+- **Reminders need HTTPS** (localhost is allowed for development) and a browser with Web Push.
+- **Free HF Space restarts.** The disk is wiped on restart; anything since the last
+  backup (up to 15 minutes) can be lost, and the Space sleeps without the `/ping` monitor.
 - **Diet plans map to presets.** Exact calorie or protein numbers from a plan are turned
   into the nearest goal (lose, maintain, gain, high protein), not stored as targets.
 - **Nutrition is an estimate.** Restaurant portions differ from reference recipes.
 - **Not medical advice.** Medical conditions (diabetes, blood pressure, PCOS, pregnancy)
   are not handled. Allergen information is estimated per dish: always tell the
   restaurant about a severe allergy yourself.
+
+## Team
+
+Vardan Agarwal and Jatin Tilwani.
 
 ## Credits
 

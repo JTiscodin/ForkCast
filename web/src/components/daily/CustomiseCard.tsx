@@ -17,7 +17,7 @@ export function CustomiseCard({ userId, card, onSaved }: { userId: number; card:
   const [open, setOpen] = useState(false);
   const [opts, setOpts] = useState<{ sides: Option[]; addons: Option[] } | null>(null);
   const [qty, setQty] = useState<Record<string, number>>({});
-  const [addonId, setAddonId] = useState<string>("");
+  const [addQty, setAddQty] = useState<Record<string, number>>({});
   const [saving, setSaving] = useState(false);
   const [q, setQ] = useState("");
 
@@ -34,7 +34,7 @@ export function CustomiseCard({ userId, card, onSaved }: { userId: number; card:
 
   function start() {
     setQty(Object.fromEntries(card.items.filter((i) => i.side).map((i) => [i.id, i.quantity ?? 1])));
-    setAddonId(card.items.find((i) => i.addon)?.id ?? "");
+    setAddQty(Object.fromEntries(card.items.filter((i) => i.addon).map((i) => [i.id, i.quantity ?? 1])));
     setOpen(true);
   }
 
@@ -42,9 +42,9 @@ export function CustomiseCard({ userId, card, onSaved }: { userId: number; card:
   const total = useMemo(() => {
     if (!opts) return card.price;
     const sides = opts.sides.reduce((t, o) => t + o.price * (qty[o.id] ?? 0), 0);
-    const add = opts.addons.find((a) => a.id === addonId)?.price ?? 0;
+    const add = opts.addons.reduce((t, a) => t + a.price * (addQty[a.id] ?? 0), 0);
     return main.reduce((t, i) => t + i.price * (i.quantity ?? 1), 0) + sides + add;
-  }, [opts, qty, addonId, main, card.price]);
+  }, [opts, qty, addQty, main, card.price]);
 
   async function save() {
     setSaving(true);
@@ -53,7 +53,9 @@ export function CustomiseCard({ userId, card, onSaved }: { userId: number; card:
         sides: Object.entries(qty)
           .filter(([, n]) => n > 0)
           .map(([id, quantity]) => ({ id, quantity })),
-        addon_id: addonId || null,
+        addons: Object.entries(addQty)
+          .filter(([, n]) => n > 0)
+          .map(([id, quantity]) => ({ id, quantity })),
       });
       toast.success("Updated");
       setOpen(false);
@@ -99,53 +101,26 @@ export function CustomiseCard({ userId, card, onSaved }: { userId: number; card:
                 <legend className="mb-1 text-xs font-bold text-muted-foreground">{g}</legend>
                 {shown
                   .filter((o) => (o.group ?? "Sides") === g)
-                  .map((o) => {
-                    const n = qty[o.id] ?? 0;
-                    return (
-                      <div key={o.id} className={cn("flex items-center gap-2 rounded-lg px-2 py-1.5", n > 0 && "bg-card")}>
-                        <span className="min-w-0 flex-1">
-                          <span className="font-semibold">{o.name}</span>
-                          <span className="ml-1 text-muted-foreground tabular-nums">{formatINR(o.price)}</span>
-                        </span>
-                        <span className="flex shrink-0 items-center gap-1">
-                          {n > 0 && (
-                            <>
-                              <button type="button" aria-label={`One less ${o.name}`} onClick={() => setQty((x) => ({ ...x, [o.id]: n - 1 }))} className={cn(focusRing, "rounded-md border border-border p-1")}>
-                                <Minus className="size-3" aria-hidden />
-                              </button>
-                              <span className="w-4 text-center font-bold tabular-nums">{n}</span>
-                            </>
-                          )}
-                          <button
-                            type="button"
-                            aria-label={`Add ${o.name}`}
-                            disabled={n >= 6}
-                            onClick={() => setQty((x) => ({ ...x, [o.id]: n + 1 }))}
-                            className={cn(focusRing, "rounded-md border border-border p-1 disabled:opacity-40", n === 0 && "border-brand-500 text-brand-600 dark:text-brand-400")}
-                          >
-                            <Plus className="size-3" aria-hidden />
-                          </button>
-                        </span>
-                      </div>
-                    );
-                  })}
+                  .map((o) => (
+                    <Stepper key={o.id} item={o} n={qty[o.id] ?? 0} set={(n) => setQty((x) => ({ ...x, [o.id]: n }))} />
+                  ))}
               </fieldset>
             ))}
             {!opts.sides.length && <p className="text-muted-foreground">This restaurant has nothing else that fits your diet.</p>}
 
             <fieldset className="flex flex-col gap-1">
               <legend className="mb-1 flex items-center gap-1 text-xs font-bold text-muted-foreground">
-                <ShoppingBasket className="size-3.5" aria-hidden /> Instamart add-on
+                <ShoppingBasket className="size-3.5" aria-hidden /> From Instamart (add any, or none)
               </legend>
-              {[{ id: "", name: "No add-on", price: 0, addon_reason: "" } as Option, ...opts.addons].map((a) => (
-                <label key={a.id || "none"} className={cn("flex cursor-pointer items-center gap-2 rounded-lg px-2 py-1.5", addonId === a.id && "bg-card")}>
-                  <input type="radio" name={`addon-${card.id}`} checked={addonId === a.id} onChange={() => setAddonId(a.id)} className="accent-brand-500" />
-                  <span className="min-w-0 flex-1">
-                    <span className="font-semibold">{a.name}</span>
-                    {a.addon_reason && <span className="block text-xs text-muted-foreground">To {a.addon_reason.replace(/^add /, "add ")}</span>}
-                  </span>
-                  {a.id && <span className="shrink-0 text-muted-foreground tabular-nums">{formatINR(a.price)}</span>}
-                </label>
+              {!opts.addons.length && <p className="text-muted-foreground">No Instamart add-ons fit this meal right now.</p>}
+              {opts.addons.map((a) => (
+                <Stepper
+                  key={a.id}
+                  item={a}
+                  n={addQty[a.id] ?? 0}
+                  sub={a.addon_reason ? `To ${a.addon_reason}` : undefined}
+                  set={(n) => setAddQty((x) => ({ ...x, [a.id]: n }))}
+                />
               ))}
             </fieldset>
           </div>
@@ -166,6 +141,37 @@ export function CustomiseCard({ userId, card, onSaved }: { userId: number; card:
           </div>
         </>
       )}
+    </div>
+  );
+}
+
+function Stepper({ item, n, sub, set }: { item: Option; n: number; sub?: string; set: (n: number) => void }) {
+  return (
+    <div className={cn("flex items-center gap-2 rounded-lg px-2 py-1.5", n > 0 && "bg-card")}>
+      <span className="min-w-0 flex-1">
+        <span className="font-semibold">{item.name}</span>
+        <span className="ml-1 text-muted-foreground tabular-nums">{formatINR(item.price)}</span>
+        {sub && <span className="block text-xs text-muted-foreground">{sub}</span>}
+      </span>
+      <span className="flex shrink-0 items-center gap-1">
+        {n > 0 && (
+          <>
+            <button type="button" aria-label={`One less ${item.name}`} onClick={() => set(n - 1)} className={cn(focusRing, "rounded-md border border-border p-1")}>
+              <Minus className="size-3" aria-hidden />
+            </button>
+            <span className="w-4 text-center font-bold tabular-nums">{n}</span>
+          </>
+        )}
+        <button
+          type="button"
+          aria-label={`Add ${item.name}`}
+          disabled={n >= 6}
+          onClick={() => set(n + 1)}
+          className={cn(focusRing, "rounded-md border border-border p-1 disabled:opacity-40", n === 0 && "border-brand-500 text-brand-600 dark:text-brand-400")}
+        >
+          <Plus className="size-3" aria-hidden />
+        </button>
+      </span>
     </div>
   );
 }

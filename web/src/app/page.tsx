@@ -805,7 +805,7 @@ function MealFilterRail({
   return (
     <div
       ref={rootRef}
-      className="flex items-center gap-2 overflow-x-auto pb-1"
+      className="flex flex-wrap items-center gap-2 pb-1"
       aria-label="Filter plan by meal"
     >
       {FILTERS.map((f) => {

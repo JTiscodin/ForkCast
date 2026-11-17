@@ -259,7 +259,7 @@ export const api = {
   deleteAccount: (user_id: number) => req<{ deleted: number }>(`/daily/${user_id}`, { method: "DELETE" }),
   cardOptions: (user_id: number, card_id: number) =>
     req<{ sides: (CardItem & { group?: string })[]; addons: CardItem[] }>(`/daily/${user_id}/card/${card_id}/options`),
-  editCard: (user_id: number, card_id: number, body: { sides: { id: string; quantity: number }[]; addon_id: string | null }) =>
+  editCard: (user_id: number, card_id: number, body: { sides: { id: string; quantity: number }[]; addons: { id: string; quantity: number }[] }) =>
     req<MenuCard>(`/daily/${user_id}/card/${card_id}/edit`, { method: "POST", body }),
   orderCard: (user_id: number, card_id: number, preview = false, address_id?: string) => {
     const q = new URLSearchParams();

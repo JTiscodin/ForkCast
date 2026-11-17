@@ -283,7 +283,7 @@ function MealCard({
   const main = card.items[0];
   const grocery = main.source === "instamart";
   const sides = grocery ? [] : card.items.slice(1).filter((i) => !i.addon);
-  const addon = card.items.find((i) => i.addon);
+  const addons = card.items.filter((i) => i.addon);
   const title = grocery
     ? card.items
         .filter((i) => !i.addon)
@@ -351,7 +351,7 @@ function MealCard({
           </p>
         </div>
 
-        {(sides.length > 0 || addon) && (
+        {(sides.length > 0 || addons.length > 0) && (
           <ul
             className="flex flex-col divide-y divide-border/70 rounded-xl border border-border/70 text-[13px]"
             aria-label="Comes with"
@@ -377,27 +377,22 @@ function MealCard({
                 </span>
               </li>
             ))}
-            {addon && (
-              <li
-                className="flex items-center gap-2 px-3 py-2"
-                title={addon.addon_reason}
-              >
-                <ShoppingBasket
-                  className="size-3.5 shrink-0 text-meal-snack"
-                  aria-hidden
-                />
+            {addons.map((addon) => (
+              <li key={addon.id} className="flex items-center gap-2 px-3 py-2" title={addon.addon_reason}>
+                <ShoppingBasket className="size-3.5 shrink-0 text-meal-snack" aria-hidden />
                 <span className="min-w-0 flex-1 leading-tight">
-                  <span className="block font-semibold">{addon.name}</span>
+                  <span className="block font-semibold">
+                    {addon.name}
+                    {(addon.quantity ?? 1) > 1 && <span className="font-normal text-muted-foreground"> ×{addon.quantity}</span>}
+                  </span>
                   <span className="text-xs text-muted-foreground">
                     From Instamart
                     {addon.addon_reason ? `, to ${addon.addon_reason}` : ""}
                   </span>
                 </span>
-                <span className="shrink-0 tabular-nums text-muted-foreground">
-                  {formatINR(addon.price)}
-                </span>
+                <span className="shrink-0 tabular-nums text-muted-foreground">{formatINR(addon.price * (addon.quantity ?? 1))}</span>
               </li>
-            )}
+            ))}
           </ul>
         )}
 
@@ -1451,7 +1446,7 @@ export function TodayView({
         <nav
           data-reveal
           aria-label="Meals today"
-          className="-mx-4 flex gap-3 overflow-x-auto px-4 pb-1 sm:grid sm:grid-cols-4 sm:overflow-visible"
+          className="grid grid-cols-2 gap-3 sm:grid-cols-4"
         >
           {data.slots.map((s) => {
             const img = s.cards[0]?.items[0];
@@ -1462,7 +1457,7 @@ export function TodayView({
                 href={`#slot-${s.slot}`}
                 className={cn(
                   focusRing,
-                  "group/chip flex w-36 shrink-0 flex-col overflow-hidden rounded-2xl shadow-soft ring-offset-2 ring-offset-background transition hover:-translate-y-0.5 hover:shadow-layered sm:w-auto",
+                  "group/chip flex min-w-0 flex-col overflow-hidden rounded-2xl shadow-soft ring-offset-2 ring-offset-background transition hover:-translate-y-0.5 hover:shadow-layered",
                   now_
                     ? "ring-[3px] ring-brand-500"
                     : s.ordered
