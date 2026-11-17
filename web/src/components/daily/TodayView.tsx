@@ -24,7 +24,7 @@ import {
   Sun,
   ThumbsDown,
   ThumbsUp,
-
+  ShoppingBag,
   Wallet,
   Zap,
   ChefHat,
@@ -36,7 +36,17 @@ import {
 
 import { api } from "@/lib/api";
 import { clearSession } from "@/lib/session";
-import type { CardItem, ChatResult, DailySlot, DietPlanProposal, MemoryBullet, MenuCard, OrderOutcome, TodayView as Today } from "@/lib/types";
+import type {
+  SwiggyAddress,
+  CardItem,
+  ChatResult,
+  DailySlot,
+  DietPlanProposal,
+  MemoryBullet,
+  MenuCard,
+  OrderOutcome,
+  TodayView as Today,
+} from "@/lib/types";
 import { cn } from "@/lib/utils";
 import { focusRing, mealStyle } from "@/lib/design";
 import { fadeUp } from "@/lib/motion";
@@ -45,8 +55,10 @@ import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ThinkingOrb } from "thinking-orbs";
 import { LottiePlayer } from "@/components/ui/LottiePlayer";
+import { msUntil, pushOn, remindersOn } from "@/lib/reminders";
 import Image from "next/image";
 import { TastePanel } from "./TastePanel";
+import { CustomiseCard } from "./CustomiseCard";
 import { BowlIllustration } from "@/components/ui/illustrations";
 import { DishImage } from "@/components/dish/DishImage";
 import { DietMarker } from "@/components/dish/DishCard";
@@ -61,6 +73,29 @@ const ROLE_LABEL: Record<MenuCard["role"], string> = {
   budget: "Budget pick",
   chat: "From chat",
 };
+const ROLE_STYLE: Record<MenuCard["role"], { icon: typeof Star; cls: string }> =
+  {
+    usual: {
+      icon: Star,
+      cls: "bg-amber-100 text-amber-800 dark:bg-amber-400/15 dark:text-amber-300",
+    },
+    gap: {
+      icon: Zap,
+      cls: "bg-emerald-100 text-emerald-800 dark:bg-emerald-400/15 dark:text-emerald-300",
+    },
+    new: {
+      icon: Sparkles,
+      cls: "bg-violet-100 text-violet-800 dark:bg-violet-400/15 dark:text-violet-300",
+    },
+    budget: {
+      icon: Wallet,
+      cls: "bg-sky-100 text-sky-800 dark:bg-sky-400/15 dark:text-sky-300",
+    },
+    chat: {
+      icon: Sparkles,
+      cls: "bg-brand-500/10 text-brand-600 dark:text-brand-400",
+    },
+  };
 const MACROS: { key: string; label: string; unit: string }[] = [
   { key: "kcal", label: "Energy", unit: "kcal" },
   { key: "protein", label: "Protein", unit: "g" },
@@ -90,7 +125,13 @@ function PoweredBy({ service }: { service: "Swiggy" | "Instamart" }) {
   return (
     <span className="inline-flex h-6 items-center gap-1.5 whitespace-nowrap rounded-full border border-border bg-white px-2 text-[10px] font-semibold text-neutral-600">
       Powered by
-      <Image src={b.src} alt={service} width={b.w} height={b.h} className={service === "Swiggy" ? "h-2.5 w-auto" : "h-3.5 w-auto"} />
+      <Image
+        src={b.src}
+        alt={service}
+        width={b.w}
+        height={b.h}
+        className={service === "Swiggy" ? "h-2.5 w-auto" : "h-3.5 w-auto"}
+      />
     </span>
   );
 }
@@ -98,13 +139,26 @@ function PoweredBy({ service }: { service: "Swiggy" | "Instamart" }) {
 /** Swiggy's rating mark: white star in a solid green circle. */
 function RatingDot() {
   return (
-    <span className="inline-flex size-[18px] shrink-0 items-center justify-center rounded-full bg-rating" aria-hidden>
+    <span
+      className="inline-flex size-[18px] shrink-0 items-center justify-center rounded-full bg-rating"
+      aria-hidden
+    >
       <Star className="size-2.5 fill-white text-white" strokeWidth={2.6} />
     </span>
   );
 }
 
-function Ring({ value, target, label, unit }: { value: number; target: number; label: string; unit: string }) {
+function Ring({
+  value,
+  target,
+  label,
+  unit,
+}: {
+  value: number;
+  target: number;
+  label: string;
+  unit: string;
+}) {
   const size = 52;
   const stroke = 5;
   const r = (size - stroke) / 2;
@@ -114,7 +168,14 @@ function Ring({ value, target, label, unit }: { value: number; target: number; l
     <div className="flex flex-col items-center gap-1">
       <div className="relative" style={{ width: size, height: size }}>
         <svg width={size} height={size} className="-rotate-90" aria-hidden>
-          <circle cx={size / 2} cy={size / 2} r={r} fill="none" strokeWidth={stroke} className="stroke-muted" />
+          <circle
+            cx={size / 2}
+            cy={size / 2}
+            r={r}
+            fill="none"
+            strokeWidth={stroke}
+            className="stroke-muted"
+          />
           <motion.circle
             cx={size / 2}
             cy={size / 2}
@@ -134,7 +195,12 @@ function Ring({ value, target, label, unit }: { value: number; target: number; l
         </span>
       </div>
       <span className="text-[11px] font-bold text-foreground/80">{label}</span>
-      <span className="text-[11px] tabular-nums text-muted-foreground" aria-label={`${label} ${Math.round(value)} of ${Math.round(target)} ${unit}`}>
+      <span
+        className="text-[11px] tabular-nums text-muted-foreground"
+        aria-label={`${label} ${Math.round(value)} of ${Math.round(
+          target
+        )} ${unit}`}
+      >
         {Math.round(value)}/{Math.round(target)}
         {unit === "g" ? "g" : ""}
       </span>
@@ -142,7 +208,15 @@ function Ring({ value, target, label, unit }: { value: number; target: number; l
   );
 }
 
-function MicroBar({ k, value, target }: { k: string; value: number; target: number }) {
+function MicroBar({
+  k,
+  value,
+  target,
+}: {
+  k: string;
+  value: number;
+  target: number;
+}) {
   const pct = Math.min(100, Math.round((value / Math.max(target, 1)) * 100));
   const over = LIMITS.has(k) && value > target;
   return (
@@ -153,8 +227,21 @@ function MicroBar({ k, value, target }: { k: string; value: number; target: numb
           ~{Math.round(value)} / {Math.round(target)}
         </span>
       </div>
-      <div className="h-1.5 overflow-hidden rounded-full bg-muted" role="progressbar" aria-label={k} aria-valuenow={pct} aria-valuemin={0} aria-valuemax={100}>
-        <div className={cn("h-full rounded-full transition-[width] duration-700", over ? "bg-danger" : "bg-brand-500")} style={{ width: `${pct}%` }} />
+      <div
+        className="h-1.5 overflow-hidden rounded-full bg-muted"
+        role="progressbar"
+        aria-label={k}
+        aria-valuenow={pct}
+        aria-valuemin={0}
+        aria-valuemax={100}
+      >
+        <div
+          className={cn(
+            "h-full rounded-full transition-[width] duration-700",
+            over ? "bg-danger" : "bg-brand-500"
+          )}
+          style={{ width: `${pct}%` }}
+        />
       </div>
     </div>
   );
@@ -168,227 +255,448 @@ function MealCard({
   userId,
   onOrder,
   onFeedback,
+  onChanged,
 }: {
   card: MenuCard;
   locked: boolean;
   dryRun: boolean;
   addressLabel: string;
   userId: number;
-  onOrder: (c: MenuCard) => Promise<void>;
+  onOrder: (c: MenuCard, addressId?: string) => Promise<void>;
   onFeedback: (c: MenuCard, type: string) => void;
+  onChanged: () => void;
 }) {
   const [confirming, setConfirming] = useState(false);
   const [busy, setBusy] = useState(false);
   // live orders confirm against Swiggy's real cart: items, payable, address, payment
   const [summary, setSummary] = useState<OrderOutcome | null>(null);
+  // where this order goes; empty = the saved default address
+  const [addrs, setAddrs] = useState<SwiggyAddress[]>([]);
+  const [addrId, setAddrId] = useState("");
+  useEffect(() => {
+    if (confirming && !addrs.length)
+      api
+        .addresses()
+        .then((r) => setAddrs(r.addresses))
+        .catch(() => {});
+  }, [confirming, addrs.length]);
   const main = card.items[0];
   const grocery = main.source === "instamart";
   const sides = grocery ? [] : card.items.slice(1).filter((i) => !i.addon);
   const addon = card.items.find((i) => i.addon);
-  const title = grocery ? card.items.filter((i) => !i.addon).map((i) => i.name).join(" + ") : main.name;
+  const title = grocery
+    ? card.items
+        .filter((i) => !i.addon)
+        .map((i) => i.name)
+        .join(" + ")
+    : main.name;
   const rating = (main as CardItem & { rating?: number }).rating;
-  const warnings = card.reasons.filter((r) => r.startsWith("Above") || r.startsWith("Severe"));
-  const why = card.reasons.find((r) => !warnings.includes(r) && !r.startsWith("add "));
+  const warnings = card.reasons.filter(
+    (r) => r.startsWith("Above") || r.startsWith("Severe")
+  );
+  const why = card.reasons.find(
+    (r) => !warnings.includes(r) && !r.startsWith("add ")
+  );
   const veg = card.items.every((i) => i.veg);
-
+  const role = ROLE_STYLE[card.role];
   return (
-    <article data-reveal className={cn("group/meal flex flex-col overflow-hidden rounded-2xl border border-border/60 bg-card shadow-soft transition-shadow hover:shadow-layered", locked && "opacity-75")}>
-      {/* Swiggy-style photo: label + price on a dark gradient, press-to-shrink */}
-      <div className="relative aspect-[16/9] overflow-hidden bg-muted sm:aspect-[4/3]">
+    <article
+      data-reveal
+      className={cn(
+        "group/meal flex h-full flex-col overflow-hidden rounded-2xl border border-border/60 bg-card shadow-soft transition-shadow hover:shadow-layered",
+        locked && "opacity-75"
+      )}
+    >
+      {/* the photo carries the two things people scan for: rating and price */}
+      <div className="relative aspect-[4/3] overflow-hidden bg-muted">
         <div className="absolute inset-0 transition-transform duration-500 ease-out group-hover/meal:scale-105">
-          <DishImage src={main.image_url} alt={title} sizes="(min-width: 1280px) 260px, 50vw" />
+          <DishImage
+            src={main.image_url}
+            alt={title}
+            sizes="(min-width: 1280px) 280px, 50vw"
+          />
         </div>
-        <div aria-hidden className="absolute inset-x-0 bottom-0 h-1/2 bg-gradient-to-t from-black/75 to-transparent" />
-        <span className="absolute left-2 top-2 rounded-full bg-white px-2.5 py-1 text-[11px] font-extrabold text-neutral-900 shadow-soft">{ROLE_LABEL[card.role]}</span>
-        {grocery && (
-          <span className="absolute right-2 top-2 inline-flex items-center gap-1 rounded-md bg-white px-1.5 py-0.5 text-[11px] font-extrabold text-meal-snack">
-            <ShoppingBasket className="size-3" aria-hidden /> Instamart
+        <div
+          aria-hidden
+          className="absolute inset-x-0 bottom-0 h-2/5 bg-gradient-to-t from-black/70 to-transparent"
+        />
+        {typeof rating === "number" && !grocery && (
+          <span className="absolute left-2.5 top-2.5 inline-flex items-center gap-1 rounded-full bg-white px-2 py-0.5 text-xs font-extrabold text-neutral-900 shadow-soft">
+            <RatingDot /> {rating.toFixed(1)}
           </span>
         )}
-        <div className="absolute inset-x-3 bottom-2.5 flex items-end justify-between gap-2">
-          <p className="text-xl font-extrabold leading-none tracking-[-0.02em] text-white tabular-nums">{formatINR(card.price)}</p>
-          {/* one badge on the photo; an Instamart add-on carries its own logo on its line */}
-          <PoweredBy service={grocery ? "Instamart" : "Swiggy"} />
-        </div>
+        <p className="absolute bottom-2.5 right-3 font-heading text-2xl font-extrabold leading-none tracking-[-0.02em] text-white tabular-nums">
+          {formatINR(card.price)}
+        </p>
       </div>
 
-      <div className="flex flex-1 flex-col gap-2 p-3.5">
+      <div className="flex flex-1 flex-col gap-3 p-4">
         <div className="flex flex-col gap-1">
-          <h3 className="flex items-start gap-1.5 text-[15px] font-extrabold leading-snug tracking-[-0.01em]">
-            <span className="mt-[3px] shrink-0">
+          <span
+            className={cn(
+              "mb-1 inline-flex w-fit items-center gap-1 rounded-full px-2 py-0.5 text-xs font-bold",
+              role.cls
+            )}
+          >
+            <role.icon className="size-3" aria-hidden /> {ROLE_LABEL[card.role]}
+          </span>
+          <h3 className="flex items-start gap-1.5 font-heading text-[17px] font-extrabold leading-snug tracking-[-0.01em]">
+            <span className="mt-[5px] shrink-0">
               <DietMarker veg={veg} />
             </span>
             <span>{title}</span>
           </h3>
-          {/* rating and restaurant flow as one sentence, so a long name wraps under the start, not under an indent */}
-          <p className="text-[13px] leading-snug text-muted-foreground">
-            {typeof rating === "number" && !grocery && (
-              <span className="mr-1 inline-flex translate-y-[3px] items-center gap-1 font-bold text-foreground">
-                <RatingDot /> {rating.toFixed(1)}
-              </span>
-            )}
-            {typeof rating === "number" && !grocery && <span aria-hidden>· </span>}
+          <p className="text-sm leading-snug text-muted-foreground">
             {grocery ? "Instamart, delivered in minutes" : main.restaurant_name}
-          </p>
-          <p className="text-xs font-semibold text-muted-foreground tabular-nums">
-            ~{Math.round(card.nutrients.kcal ?? 0)} kcal · {Math.round(card.nutrients.protein ?? 0)}g protein
           </p>
         </div>
 
         {(sides.length > 0 || addon) && (
-          <ul className="flex flex-col gap-1 border-t border-dashed border-border pt-2 text-[13px]" aria-label="Comes with">
+          <ul
+            className="flex flex-col divide-y divide-border/70 rounded-xl border border-border/70 text-[13px]"
+            aria-label="Comes with"
+          >
             {sides.map((s) => (
-              <li key={s.id} className="flex items-baseline gap-1.5">
-                <Plus className="size-3 shrink-0 translate-y-0.5 text-brand-500" strokeWidth={3} aria-hidden />
+              <li key={s.id} className="flex items-center gap-2 px-3 py-2">
+                <Plus
+                  className="size-3.5 shrink-0 text-brand-500"
+                  strokeWidth={3}
+                  aria-hidden
+                />
                 <span className="min-w-0 flex-1 font-semibold">
                   {s.name}
-                  {(s.quantity ?? 1) > 1 && <span className="font-normal text-muted-foreground"> ×{s.quantity}</span>}
+                  {(s.quantity ?? 1) > 1 && (
+                    <span className="font-normal text-muted-foreground">
+                      {" "}
+                      ×{s.quantity}
+                    </span>
+                  )}
                 </span>
-                <span className="shrink-0 text-muted-foreground tabular-nums">{formatINR(s.price * (s.quantity ?? 1))}</span>
+                <span className="shrink-0 tabular-nums text-muted-foreground">
+                  {formatINR(s.price * (s.quantity ?? 1))}
+                </span>
               </li>
             ))}
             {addon && (
-              <li className="flex items-baseline gap-1.5" title={addon.addon_reason}>
-                <ShoppingBasket className="size-3 shrink-0 translate-y-0.5 text-meal-snack" aria-hidden />
-                <span className="min-w-0 flex-1 font-semibold">
-                  {addon.name}
-                  <span className="mt-0.5 flex flex-wrap items-center gap-x-1 text-[11px] font-normal text-muted-foreground">
-                    <PoweredBy service="Instamart" />
-                    {addon.addon_reason ? `to ${addon.addon_reason}` : ""}
+              <li
+                className="flex items-center gap-2 px-3 py-2"
+                title={addon.addon_reason}
+              >
+                <ShoppingBasket
+                  className="size-3.5 shrink-0 text-meal-snack"
+                  aria-hidden
+                />
+                <span className="min-w-0 flex-1 leading-tight">
+                  <span className="block font-semibold">{addon.name}</span>
+                  <span className="text-xs text-muted-foreground">
+                    From Instamart
+                    {addon.addon_reason ? `, to ${addon.addon_reason}` : ""}
                   </span>
                 </span>
-                <span className="shrink-0 text-muted-foreground tabular-nums">{formatINR(addon.price)}</span>
+                <span className="shrink-0 tabular-nums text-muted-foreground">
+                  {formatINR(addon.price)}
+                </span>
               </li>
             )}
           </ul>
         )}
 
+        {!grocery && !locked && <CustomiseCard userId={userId} card={card} onSaved={onChanged} />}
         {why && !why.startsWith("We'll ask") && (
-          <p className="flex items-start gap-1.5 text-xs text-muted-foreground">
-            <Sparkles className="mt-px size-3 shrink-0 text-brand-500" aria-hidden />
+          <p className="flex items-start gap-1.5 text-[13px] leading-snug text-muted-foreground">
+            <Sparkles
+              className="mt-0.5 size-3.5 shrink-0 text-brand-500"
+              aria-hidden
+            />
             {why}
           </p>
         )}
         {main.note && (
-          <p className="inline-flex w-fit items-center gap-1 rounded-md bg-rating/10 px-1.5 py-0.5 text-[11px] font-bold text-rating" title={`Sent to the restaurant with your order: ${main.note}`}>
-            <ChefHat className="size-3" aria-hidden /> We&apos;ll ask: {main.note}
+          <p
+            className="inline-flex w-fit items-center gap-1 rounded-full bg-rating/10 px-2 py-0.5 text-xs font-bold text-rating"
+            title={`Sent to the restaurant with your order: ${main.note}`}
+          >
+            <ChefHat className="size-3.5" aria-hidden /> We&apos;ll ask:{" "}
+            {main.note}
           </p>
         )}
         {warnings.length > 0 && (
-          <div className="flex flex-wrap gap-1.5 pt-0.5">
+          <div className="flex flex-wrap gap-1.5">
             {warnings.map((w) => (
               <span
                 key={w}
                 title={w}
                 className={cn(
                   "inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[11px] font-bold",
-                  w.startsWith("Severe") ? "bg-danger/10 text-danger" : "bg-warning/12 text-warning"
+                  w.startsWith("Severe")
+                    ? "bg-danger/10 text-danger"
+                    : "bg-warning/12 text-warning"
                 )}
               >
-                {w.startsWith("Severe") ? <ShieldAlert className="size-3" aria-hidden /> : <Wallet className="size-3" aria-hidden />}
+                {w.startsWith("Severe") ? (
+                  <ShieldAlert className="size-3" aria-hidden />
+                ) : (
+                  <Wallet className="size-3" aria-hidden />
+                )}
                 <span className="sr-only">{w}</span>
-                <span aria-hidden>{w.startsWith("Severe") ? (grocery ? "Check label" : "Confirm allergens") : "Over today's cap"}</span>
+                <span aria-hidden>
+                  {w.startsWith("Severe")
+                    ? grocery
+                      ? "Check label"
+                      : "Confirm allergens"
+                    : "Over today's cap"}
+                </span>
               </span>
             ))}
           </div>
         )}
 
-        <div className="mt-auto pt-1">
-          {confirming ? (
-            <div className="flex flex-col gap-2">
-              <div className="flex gap-2">
-                <button
-                  type="button"
-                  disabled={busy}
-                  onClick={async () => {
-                    setBusy(true);
-                    if (!dryRun && !summary) {
-                      try {
-                        setSummary(await api.orderCard(userId, card.id, true));
-                      } catch (e) {
-                        toast.error(e instanceof Error ? e.message : "Couldn't build the cart");
+        {/* pushed to the bottom so nutrition, button and footer line up across a row of cards */}
+        <div className="mt-auto flex flex-col gap-3 pt-1">
+          <dl className="grid grid-cols-3 overflow-hidden rounded-xl bg-muted/60 text-center">
+            {(
+              [
+                ["kcal", "kcal", ""],
+                ["protein", "protein", "g"],
+                ["carbs", "carbs", "g"],
+              ] as const
+            ).map(([k, label, unit]) => (
+              <div key={k} className="flex flex-col py-1.5">
+                <dd className="order-1 text-sm font-extrabold tabular-nums">
+                  {Math.round(card.nutrients[k] ?? 0)}
+                  {unit}
+                </dd>
+                <dt className="order-2 text-[11px] text-muted-foreground">
+                  {label}
+                </dt>
+              </div>
+            ))}
+          </dl>
+          <div>
+            {confirming ? (
+              <div className="flex flex-col gap-2">
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    disabled={busy}
+                    onClick={async () => {
+                      setBusy(true);
+                      if (!dryRun && !summary) {
+                        try {
+                          setSummary(
+                            await api.orderCard(
+                              userId,
+                              card.id,
+                              true,
+                              addrId || undefined
+                            )
+                          );
+                        } catch (e) {
+                          toast.error(
+                            e instanceof Error
+                              ? e.message
+                              : "Couldn't build the cart"
+                          );
+                        }
+                        setBusy(false);
+                        return;
                       }
+                      await onOrder(card, addrId || undefined);
                       setBusy(false);
-                      return;
-                    }
-                    await onOrder(card);
-                    setBusy(false);
-                    setSummary(null);
-                    setConfirming(false);
-                  }}
-                  className={cn(focusRing, "flex flex-1 items-center justify-center gap-1.5 rounded-lg bg-rating px-3 py-2 text-sm font-extrabold uppercase tracking-wide text-white transition active:scale-95 disabled:opacity-80")}
-                >
-                  {busy && <Loader2 className="size-4 animate-spin" aria-hidden />}
-                  {busy
-                    ? dryRun || !summary ? "Building cart" : "Placing"
-                    : summary
-                      ? `Place order ${formatINR(summary.orders.reduce((t, o) => t + (o.status === "failed" ? 0 : o.amount), 0))}`
+                      setSummary(null);
+                      setConfirming(false);
+                    }}
+                    className={cn(
+                      focusRing,
+                      "flex flex-1 items-center justify-center gap-1.5 rounded-lg bg-rating px-3 py-2 text-sm font-extrabold uppercase tracking-wide text-white transition active:scale-95 disabled:opacity-80"
+                    )}
+                  >
+                    {busy && (
+                      <Loader2 className="size-4 animate-spin" aria-hidden />
+                    )}
+                    {busy
+                      ? dryRun || !summary
+                        ? "Building cart"
+                        : "Placing"
+                      : summary
+                      ? `Place order ${formatINR(
+                          summary.orders.reduce(
+                            (t, o) =>
+                              t + (o.status === "failed" ? 0 : o.amount),
+                            0
+                          )
+                        )}`
                       : `Confirm ${formatINR(card.price)}`}
-                </button>
-                {!busy && (
-                  <button type="button" onClick={() => { setConfirming(false); setSummary(null); }} className={cn(focusRing, "rounded-lg px-3 text-sm font-bold text-muted-foreground hover:text-foreground")}>
-                    Cancel
+                  </button>
+                  {!busy && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setConfirming(false);
+                        setSummary(null);
+                      }}
+                      className={cn(
+                        focusRing,
+                        "rounded-lg px-3 text-sm font-bold text-muted-foreground hover:text-foreground"
+                      )}
+                    >
+                      Cancel
+                    </button>
+                  )}
+                </div>
+                {summary && (
+                  <ul
+                    className="rounded-lg bg-muted/60 p-2 text-xs"
+                    aria-label="Order summary"
+                  >
+                    {main.note && (
+                      <li className="text-rating">
+                        Note to restaurant: {main.note}
+                      </li>
+                    )}
+                    {summary.orders.map((o) => (
+                      <li
+                        key={o.platform}
+                        className="flex justify-between gap-2"
+                      >
+                        <span>
+                          {o.platform === "food"
+                            ? main.restaurant_name
+                            : "Instamart"}{" "}
+                          <PoweredBy
+                            service={
+                              o.platform === "food" ? "Swiggy" : "Instamart"
+                            }
+                          />
+                        </span>
+                        <span className="font-bold tabular-nums">
+                          {o.status === "failed"
+                            ? "unavailable"
+                            : `${formatINR(o.amount)} to pay`}
+                        </span>
+                      </li>
+                    ))}
+                    <li className="mt-1 text-muted-foreground">
+                      Cash on delivery
+                    </li>
+                  </ul>
+                )}
+                {addrs.length > 1 ? (
+                  <label className="flex items-center gap-2 text-xs font-semibold">
+                    <MapPin
+                      className="size-3.5 shrink-0 text-brand-500"
+                      aria-hidden
+                    />
+                    Deliver to
+                    <select
+                      value={addrId}
+                      disabled={busy}
+                      onChange={(e) => {
+                        setAddrId(e.target.value);
+                        setSummary(null);
+                      }}
+                      className="min-w-0 flex-1 rounded-lg border border-border bg-card px-2 py-1.5 text-xs"
+                    >
+                      <option value="">{addressLabel}</option>
+                      {addrs.map((a) => (
+                        <option key={a.id} value={a.id}>
+                          {a.addressTag || a.addressCategory || "Address"}
+                          {a.addressLine ? ` · ${a.addressLine}` : ""}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                ) : (
+                  <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                    <MapPin className="size-3.5" aria-hidden /> Deliver to{" "}
+                    {addressLabel}
+                  </p>
+                )}
+                <p
+                  className="text-[11px] leading-snug text-muted-foreground"
+                  role="note"
+                >
+                  {dryRun
+                    ? "Dry run: builds your real Swiggy cart, nothing is ordered. "
+                    : "Places a real order, paid by cash on delivery. "}
+                  Replaces your current Swiggy cart. Delivery fees and taxes are
+                  added at checkout.
+                </p>
+              </div>
+            ) : (
+              <div className="flex flex-col gap-1.5">
+                {locked ? (
+                  <span className="flex items-center justify-center gap-1.5 rounded-xl bg-rating/10 px-3 py-2 text-sm font-bold text-rating">
+                    <CheckCircle2 className="size-4" aria-hidden /> Ordered
+                  </span>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => setConfirming(true)}
+                    className={cn(
+                      focusRing,
+                      "flex w-full items-center justify-center gap-2 rounded-xl bg-brand-500 px-4 py-2.5 text-sm font-extrabold text-white transition hover:bg-brand-600 active:scale-[0.98]"
+                    )}
+                  >
+                    <ShoppingBag className="size-4" aria-hidden />
+                    {dryRun ? "Build cart" : "Order now"}
                   </button>
                 )}
-              </div>
-              {summary && (
-                <ul className="rounded-lg bg-muted/60 p-2 text-xs" aria-label="Order summary">
-                  {main.note && <li className="text-rating">Note to restaurant: {main.note}</li>}
-                  {summary.orders.map((o) => (
-                    <li key={o.platform} className="flex justify-between gap-2">
-                      <span>
-                        {o.platform === "food" ? main.restaurant_name : "Instamart"}{" "}
-                        <PoweredBy service={o.platform === "food" ? "Swiggy" : "Instamart"} />
-                      </span>
-                      <span className="font-bold tabular-nums">{o.status === "failed" ? "unavailable" : `${formatINR(o.amount)} to pay`}</span>
-                    </li>
-                  ))}
-                  <li className="mt-1 text-muted-foreground">Deliver to {addressLabel} · Cash on delivery</li>
-                </ul>
-              )}
-              <p className="text-[11px] leading-snug text-muted-foreground" role="note">
-                {dryRun ? "Dry run: builds your real Swiggy cart, nothing is ordered. " : "Places a real order, paid by cash on delivery. "}
-                Replaces your current Swiggy cart. Delivery fees and taxes are added at checkout.
-              </p>
-            </div>
-          ) : (
-            <div className="flex flex-col gap-1.5">
-              {locked ? (
-                <span className="flex items-center justify-center gap-1.5 rounded-xl bg-rating/10 px-3 py-2 text-sm font-bold text-rating">
-                  <CheckCircle2 className="size-4" aria-hidden /> Ordered
-                </span>
-              ) : (
-                <button
-                  type="button"
-                  onClick={() => setConfirming(true)}
-                  className={cn(focusRing, "w-full rounded-xl bg-rating px-4 py-2 text-sm font-extrabold text-white transition hover:brightness-95 active:scale-[0.98]")}
-                >
-                  Order
-                </button>
-              )}
-              <div role="group" aria-label="Teach Forkcast" className="grid grid-cols-4">
-                {(
-                  [
-                    ["up", ThumbsUp, "More like this", "hover:bg-rating/10 hover:text-rating"],
-                    ["down", ThumbsDown, "Less like this", "hover:bg-warning/10 hover:text-warning"],
-                    ["not_today", Clock, "Not today, swap it", "hover:bg-muted hover:text-foreground"],
-                    ["never", Ban, "Never show this", "hover:bg-danger/10 hover:text-danger"],
-                  ] as const
-                ).map(([t, Icon, label, hover]) => (
-                  <button
-                    key={t}
-                    type="button"
-                    aria-label={label}
-                    title={label}
-                    onClick={() => onFeedback(card, t)}
-                    className={cn(focusRing, "flex justify-center rounded-lg py-1.5 text-muted-foreground transition active:scale-90", hover)}
+                <div className="flex flex-wrap items-center justify-between gap-x-2 gap-y-1.5">
+                  <PoweredBy service={grocery ? "Instamart" : "Swiggy"} />
+                  <div
+                    role="group"
+                    aria-label="Teach Forkcast"
+                    className="flex"
                   >
-                    <Icon className="size-4" aria-hidden />
-                  </button>
-                ))}
+                    {(
+                      [
+                        [
+                          "up",
+                          ThumbsUp,
+                          "More like this",
+                          "hover:bg-rating/10 hover:text-rating",
+                        ],
+                        [
+                          "down",
+                          ThumbsDown,
+                          "Less like this",
+                          "hover:bg-warning/10 hover:text-warning",
+                        ],
+                        [
+                          "not_today",
+                          Clock,
+                          "Not today, swap it",
+                          "hover:bg-muted hover:text-foreground",
+                        ],
+                        [
+                          "never",
+                          Ban,
+                          "Never show this",
+                          "hover:bg-danger/10 hover:text-danger",
+                        ],
+                      ] as const
+                    ).map(([t, Icon, label, hover]) => (
+                      <button
+                        key={t}
+                        type="button"
+                        aria-label={label}
+                        title={label}
+                        onClick={() => onFeedback(card, t)}
+                        className={cn(
+                          focusRing,
+                          "rounded-lg p-1.5 text-muted-foreground transition active:scale-90",
+                          hover
+                        )}
+                      >
+                        <Icon className="size-4" aria-hidden />
+                      </button>
+                    ))}
+                  </div>
+                </div>
               </div>
-            </div>
-          )}
+            )}
+          </div>
         </div>
       </div>
     </article>
@@ -396,7 +704,13 @@ function MealCard({
 }
 
 /** Post-meal rating (spec 1.7): 4-5 stars teach "more like this", 1-2 "less". */
-function RateMeal({ slot, onRate }: { slot: DailySlot; onRate: (cardId: number, stars: number) => void }) {
+function RateMeal({
+  slot,
+  onRate,
+}: {
+  slot: DailySlot;
+  onRate: (cardId: number, stars: number) => void;
+}) {
   const cardId = slot.ordered!.card_id;
   const storeKey = `rated:${cardId}`;
   const [done, setDone] = useState(() => {
@@ -407,7 +721,8 @@ function RateMeal({ slot, onRate }: { slot: DailySlot; onRate: (cardId: number, 
     }
   });
   if (done) return null;
-  const name = slot.cards.find((c) => c.id === cardId)?.items[0].name ?? "your meal";
+  const name =
+    slot.cards.find((c) => c.id === cardId)?.items[0].name ?? "your meal";
   return (
     <div className="flex flex-wrap items-center gap-2 rounded-2xl bg-card p-3 text-sm shadow-soft">
       <span className="font-bold">How was {name}?</span>
@@ -426,7 +741,10 @@ function RateMeal({ slot, onRate }: { slot: DailySlot; onRate: (cardId: number, 
                 /* rating still sent; only the reminder may reappear */
               }
             }}
-            className={cn(focusRing, "group/star rounded p-0.5 text-muted-foreground transition hover:text-rating active:scale-90")}
+            className={cn(
+              focusRing,
+              "group/star rounded p-0.5 text-muted-foreground transition hover:text-rating active:scale-90"
+            )}
           >
             <Star className="size-5 transition group-hover/star:fill-rating" />
           </button>
@@ -436,13 +754,29 @@ function RateMeal({ slot, onRate }: { slot: DailySlot; onRate: (cardId: number, 
   );
 }
 
-function Nudge({ slot, onLog }: { slot: DailySlot; onLog: (kind: string, text?: string) => void }) {
+function Nudge({
+  slot,
+  onLog,
+}: {
+  slot: DailySlot;
+  onLog: (kind: string, text?: string) => void;
+}) {
   const [text, setText] = useState("");
   return (
     <div className="flex flex-wrap items-center gap-2 rounded-2xl bg-card p-3 text-sm shadow-soft">
       <span className="font-bold">What did you have for {slot.slot}?</span>
-      <Input aria-label="Dish name (optional)" placeholder="dish (optional)" value={text} onChange={(e) => setText(e.target.value)} className="h-8 w-40" />
-      <Button size="sm" variant="outline" onClick={() => onLog("elsewhere", text)}>
+      <Input
+        aria-label="Dish name (optional)"
+        placeholder="dish (optional)"
+        value={text}
+        onChange={(e) => setText(e.target.value)}
+        className="h-8 w-40"
+      />
+      <Button
+        size="sm"
+        variant="outline"
+        onClick={() => onLog("elsewhere", text)}
+      >
         Ordered elsewhere
       </Button>
       <Button size="sm" variant="outline" onClick={() => onLog("home", text)}>
@@ -469,14 +803,54 @@ export function TodayView({
   addressLabel?: string;
 }) {
   const [data, setData] = useState<Today | null>(null);
-  const [memory, setMemory] = useState<{ facts: string[]; bullets: MemoryBullet[] }>({ facts: [], bullets: [] });
-  const [chat, setChat] = useState<{ role: "you" | "bot"; text: string; results?: ChatResult[] }[]>([]);
+  const [memory, setMemory] = useState<{
+    facts: string[];
+    bullets: MemoryBullet[];
+  }>({ facts: [], bullets: [] });
+  const [chat, setChat] = useState<
+    { role: "you" | "bot"; text: string; results?: ChatResult[] }[]
+  >([]);
   const [msg, setMsg] = useState("");
   const [thinking, setThinking] = useState(false);
   const [plan, setPlan] = useState<DietPlanProposal | null>(null);
   const [armLive, setArmLive] = useState(false);
-  const [cartBar, setCartBar] = useState<{ title: string; outcome: OrderOutcome } | null>(null);
+  const [cartBar, setCartBar] = useState<{
+    title: string;
+    outcome: OrderOutcome;
+  } | null>(null);
+  const [due, setDue] = useState<DailySlot["slot"] | null>(null);
   const rootRef = useRef<HTMLDivElement>(null);
+
+  // Meal-time reminder: when a meal's window opens, show a banner and (if allowed) a notification with its top pick.
+  useEffect(() => {
+    if (!data) return;
+    const timers = data.slots
+      .filter((s) => !s.ordered && s.cards.length)
+      .map((s) => {
+        const ms = msUntil(s.window[0]);
+        if (ms === null) return 0;
+        return window.setTimeout(() => {
+          setDue(s.slot);
+          if (!remindersOn() || pushOn()) return; // push already notifies from the server
+          const top = s.cards[0];
+          const n = new Notification(`${mealStyle(s.slot).label} time`, {
+            body: `${top.items[0].name} · ${formatINR(
+              top.price
+            )}. Deliver to ${addressLabel} now?`,
+            tag: `forkcast-${s.slot}`,
+            icon: "/brand/forkcast.png",
+          });
+          n.onclick = () => {
+            window.focus();
+            document
+              .getElementById(`slot-${s.slot}`)
+              ?.scrollIntoView({ behavior: "smooth" });
+            n.close();
+          };
+        }, ms);
+      });
+    return () => timers.forEach((t) => t && clearTimeout(t));
+  }, [data, addressLabel]);
   const chatEnd = useRef<HTMLDivElement>(null);
   const chatInput = useRef<HTMLInputElement>(null);
   const [chatOpen, setChatOpen] = useState(false);
@@ -514,16 +888,27 @@ export function TodayView({
     { scope: rootRef, dependencies: [data?.date] }
   );
 
-  async function order(card: MenuCard) {
+  async function order(card: MenuCard, addressId?: string) {
     try {
-      const r = await api.orderCard(userId, card.id);
+      const r = await api.orderCard(userId, card.id, false, addressId);
       const failed = r.orders.filter((o) => o.status === "failed");
       for (const o of failed) {
-        toast.error(`${o.platform === "food" ? "Restaurant" : "Instamart"} order failed: ${o.error ?? ""}`, {
-          action: o.fallback_url ? { label: "Open Swiggy", onClick: () => window.open(o.fallback_url!, "_blank") } : undefined,
-        });
+        toast.error(
+          `${
+            o.platform === "food" ? "Restaurant" : "Instamart"
+          } order failed: ${o.error ?? ""}`,
+          {
+            action: o.fallback_url
+              ? {
+                  label: "Open Swiggy",
+                  onClick: () => window.open(o.fallback_url!, "_blank"),
+                }
+              : undefined,
+          }
+        );
       }
-      if (failed.length < r.orders.length) setCartBar({ title: card.items[0].name, outcome: r });
+      if (failed.length < r.orders.length)
+        setCartBar({ title: card.items[0].name, outcome: r });
       load();
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Order failed");
@@ -535,11 +920,24 @@ export function TodayView({
       await api.feedback(userId, card.id, type);
       const dish = card.items[0].name;
       toast.success(
-        { up: `Learned: more ${dish}`, down: `Learned: less ${dish}`, not_today: `Swapping ${dish} out for today`, never: `${dish} won't be shown again` }[type] ?? "Noted",
-        type === "up" || type === "down" ? { description: "See it under You", action: { label: "Open", onClick: onShowProfile } } : undefined
+        {
+          up: `Learned: more ${dish}`,
+          down: `Learned: less ${dish}`,
+          not_today: `Swapping ${dish} out for today`,
+          never: `${dish} won't be shown again`,
+        }[type] ?? "Noted",
+        type === "up" || type === "down"
+          ? {
+              description: "See it under You",
+              action: { label: "Open", onClick: onShowProfile },
+            }
+          : undefined
       );
       if (type === "never" || type === "not_today") {
-        await api.regenerate(userId, data?.slots.find((s) => s.cards.some((c) => c.id === card.id))?.slot);
+        await api.regenerate(
+          userId,
+          data?.slots.find((s) => s.cards.some((c) => c.id === card.id))?.slot
+        );
       }
       load();
     } catch (e) {
@@ -550,7 +948,13 @@ export function TodayView({
   async function rate(cardId: number, stars: number) {
     try {
       await api.feedback(userId, cardId, "rating", stars);
-      toast.success(stars >= 4 ? "Thanks! We'll suggest more like this" : stars <= 2 ? "Noted, we'll steer away from it" : "Thanks for rating");
+      toast.success(
+        stars >= 4
+          ? "Thanks! We'll suggest more like this"
+          : stars <= 2
+          ? "Noted, we'll steer away from it"
+          : "Thanks for rating"
+      );
       load();
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Couldn't save rating");
@@ -558,7 +962,9 @@ export function TodayView({
   }
 
   async function logMeal(slot: string, kind: string, text = "") {
-    await api.logMeal(userId, slot, kind, text).catch((e) => toast.error(String(e)));
+    await api
+      .logMeal(userId, slot, kind, text)
+      .catch((e) => toast.error(String(e)));
     toast.success("Logged");
     load();
   }
@@ -571,10 +977,19 @@ export function TodayView({
     setThinking(true);
     try {
       const r = await api.agent(userId, m);
-      setChat((c) => [...c, { role: "bot", text: r.reply, results: r.results }]);
+      setChat((c) => [
+        ...c,
+        { role: "bot", text: r.reply, results: r.results },
+      ]);
       load();
     } catch (e) {
-      setChat((c) => [...c, { role: "bot", text: e instanceof Error ? e.message : "Something went wrong" }]);
+      setChat((c) => [
+        ...c,
+        {
+          role: "bot",
+          text: e instanceof Error ? e.message : "Something went wrong",
+        },
+      ]);
     } finally {
       setThinking(false);
     }
@@ -583,7 +998,8 @@ export function TodayView({
   // Diet plan upload: read it, show what was understood in chat, change nothing until confirmed
   async function uploadPlan(file?: File) {
     if (!file) return;
-    if (file.size > 5 * 1024 * 1024) return void toast.error("The file must be under 5 MB");
+    if (file.size > 5 * 1024 * 1024)
+      return void toast.error("The file must be under 5 MB");
     setChatOpen(true);
     setPlan(null);
     setChat((c) => [...c, { role: "you", text: `Uploaded ${file.name}` }]);
@@ -595,9 +1011,18 @@ export function TodayView({
         r.onerror = () => reject(new Error("Couldn't read that file"));
         r.readAsDataURL(file);
       });
-      setPlan((await api.readDietPlan(userId, file.type || "text/plain", data)).proposal);
+      setPlan(
+        (await api.readDietPlan(userId, file.type || "text/plain", data))
+          .proposal
+      );
     } catch (e) {
-      setChat((c) => [...c, { role: "bot", text: e instanceof Error ? e.message : "Couldn't read that file" }]);
+      setChat((c) => [
+        ...c,
+        {
+          role: "bot",
+          text: e instanceof Error ? e.message : "Couldn't read that file",
+        },
+      ]);
     } finally {
       setThinking(false);
     }
@@ -609,7 +1034,13 @@ export function TodayView({
     try {
       await api.applyDietPlan(userId, plan);
       setPlan(null);
-      setChat((c) => [...c, { role: "bot", text: "Done. Your preferences follow the plan now, and I'm rebuilding today's meals around it." }]);
+      setChat((c) => [
+        ...c,
+        {
+          role: "bot",
+          text: "Done. Your preferences follow the plan now, and I'm rebuilding today's meals around it.",
+        },
+      ]);
       await load();
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Couldn't apply the plan");
@@ -621,26 +1052,48 @@ export function TodayView({
   async function setMode(next: "live" | "dry_run") {
     setArmLive(false);
     await api.saveDailyProfile(userId, { mode: next });
-    toast(next === "live" ? "Live: orders will really be placed (cash on delivery)" : "Dry run: carts only, no orders");
+    toast(
+      next === "live"
+        ? "Live: orders will really be placed (cash on delivery)"
+        : "Dry run: carts only, no orders"
+    );
     load();
   }
 
-  async function editMemory(b: MemoryBullet, change: { delete?: boolean; weight?: number }) {
-    setMemory(await api.editMemory(userId, { dimension: b.dimension, key: b.key, ...change }));
+  async function editMemory(
+    b: MemoryBullet,
+    change: { delete?: boolean; weight?: number }
+  ) {
+    setMemory(
+      await api.editMemory(userId, {
+        dimension: b.dimension,
+        key: b.key,
+        ...change,
+      })
+    );
     load();
   }
 
   if (!data) {
     // Swiggy-style shimmer of the real layout, not a spinner
     return (
-      <div className="mx-auto grid w-full max-w-7xl gap-6 px-4 py-6 lg:grid-cols-[1fr_340px] lg:px-6" aria-busy="true">
+      <div
+        className="mx-auto grid w-full max-w-[1680px] gap-6 px-4 py-6 lg:grid-cols-[1fr_340px] lg:px-8 2xl:grid-cols-[1fr_380px] 2xl:gap-8"
+        aria-busy="true"
+      >
         <div className="flex flex-col gap-6">
-          <div className="flex items-center gap-3 rounded-2xl bg-card p-4 shadow-soft" aria-hidden>
+          <div
+            className="flex items-center gap-3 rounded-2xl bg-card p-4 shadow-soft"
+            aria-hidden
+          >
             <ThinkingOrb state="composing" size={64} color="#FF7A3D" />
             <div>
-              <p className="font-extrabold">Picking today&apos;s meals from restaurants near you</p>
+              <p className="font-extrabold">
+                Picking today&apos;s meals from restaurants near you
+              </p>
               <p className="text-sm text-muted-foreground">
-                The first plan reads menus from Swiggy and can take two to three minutes. After that it opens instantly.
+                The first plan reads menus from Swiggy and can take two to three
+                minutes. After that it opens instantly.
               </p>
             </div>
           </div>
@@ -671,61 +1124,118 @@ export function TodayView({
   const n = data.nutrition;
   const now = new Date();
   const hhmm = now.toTimeString().slice(0, 5);
-  const currentSlot = data.slots.find((s) => s.window[0] <= hhmm && hhmm <= s.window[1])?.slot;
-  const upcoming = currentSlot ?? data.slots.find((s) => s.window[0] > hhmm)?.slot;
+  const currentSlot = data.slots.find(
+    (s) => s.window[0] <= hhmm && hhmm <= s.window[1]
+  )?.slot;
+  const upcoming =
+    currentSlot ?? data.slots.find((s) => s.window[0] > hhmm)?.slot;
   const overrides = Object.entries(data.profile.weekday_overrides);
-  const WeatherIcon = data.weather.rain ? CloudRain : data.weather.hot ? Sun : data.season === "winter" ? Snowflake : CloudSun;
+  const WeatherIcon = data.weather.rain
+    ? CloudRain
+    : data.weather.hot
+    ? Sun
+    : data.season === "winter"
+    ? Snowflake
+    : CloudSun;
   const live = data.profile.mode === "live";
 
   const info: { icon: React.ReactNode; label: string; value: string }[] = [
-    { icon: <Wallet className="size-4 text-brand-500" />, label: "Today's budget", value: `${formatINR(data.budget.daily_cap)} · ${formatINR(data.budget.remaining)} left this month` },
-    { icon: <Zap className="size-4 text-rating" />, label: "Protein so far", value: `${Math.round(n.today.protein ?? 0)} of ${Math.round(n.targets.protein)}g` },
+    {
+      icon: <Wallet className="size-4 text-brand-500" />,
+      label: "Today's budget",
+      value: `${formatINR(data.budget.daily_cap)} · ${formatINR(
+        data.budget.remaining
+      )} left this month`,
+    },
+    {
+      icon: <Zap className="size-4 text-rating" />,
+      label: "Protein so far",
+      value: `${Math.round(n.today.protein ?? 0)} of ${Math.round(
+        n.targets.protein
+      )}g`,
+    },
     {
       icon: <Leaf className="size-4 text-diet-veg" />,
       label: "Diet today",
       value: (() => {
-        const cap = (d: string) => (d === "nonveg" ? "Non-veg" : d[0].toUpperCase() + d.slice(1));
+        const cap = (d: string) =>
+          d === "nonveg" ? "Non-veg" : d[0].toUpperCase() + d.slice(1);
         const todayIdx = (now.getDay() + 6) % 7; // JS Sunday=0 -> Mon=0 like the backend
         const todayRule = data.profile.weekday_overrides[String(todayIdx)];
         if (todayRule) return `${cap(data.diet)} · your ${DAYS[todayIdx]} rule`;
-        const others = overrides.map(([d, v]) => `${DAYS[+d]}: ${cap(v)}`).join(", ");
+        const others = overrides
+          .map(([d, v]) => `${DAYS[+d]}: ${cap(v)}`)
+          .join(", ");
         return `${cap(data.diet)}${others ? ` · ${others}` : ""}`;
       })(),
     },
-    { icon: <WeatherIcon className="size-4 text-meal-dinner" />, label: "Weather", value: `${data.weather.rain ? "Rainy" : data.weather.hot ? "Hot" : data.season[0].toUpperCase() + data.season.slice(1)}${data.profile.city ? ` in ${data.profile.city}` : ""}` },
+    {
+      icon: <WeatherIcon className="size-4 text-meal-dinner" />,
+      label: "Weather",
+      value: `${
+        data.weather.rain
+          ? "Rainy"
+          : data.weather.hot
+          ? "Hot"
+          : data.season[0].toUpperCase() + data.season.slice(1)
+      }${data.profile.city ? ` in ${data.profile.city}` : ""}`,
+    },
   ];
 
-  const liked = memory.bullets.filter((b) => !b.blocked && b.weight > 0 && b.dimension === "dish");
+  const liked = memory.bullets.filter(
+    (b) => !b.blocked && b.weight > 0 && b.dimension === "dish"
+  );
   const deleteAccount = (
-          <div className="text-sm">
-            {armDelete ? (
-              <span className="flex flex-wrap items-center gap-2">
-                <span className="font-bold text-danger">Erase everything Forkcast stores about you?</span>
-                <button
-                  type="button"
-                  onClick={async () => {
-                    try {
-                      await api.deleteAccount(userId);
-                      clearSession();
-                      window.location.reload();
-                    } catch (e) {
-                      toast.error(e instanceof Error ? e.message : "Couldn't delete your data");
-                    }
-                  }}
-                  className={cn(focusRing, "rounded-full bg-danger px-2.5 py-1 font-bold text-white")}
-                >
-                  Delete my data
-                </button>
-                <button type="button" onClick={() => setArmDelete(false)} className={cn(focusRing, "rounded-full px-2 py-1 text-muted-foreground hover:text-foreground")}>
-                  Cancel
-                </button>
-              </span>
-            ) : (
-              <button type="button" onClick={() => setArmDelete(true)} className={cn(focusRing, "rounded text-muted-foreground underline-offset-2 hover:text-danger hover:underline")}>
-                Delete my account and data
-              </button>
+    <div className="text-sm">
+      {armDelete ? (
+        <span className="flex flex-wrap items-center gap-2">
+          <span className="font-bold text-danger">
+            Erase everything Forkcast stores about you?
+          </span>
+          <button
+            type="button"
+            onClick={async () => {
+              try {
+                await api.deleteAccount(userId);
+                clearSession();
+                window.location.reload();
+              } catch (e) {
+                toast.error(
+                  e instanceof Error ? e.message : "Couldn't delete your data"
+                );
+              }
+            }}
+            className={cn(
+              focusRing,
+              "rounded-full bg-danger px-2.5 py-1 font-bold text-white"
             )}
-          </div>
+          >
+            Delete my data
+          </button>
+          <button
+            type="button"
+            onClick={() => setArmDelete(false)}
+            className={cn(
+              focusRing,
+              "rounded-full px-2 py-1 text-muted-foreground hover:text-foreground"
+            )}
+          >
+            Cancel
+          </button>
+        </span>
+      ) : (
+        <button
+          type="button"
+          onClick={() => setArmDelete(true)}
+          className={cn(
+            focusRing,
+            "rounded text-muted-foreground underline-offset-2 hover:text-danger hover:underline"
+          )}
+        >
+          Delete my account and data
+        </button>
+      )}
+    </div>
   );
 
   if (section === "you") {
@@ -733,9 +1243,12 @@ export function TodayView({
       <div className="mx-auto flex w-full max-w-5xl flex-col gap-6 px-4 py-6 lg:px-6">
         <header className="flex flex-wrap items-end justify-between gap-3">
           <div>
-            <h1 className="font-heading text-[28px] font-extrabold leading-tight tracking-[-0.03em] sm:text-[32px]">What Forkcast knows about you</h1>
+            <h1 className="font-heading text-[28px] font-extrabold leading-tight tracking-[-0.03em] sm:text-[32px]">
+              What Forkcast knows about you
+            </h1>
             <p className="mt-1 max-w-xl text-sm text-muted-foreground">
-              Every pick is shaped by this page. Fix anything that looks wrong and tomorrow&apos;s plan changes with it.
+              Every pick is shaped by this page. Fix anything that looks wrong
+              and tomorrow&apos;s plan changes with it.
             </p>
           </div>
           <Button variant="outline" onClick={onEditProfile}>
@@ -743,13 +1256,19 @@ export function TodayView({
           </Button>
         </header>
         <section className="rounded-2xl bg-card p-5 shadow-soft">
-          <TastePanel wide facts={memory.facts} bullets={memory.bullets} onEdit={editMemory} />
+          <TastePanel
+            wide
+            facts={memory.facts}
+            bullets={memory.bullets}
+            onEdit={editMemory}
+          />
         </section>
         <section className="flex flex-col gap-2 rounded-2xl bg-card p-5 shadow-soft">
           <h2 className="font-heading text-lg font-extrabold">Your data</h2>
           <p className="max-w-xl text-sm text-muted-foreground">
-            Forkcast stores your preferences, the plans it showed you and what you ordered through it. Deleting your
-            account erases all of it. Your Swiggy account and its orders are not affected.
+            Forkcast stores your preferences, the plans it showed you and what
+            you ordered through it. Deleting your account erases all of it. Your
+            Swiggy account and its orders are not affected.
           </p>
           {deleteAccount}
         </section>
@@ -758,86 +1277,182 @@ export function TodayView({
   }
 
   return (
-    <div ref={rootRef} className="mx-auto grid w-full max-w-7xl gap-8 px-4 py-6 lg:grid-cols-[1fr_340px] lg:px-6">
+    <div
+      ref={rootRef}
+      className="mx-auto grid w-full max-w-[1680px] gap-8 px-4 py-6 lg:grid-cols-[1fr_340px] lg:px-8 2xl:grid-cols-[1fr_380px]"
+    >
       <main className="flex min-w-0 flex-col gap-8">
         {/* Hero: navy banner with an orange corner; greeting, controls and the ask bar live in it */}
-        <div data-reveal className="relative flex flex-col gap-5 overflow-hidden rounded-2xl bg-[#03081F] p-5 text-white sm:p-8">
-          <span aria-hidden className="pointer-events-none absolute -right-24 -top-28 size-72 rounded-full bg-brand-500" />
-          <span aria-hidden className="pointer-events-none absolute -bottom-32 right-24 size-56 rounded-full bg-brand-500/15" />
-        <header className="relative flex flex-wrap items-end justify-between gap-4">
-          <div className="min-w-0">
-            <p className="flex items-center gap-1 text-sm font-semibold text-white/70">
-              {greeting(now.getHours())}
-              {data.profile.city && (
-                <>
-                  <span aria-hidden>·</span>
-                  <MapPin className="size-3.5" aria-hidden />
-                  {data.profile.city}
-                </>
+        <div
+          data-reveal
+          className="relative flex flex-col gap-5 overflow-hidden rounded-2xl bg-[#03081F] p-5 text-white sm:p-8"
+        >
+          <span
+            aria-hidden
+            className="pointer-events-none absolute -right-24 -top-28 size-72 rounded-full bg-brand-500"
+          />
+          <span
+            aria-hidden
+            className="pointer-events-none absolute -bottom-32 right-24 size-56 rounded-full bg-brand-500/15"
+          />
+          <header className="relative flex flex-wrap items-end justify-between gap-4">
+            <div className="min-w-0">
+              <p className="flex items-center gap-1 text-sm font-semibold text-white/70">
+                {greeting(now.getHours())}
+                {data.profile.city && (
+                  <>
+                    <span aria-hidden>·</span>
+                    <MapPin className="size-3.5" aria-hidden />
+                    {data.profile.city}
+                  </>
+                )}
+              </p>
+              <h1 className="text-[28px] font-extrabold leading-tight tracking-[-0.03em] sm:text-[32px]">
+                {upcoming
+                  ? `What's for ${mealStyle(
+                      upcoming
+                    ).label.toLowerCase()} today?`
+                  : "That's a wrap for today"}
+              </h1>
+            </div>
+            <div className="flex items-center gap-2">
+              {/* Going live spends real money: it takes a second, explicit tap */}
+              {armLive ? (
+                <span className="flex items-center gap-1 rounded-full bg-card p-1 text-xs font-bold text-foreground shadow-soft">
+                  <span className="px-2 text-danger">Place real orders?</span>
+                  <button
+                    type="button"
+                    onClick={() => setMode("live")}
+                    className={cn(
+                      focusRing,
+                      "rounded-full bg-danger px-2.5 py-1 text-white"
+                    )}
+                  >
+                    Go live
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setArmLive(false)}
+                    className={cn(
+                      focusRing,
+                      "rounded-full px-2.5 py-1 text-muted-foreground hover:text-foreground"
+                    )}
+                  >
+                    Cancel
+                  </button>
+                </span>
+              ) : (
+                <button
+                  type="button"
+                  role="switch"
+                  aria-checked={live}
+                  onClick={() => (live ? setMode("dry_run") : setArmLive(true))}
+                  className={cn(
+                    focusRing,
+                    "flex items-center gap-2 rounded-full bg-card py-1 pl-3 pr-1 text-xs font-bold text-foreground shadow-soft"
+                  )}
+                >
+                  <span
+                    className={live ? "text-danger" : "text-muted-foreground"}
+                  >
+                    {live ? "Live orders" : "Dry run"}
+                  </span>
+                  <span
+                    className={cn(
+                      "relative h-5 w-9 rounded-full transition-colors",
+                      live ? "bg-danger" : "bg-muted"
+                    )}
+                  >
+                    <span
+                      className={cn(
+                        "absolute top-0.5 size-4 rounded-full bg-white shadow transition-[left]",
+                        live ? "left-[18px]" : "left-0.5"
+                      )}
+                    />
+                  </span>
+                </button>
               )}
-            </p>
-            <h1 className="text-[28px] font-extrabold leading-tight tracking-[-0.03em] sm:text-[32px]">
-              {upcoming ? `What's for ${mealStyle(upcoming).label.toLowerCase()} today?` : "That's a wrap for today"}
-            </h1>
-          </div>
-          <div className="flex items-center gap-2">
-            {/* Going live spends real money: it takes a second, explicit tap */}
-            {armLive ? (
-              <span className="flex items-center gap-1 rounded-full bg-card p-1 text-xs font-bold text-foreground shadow-soft">
-                <span className="px-2 text-danger">Place real orders?</span>
-                <button type="button" onClick={() => setMode("live")} className={cn(focusRing, "rounded-full bg-danger px-2.5 py-1 text-white")}>
-                  Go live
-                </button>
-                <button type="button" onClick={() => setArmLive(false)} className={cn(focusRing, "rounded-full px-2.5 py-1 text-muted-foreground hover:text-foreground")}>
-                  Cancel
-                </button>
-              </span>
-            ) : (
               <button
                 type="button"
-                role="switch"
-                aria-checked={live}
-                onClick={() => (live ? setMode("dry_run") : setArmLive(true))}
-                className={cn(focusRing, "flex items-center gap-2 rounded-full bg-card py-1 pl-3 pr-1 text-xs font-bold text-foreground shadow-soft")}
+                aria-label="Edit preferences"
+                onClick={onEditProfile}
+                className={cn(
+                  focusRing,
+                  "rounded-full bg-card p-2 text-foreground shadow-soft transition hover:bg-muted"
+                )}
               >
-                <span className={live ? "text-danger" : "text-muted-foreground"}>{live ? "Live orders" : "Dry run"}</span>
-                <span className={cn("relative h-5 w-9 rounded-full transition-colors", live ? "bg-danger" : "bg-muted")}>
-                  <span className={cn("absolute top-0.5 size-4 rounded-full bg-white shadow transition-[left]", live ? "left-[18px]" : "left-0.5")} />
-                </span>
+                <Settings className="size-4" />
               </button>
-            )}
-            <button type="button" aria-label="Edit preferences" onClick={onEditProfile} className={cn(focusRing, "rounded-full bg-card p-2 text-foreground shadow-soft transition hover:bg-muted")}>
-              <Settings className="size-4" />
-            </button>
-          </div>
-        </header>
+            </div>
+          </header>
 
-        {/* Ask bar: chat is the fastest way to bend today's plan, so it sits up top */}
-        <form
-          onSubmit={(e) => {
-            e.preventDefault();
-            const v = (e.currentTarget.elements.namedItem("ask") as HTMLInputElement).value.trim();
-            setChatOpen(true);
-            if (v) { send(v); e.currentTarget.reset(); }
-          }}
-          className="relative flex items-center gap-2 rounded-full bg-card p-1.5 pl-5 text-foreground shadow-layered transition focus-within:ring-2 focus-within:ring-brand-500"
-        >
-          <ThinkingOrb state="breathing" size={20} color="#FF7A3D" dotSize={1.5} aria-hidden className="shrink-0" />
-          <input name="ask" aria-label="Ask Forkcast" placeholder="Craving something? “spicy under ₹250”, “I had dal at home”…" className="min-w-0 flex-1 bg-transparent py-2 text-[15px] outline-none placeholder:text-muted-foreground" />
-          <label
-            title="Upload your diet plan (photo, PDF or text)"
-            className={cn("flex shrink-0 cursor-pointer items-center gap-1.5 rounded-full border border-border px-3 py-2 text-sm font-bold text-foreground/80 transition hover:border-brand-500 hover:text-brand-600 focus-within:outline-2 focus-within:outline-offset-2 focus-within:outline-brand-500", "")}
+          {/* Ask bar: chat is the fastest way to bend today's plan, so it sits up top */}
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              const v = (
+                e.currentTarget.elements.namedItem("ask") as HTMLInputElement
+              ).value.trim();
+              setChatOpen(true);
+              if (v) {
+                send(v);
+                e.currentTarget.reset();
+              }
+            }}
+            className="relative flex items-center gap-2 rounded-full bg-card p-1.5 pl-5 text-foreground shadow-layered transition focus-within:ring-2 focus-within:ring-brand-500"
           >
-            <Paperclip className="size-4" aria-hidden />
-            <span className="hidden sm:inline">Diet plan</span>
-            <input type="file" accept="image/png,image/jpeg,image/webp,application/pdf,text/plain" className="sr-only" aria-label="Upload your diet plan" onChange={(e) => { uploadPlan(e.target.files?.[0]); e.target.value = ""; }} />
-          </label>
-          <button type="submit" className={cn(focusRing, "shrink-0 rounded-full bg-brand-500 px-6 py-2 text-sm font-extrabold text-white transition hover:bg-brand-600 active:scale-95")}>Ask</button>
-        </form>
+            <ThinkingOrb
+              state="breathing"
+              size={20}
+              color="#FF7A3D"
+              dotSize={1.5}
+              aria-hidden
+              className="shrink-0"
+            />
+            <input
+              name="ask"
+              aria-label="Ask Forkcast"
+              placeholder="Craving something? “spicy under ₹250”, “I had dal at home”…"
+              className="min-w-0 flex-1 bg-transparent py-2 text-[15px] outline-none placeholder:text-muted-foreground"
+            />
+            <label
+              title="Upload your diet plan (photo, PDF or text)"
+              className={cn(
+                "flex shrink-0 cursor-pointer items-center gap-1.5 rounded-full border border-border px-3 py-2 text-sm font-bold text-foreground/80 transition hover:border-brand-500 hover:text-brand-600 focus-within:outline-2 focus-within:outline-offset-2 focus-within:outline-brand-500",
+                ""
+              )}
+            >
+              <Paperclip className="size-4" aria-hidden />
+              <span className="hidden sm:inline">Diet plan</span>
+              <input
+                type="file"
+                accept="image/png,image/jpeg,image/webp,application/pdf,text/plain"
+                className="sr-only"
+                aria-label="Upload your diet plan"
+                onChange={(e) => {
+                  uploadPlan(e.target.files?.[0]);
+                  e.target.value = "";
+                }}
+              />
+            </label>
+            <button
+              type="submit"
+              className={cn(
+                focusRing,
+                "shrink-0 rounded-full bg-brand-500 px-6 py-2 text-sm font-extrabold text-white transition hover:bg-brand-600 active:scale-95"
+              )}
+            >
+              Ask
+            </button>
+          </form>
         </div>
 
         {/* "What's on your mind?"-style slot row: round dish photos, jump to the slot */}
-        <nav data-reveal aria-label="Meals today" className="-mx-4 flex gap-3 overflow-x-auto px-4 pb-1 sm:grid sm:grid-cols-4 sm:overflow-visible">
+        <nav
+          data-reveal
+          aria-label="Meals today"
+          className="-mx-4 flex gap-3 overflow-x-auto px-4 pb-1 sm:grid sm:grid-cols-4 sm:overflow-visible"
+        >
           {data.slots.map((s) => {
             const img = s.cards[0]?.items[0];
             const now_ = s.slot === currentSlot;
@@ -845,10 +1460,22 @@ export function TodayView({
               <a
                 key={s.slot}
                 href={`#slot-${s.slot}`}
-                className={cn(focusRing, "group/chip flex w-36 shrink-0 flex-col overflow-hidden rounded-2xl shadow-soft ring-offset-2 ring-offset-background transition hover:-translate-y-0.5 hover:shadow-layered sm:w-auto", now_ ? "ring-[3px] ring-brand-500" : s.ordered ? "ring-[3px] ring-rating" : "")}
+                className={cn(
+                  focusRing,
+                  "group/chip flex w-36 shrink-0 flex-col overflow-hidden rounded-2xl shadow-soft ring-offset-2 ring-offset-background transition hover:-translate-y-0.5 hover:shadow-layered sm:w-auto",
+                  now_
+                    ? "ring-[3px] ring-brand-500"
+                    : s.ordered
+                    ? "ring-[3px] ring-rating"
+                    : ""
+                )}
               >
                 <span className="relative block h-24 overflow-hidden bg-muted sm:h-28">
-                  {img ? <DishImage src={img.image_url} alt="" sizes="96px" /> : <BowlIllustration className="size-full p-4" />}
+                  {img ? (
+                    <DishImage src={img.image_url} alt="" sizes="96px" />
+                  ) : (
+                    <BowlIllustration className="size-full p-4" />
+                  )}
                   {s.ordered && (
                     <span className="absolute inset-0 flex items-center justify-center bg-black/40">
                       <CheckCircle2 className="size-7 text-white" aria-hidden />
@@ -856,72 +1483,171 @@ export function TodayView({
                   )}
                 </span>
                 <span className="bg-[#03081F] px-3 py-2 leading-tight">
-                  <span className="block text-sm font-extrabold text-brand-400">{mealStyle(s.slot).label}</span>
-                  <span className="block text-xs text-white/75">{now_ ? "Now" : s.ordered ? "Done" : `${s.window[0]}–${s.window[1]}`}</span>
+                  <span className="block text-sm font-extrabold text-brand-400">
+                    {mealStyle(s.slot).label}
+                  </span>
+                  <span className="block text-xs text-white/75">
+                    {now_
+                      ? "Now"
+                      : s.ordered
+                      ? "Done"
+                      : `${s.window[0]}–${s.window[1]}`}
+                  </span>
                 </span>
               </a>
             );
           })}
         </nav>
 
-        <section data-reveal aria-label="Today at a glance" className="grid grid-cols-1 gap-x-6 gap-y-3 rounded-2xl bg-card p-4 shadow-soft sm:grid-cols-2">
+        <section
+          data-reveal
+          aria-label="Today at a glance"
+          className="grid grid-cols-1 gap-x-6 gap-y-3 rounded-2xl bg-card p-4 shadow-soft sm:grid-cols-2"
+        >
           {info.map((i) => (
             <div key={i.label} className="flex min-w-0 items-center gap-3">
-              <span className="flex size-9 shrink-0 items-center justify-center rounded-full bg-muted">{i.icon}</span>
+              <span className="flex size-9 shrink-0 items-center justify-center rounded-full bg-muted">
+                {i.icon}
+              </span>
               <span className="min-w-0">
-                <span className="block text-xs font-semibold text-muted-foreground">{i.label}</span>
+                <span className="block text-xs font-semibold text-muted-foreground">
+                  {i.label}
+                </span>
                 <span className="block text-sm font-extrabold">{i.value}</span>
               </span>
             </div>
           ))}
         </section>
 
+        {(() => {
+          const s = data.slots.find(
+            (x) => x.slot === due && !x.ordered && x.cards.length
+          );
+          if (!s) return null;
+          const top = s.cards[0];
+          return (
+            <div
+              role="status"
+              className="flex flex-wrap items-center gap-3 rounded-2xl border-2 border-brand-500/40 bg-brand-500/10 p-4"
+            >
+              <Clock className="size-5 shrink-0 text-brand-500" aria-hidden />
+              <p className="min-w-0 flex-1 text-sm">
+                <span className="font-extrabold">
+                  {mealStyle(s.slot).label} time.
+                </span>{" "}
+                {top.items[0].name} · {formatINR(top.price)}, delivered to{" "}
+                {addressLabel}. Order now?
+              </p>
+              <a
+                href={`#slot-${s.slot}`}
+                onClick={() => setDue(null)}
+                className={cn(
+                  focusRing,
+                  "rounded-full bg-brand-500 px-4 py-2 text-sm font-extrabold text-white hover:bg-brand-600"
+                )}
+              >
+                See {mealStyle(s.slot).label.toLowerCase()} picks
+              </a>
+              <button
+                type="button"
+                aria-label="Dismiss reminder"
+                onClick={() => setDue(null)}
+                className={cn(
+                  focusRing,
+                  "rounded-full p-1.5 text-muted-foreground hover:bg-muted"
+                )}
+              >
+                <X className="size-4" aria-hidden />
+              </button>
+            </div>
+          );
+        })()}
         {data.slots.map((s) => (
-          <section key={s.slot} id={`slot-${s.slot}`} className="flex scroll-mt-6 flex-col gap-4">
-            <div data-reveal className="flex flex-wrap items-baseline gap-x-3 gap-y-1 border-b border-border pb-3">
-              <h2 className="text-xl font-extrabold tracking-[-0.02em]">{mealStyle(s.slot).label}</h2>
+          <section
+            key={s.slot}
+            id={`slot-${s.slot}`}
+            className="flex scroll-mt-6 flex-col gap-4"
+          >
+            <div
+              data-reveal
+              className="flex flex-wrap items-baseline gap-x-3 gap-y-1 border-b border-border pb-3"
+            >
+              <h2 className="text-xl font-extrabold tracking-[-0.02em]">
+                {mealStyle(s.slot).label}
+              </h2>
               <span className="text-sm text-muted-foreground">
                 {s.window[0]}–{s.window[1]}
               </span>
-              {s.slot === currentSlot && <span className="text-sm font-bold text-brand-500">● Now</span>}
+              {s.slot === currentSlot && (
+                <span className="text-sm font-bold text-brand-500">● Now</span>
+              )}
               {s.ordered && (
                 <span className="ml-auto inline-flex items-center gap-1 text-sm font-bold text-rating">
                   <CheckCircle2 className="size-4" aria-hidden />
-                  {s.ordered.status === "dry_run" ? "Cart built (dry run)" : "Ordered"}
+                  {s.ordered.status === "dry_run"
+                    ? "Cart built (dry run)"
+                    : "Ordered"}
                 </span>
               )}
             </div>
 
-            {s.nudge && !s.ordered && <Nudge slot={s} onLog={(k, t) => logMeal(s.slot, k, t)} />}
-            {s.ordered && hhmm > s.window[1] && <RateMeal slot={s} onRate={rate} />}
+            {s.nudge && !s.ordered && (
+              <Nudge slot={s} onLog={(k, t) => logMeal(s.slot, k, t)} />
+            )}
+            {s.ordered && hhmm > s.window[1] && (
+              <RateMeal slot={s} onRate={rate} />
+            )}
 
             {s.cards.length === 0 ? (
               <div className="flex items-center gap-3 rounded-2xl bg-card p-4 text-sm text-muted-foreground shadow-soft">
-                <LottiePlayer path="/animations/cooking-pot.json" className="size-14 shrink-0" />
+                <LottiePlayer
+                  path="/animations/cooking-pot.json"
+                  className="size-14 shrink-0"
+                />
                 Nothing nearby fits your rules for this meal right now.
               </div>
             ) : (
               <div className="grid gap-x-5 gap-y-7 sm:grid-cols-2 xl:grid-cols-4">
                 {s.cards.map((c) => (
-                  <MealCard key={c.id} card={c} locked={Boolean(s.ordered)} dryRun={!live} addressLabel={addressLabel} userId={userId} onOrder={order} onFeedback={feedback} />
+                  <MealCard
+                    key={c.id}
+                    card={c}
+                    locked={Boolean(s.ordered)}
+                    dryRun={!live}
+                    addressLabel={addressLabel}
+                    userId={userId}
+                    onOrder={order}
+                    onFeedback={feedback}
+                    onChanged={load}
+                  />
                 ))}
               </div>
             )}
 
             {s.excluded.length > 0 && (
               <details className="rounded-xl bg-card px-4 py-2.5 text-sm shadow-soft">
-                <summary className={cn(focusRing, "flex cursor-pointer items-center gap-1.5 font-bold text-danger")}>
-                  <ShieldAlert className="size-4" /> Hidden for your allergies ({s.excluded.length})
+                <summary
+                  className={cn(
+                    focusRing,
+                    "flex cursor-pointer items-center gap-1.5 font-bold text-danger"
+                  )}
+                >
+                  <ShieldAlert className="size-4" /> Hidden for your allergies (
+                  {s.excluded.length})
                 </summary>
                 <ul className="mt-2 flex flex-col gap-1">
                   {s.excluded.map((e) => (
                     <li key={e.id} className="flex justify-between gap-2">
                       <span>{e.items[0]?.name}</span>
-                      <span className="shrink-0 text-xs text-danger">contains {e.allergen_hit}</span>
+                      <span className="shrink-0 text-xs text-danger">
+                        contains {e.allergen_hit}
+                      </span>
                     </li>
                   ))}
                 </ul>
-                <p className="mt-1 text-xs text-muted-foreground">Never recommended. To add one anyway, ask in chat.</p>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  Never recommended. To add one anyway, ask in chat.
+                </p>
               </details>
             )}
           </section>
@@ -929,42 +1655,82 @@ export function TodayView({
       </main>
 
       <aside className="flex flex-col gap-5 lg:sticky lg:top-4 lg:max-h-[calc(100dvh-2rem)] lg:self-start lg:overflow-y-auto">
-        <section aria-label="Budget and rollover" className="flex shrink-0 flex-col gap-3 overflow-hidden rounded-2xl bg-card p-4 shadow-soft">
+        <section
+          aria-label="Budget and rollover"
+          className="flex shrink-0 flex-col gap-3 overflow-hidden rounded-2xl bg-card p-4 shadow-soft"
+        >
           <div className="-mx-4 -mt-4 flex items-center justify-between bg-[#03081F] px-4 py-3 text-white">
             <h2 className="flex items-center gap-2 font-extrabold">
               <Wallet className="size-4 text-brand-400" aria-hidden />
               {now.toLocaleString("en-IN", { month: "long" })} food budget
             </h2>
-            <span className="text-xs text-white/70">{data.budget.days_left} days left</span>
+            <span className="text-xs text-white/70">
+              {data.budget.days_left} days left
+            </span>
           </div>
           <p className="flex items-baseline justify-between rounded-xl bg-brand-500 px-3 py-2.5 text-white">
             <span className="text-sm font-bold">Left to spend</span>
-            <span className="font-heading text-2xl font-extrabold tracking-[-0.02em] tabular-nums">{formatINR(data.budget.remaining)}</span>
+            <span className="font-heading text-2xl font-extrabold tracking-[-0.02em] tabular-nums">
+              {formatINR(data.budget.remaining)}
+            </span>
           </p>
-          <p className="-mt-1 text-xs text-muted-foreground">of {formatINR(data.budget.monthly + data.budget.rollover)} this month</p>
-          <div className="h-2 overflow-hidden rounded-full bg-muted" role="img" aria-label={`${formatINR(data.budget.spent)} spent`}>
-            <div className="h-full rounded-full bg-brand-500" style={{ width: `${Math.min(100, (data.budget.spent / Math.max(1, data.budget.monthly + data.budget.rollover)) * 100)}%` }} />
+          <p className="-mt-1 text-xs text-muted-foreground">
+            of {formatINR(data.budget.monthly + data.budget.rollover)} this
+            month
+          </p>
+          <div
+            className="h-2 overflow-hidden rounded-full bg-muted"
+            role="img"
+            aria-label={`${formatINR(data.budget.spent)} spent`}
+          >
+            <div
+              className="h-full rounded-full bg-brand-500"
+              style={{
+                width: `${Math.min(
+                  100,
+                  (data.budget.spent /
+                    Math.max(1, data.budget.monthly + data.budget.rollover)) *
+                    100
+                )}%`,
+              }}
+            />
           </div>
           <dl className="grid grid-cols-2 gap-2 text-sm">
             <div className="rounded-xl bg-muted/60 p-2.5">
               <dt className="text-xs text-muted-foreground">For today</dt>
-              <dd className="font-extrabold tabular-nums">{formatINR(data.budget.daily_cap)}</dd>
+              <dd className="font-extrabold tabular-nums">
+                {formatINR(data.budget.daily_cap)}
+              </dd>
             </div>
             <div className="rounded-xl bg-muted/60 p-2.5">
-              <dt className="text-xs text-muted-foreground">Spent this month</dt>
-              <dd className="font-extrabold tabular-nums">{formatINR(data.budget.spent)}</dd>
+              <dt className="text-xs text-muted-foreground">
+                Spent this month
+              </dt>
+              <dd className="font-extrabold tabular-nums">
+                {formatINR(data.budget.spent)}
+              </dd>
             </div>
           </dl>
           {/* Rollover: unspent budget carries into next month (a virtual ledger, no money held) */}
           <div className="flex items-start gap-2.5 rounded-xl bg-rating/10 p-3">
-            <LottiePlayer path="/animations/coin-drop.json" loop={false} className="-my-1 size-10 shrink-0" />
+            <LottiePlayer
+              path="/animations/coin-drop.json"
+              loop={false}
+              className="-my-1 size-10 shrink-0"
+            />
             <div className="text-sm">
               <p className="font-extrabold text-rating">
-                {data.budget.rollover > 0 ? `${formatINR(data.budget.rollover)} rolled over from last month` : "Rollover savings"}
+                {data.budget.rollover > 0
+                  ? `${formatINR(
+                      data.budget.rollover
+                    )} rolled over from last month`
+                  : "Rollover savings"}
               </p>
               <p className="text-xs text-foreground/75">
                 {data.budget.saved_so_far > 0
-                  ? `${formatINR(data.budget.saved_so_far)} unspent so far. Whatever is left on the last day is added to next month's budget.`
+                  ? `${formatINR(
+                      data.budget.saved_so_far
+                    )} unspent so far. Whatever is left on the last day is added to next month's budget.`
                   : "Spend less than your budget and the rest is added to next month."}
               </p>
             </div>
@@ -975,17 +1741,45 @@ export function TodayView({
           <h2 className="font-extrabold">Today&apos;s nutrition</h2>
           <div className="grid grid-cols-5 gap-1">
             {MACROS.map((m) => (
-              <Ring key={m.key} label={m.label} unit={m.unit} value={n.today[m.key] ?? 0} target={n.targets[m.key]} />
+              <Ring
+                key={m.key}
+                label={m.label}
+                unit={m.unit}
+                value={n.today[m.key] ?? 0}
+                target={n.targets[m.key]}
+              />
             ))}
           </div>
           <div className="flex flex-col gap-2 border-t border-border pt-3">
-            <h3 className="text-sm font-extrabold">This week · daily average</h3>
+            <h3 className="text-sm font-extrabold">
+              This week · daily average
+            </h3>
             {n.days_logged === 0 ? (
-              <p className="text-xs text-muted-foreground">No meals logged yet. Unlogged meals count as unknown, not missed.</p>
+              <p className="text-xs text-muted-foreground">
+                No meals logged yet. Unlogged meals count as unknown, not
+                missed.
+              </p>
             ) : (
-              MICROS.map((k) => <MicroBar key={k} k={k} value={n.week_avg[k] ?? 0} target={n.targets[k]} />)
+              MICROS.map((k) => (
+                <MicroBar
+                  key={k}
+                  k={k}
+                  value={n.week_avg[k] ?? 0}
+                  target={n.targets[k]}
+                />
+              ))
             )}
-            <p className="text-[11px] text-muted-foreground">Estimates from the <a href="https://doi.org/10.1016/j.cdnut.2024.103790" target="_blank" rel="noreferrer" className="underline">Indian Nutrient Databank</a></p>
+            <p className="text-[11px] text-muted-foreground">
+              Estimates from the{" "}
+              <a
+                href="https://doi.org/10.1016/j.cdnut.2024.103790"
+                target="_blank"
+                rel="noreferrer"
+                className="underline"
+              >
+                Indian Nutrient Databank
+              </a>
+            </p>
           </div>
         </section>
 
@@ -993,21 +1787,36 @@ export function TodayView({
         <section className="flex flex-col gap-3 rounded-2xl bg-card p-4 shadow-soft">
           <div className="flex items-baseline justify-between">
             <h2 className="font-extrabold">Your taste</h2>
-            <span className="text-xs text-muted-foreground">{liked.length} learned</span>
+            <span className="text-xs text-muted-foreground">
+              {liked.length} learned
+            </span>
           </div>
           {liked.length === 0 ? (
-            <p className="text-sm text-muted-foreground">Order or rate a meal and Forkcast starts learning.</p>
+            <p className="text-sm text-muted-foreground">
+              Order or rate a meal and Forkcast starts learning.
+            </p>
           ) : (
             <ul className="flex flex-wrap gap-1.5">
               {liked.slice(0, 6).map((b) => (
-                <li key={b.id} className="rounded-full bg-brand-50 px-2.5 py-1 text-[13px] font-semibold capitalize text-brand-700">
+                <li
+                  key={b.id}
+                  className="rounded-full bg-brand-50 px-2.5 py-1 text-[13px] font-semibold capitalize text-brand-700"
+                >
                   {b.key.replace(/_/g, " ")}
                 </li>
               ))}
             </ul>
           )}
-          <button type="button" onClick={onShowProfile} className={cn(focusRing, "flex items-center justify-between rounded-xl bg-muted px-3 py-2 text-sm font-bold transition hover:bg-brand-50 hover:text-brand-700")}>
-            See and edit everything <ChevronRight className="size-4" aria-hidden />
+          <button
+            type="button"
+            onClick={onShowProfile}
+            className={cn(
+              focusRing,
+              "flex items-center justify-between rounded-xl bg-muted px-3 py-2 text-sm font-bold transition hover:bg-brand-50 hover:text-brand-700"
+            )}
+          >
+            See and edit everything{" "}
+            <ChevronRight className="size-4" aria-hidden />
           </button>
         </section>
       </aside>
@@ -1016,154 +1825,289 @@ export function TodayView({
       <AnimatePresence>
         {chatOpen && (
           <>
-          <motion.div key="scrim" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setChatOpen(false)} className="fixed inset-0 z-[55] bg-black/30" aria-hidden />
-        <motion.section
-            role="dialog"
-            aria-label="Chat with Forkcast"
-            initial={{ x: "100%" }}
-            animate={{ x: 0 }}
-            exit={{ x: "100%" }}
-            transition={{ type: "spring", stiffness: 380, damping: 38 }}
-            className="fixed inset-y-0 right-0 z-[60] flex w-full max-w-md flex-col gap-3 border-l border-border bg-card p-4 shadow-layered"
-          >
-          <div className="flex items-center justify-between gap-2">
-            <h2 className="flex items-center gap-2 font-heading text-lg font-extrabold"><ThinkingOrb state={thinking ? "searching" : "breathing"} size={32} color="#FF7A3D" dotSize={1.5} aria-hidden /> Ask Forkcast</h2>
-            <button type="button" aria-label="Close chat" onClick={() => setChatOpen(false)} className={cn(focusRing, "rounded-full p-2 hover:bg-muted")}><X className="size-5" /></button>
-          </div>
-          <p className="text-xs text-muted-foreground">Ask for a craving, log what you ate at home, or tell me what to stop suggesting. I never place orders; you do.</p>
-          <div className="flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto text-sm" aria-live="polite">
-            {chat.length === 0 && (
-              <div className="flex flex-wrap gap-1.5">
-                {["Something spicy under 250", "I had dal and 2 roti at home", "What am I low on?", "Stop suggesting paneer"].map((q) => (
-                  <button
-                    key={q}
-                    type="button"
-                    onClick={() => send(q)}
-                    className={cn(focusRing, "rounded-full border border-border px-2.5 py-1 text-xs font-semibold transition hover:border-brand-500 hover:text-brand-500 active:scale-95")}
-                  >
-                    {q}
-                  </button>
-                ))}
-              </div>
-            )}
-            <AnimatePresence initial={false}>
-              {chat.map((c, i) => (
-                <motion.div
-                  key={i}
-                  initial={{ opacity: 0, y: 6 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  className={cn("flex max-w-[92%] flex-col gap-2", c.role === "you" ? "self-end" : "self-start")}
+            <motion.div
+              key="scrim"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setChatOpen(false)}
+              className="fixed inset-0 z-[55] bg-black/30"
+              aria-hidden
+            />
+            <motion.section
+              role="dialog"
+              aria-label="Chat with Forkcast"
+              initial={{ x: "100%" }}
+              animate={{ x: 0 }}
+              exit={{ x: "100%" }}
+              transition={{ type: "spring", stiffness: 380, damping: 38 }}
+              className="fixed inset-y-0 right-0 z-[60] flex w-full max-w-md flex-col gap-3 border-l border-border bg-card p-4 shadow-layered"
+            >
+              <div className="flex items-center justify-between gap-2">
+                <h2 className="flex items-center gap-2 font-heading text-lg font-extrabold">
+                  <ThinkingOrb
+                    state={thinking ? "searching" : "breathing"}
+                    size={32}
+                    color="#FF7A3D"
+                    dotSize={1.5}
+                    aria-hidden
+                  />{" "}
+                  Ask Forkcast
+                </h2>
+                <button
+                  type="button"
+                  aria-label="Close chat"
+                  onClick={() => setChatOpen(false)}
+                  className={cn(focusRing, "rounded-full p-2 hover:bg-muted")}
                 >
-                  <div className={cn("flex items-end gap-2", c.role === "you" && "self-end")}>
-                    {c.role === "bot" && (
-                      <ThinkingOrb state="breathing" size={20} color="#FF7A3D" dotSize={1.5} paused={i !== chat.length - 1} aria-hidden className="mb-1 shrink-0" />
-                    )}
-                    <p className={cn("w-fit rounded-2xl px-3 py-2 leading-snug", c.role === "you" ? "rounded-br-sm bg-brand-500 text-white" : "rounded-bl-sm bg-muted")}>
-                      {c.text}
-                    </p>
-                  </div>
-                  {c.results && (
-                    <ol className="flex flex-col gap-2">
-                      {c.results.map((r) => (
-                        <li key={r.index} className="flex items-center gap-3 rounded-xl border border-border bg-card p-2 shadow-soft">
-                          <span className="relative size-14 shrink-0 overflow-hidden rounded-lg bg-muted">
-                            <DishImage src={r.image_url} alt="" sizes="56px" />
-                          </span>
-                          <span className="min-w-0 flex-1">
-                            <span className="flex items-start gap-1.5 text-sm font-extrabold leading-tight">
-                              <span className="mt-0.5"><DietMarker veg={r.veg} /></span>
-                              {r.name}
-                            </span>
-                            <span className="mt-0.5 flex flex-wrap items-center gap-x-1.5 text-xs text-muted-foreground">
-                              {r.rating ? (
-                                <span className="flex items-center gap-1 font-bold text-foreground">
-                                  <RatingDot /> {r.rating.toFixed(1)}
-                                </span>
-                              ) : null}
-                              <span>{r.source === "instamart" ? "Instamart" : r.restaurant}</span>
-                            </span>
-                            <span className="text-xs font-bold tabular-nums">
-                              {formatINR(r.price)}
-                            </span>
-                          </span>
-                          <button
-                            type="button"
-                            disabled={thinking}
-                            onClick={() => send(`add ${r.index + 1}`)}
-                            className={cn(focusRing, "shrink-0 rounded-lg border border-rating px-3 py-1.5 text-xs font-extrabold text-rating transition hover:bg-rating hover:text-white active:scale-95 disabled:opacity-50")}
-                          >
-                            Add
-                          </button>
-                        </li>
-                      ))}
-                      <li className="flex gap-1.5">
-                        <PoweredBy service="Swiggy" />
-                        {c.results.some((r) => r.source === "instamart") && <PoweredBy service="Instamart" />}
-                      </li>
-                    </ol>
-                  )}
-                </motion.div>
-              ))}
-            </AnimatePresence>
-            {plan && (
-              <div className="flex flex-col gap-2 self-start rounded-2xl rounded-bl-sm border border-brand-500/30 bg-brand-50 p-3 text-sm" role="group" aria-label="Diet plan found">
-                <p className="font-extrabold">Here&apos;s what I read from your plan</p>
-                {plan.summary && <p className="text-foreground/80">{plan.summary}</p>}
-                <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1">
-                  {(
-                    [
-                      ["Diet", plan.diet_type],
-                      ["Goal", plan.goal?.replace(/_/g, " ")],
-                      ["Allergies", plan.allergies.join(", ")],
-                      ["Eat more", plan.prefer.join(", ")],
-                      ["Avoid", plan.avoid.join(", ")],
-                    ] as const
-                  )
-                    .filter(([, v]) => v)
-                    .map(([k, v]) => (
-                      <div key={k} className="contents">
-                        <dt className="font-bold text-muted-foreground">{k}</dt>
-                        <dd className="capitalize">{v}</dd>
-                      </div>
+                  <X className="size-5" />
+                </button>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Ask for a craving, log what you ate at home, or tell me what to
+                stop suggesting. I never place orders; you do.
+              </p>
+              <div
+                className="flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto text-sm"
+                aria-live="polite"
+              >
+                {chat.length === 0 && (
+                  <div className="flex flex-wrap gap-1.5">
+                    {[
+                      "Something spicy under 250",
+                      "I had dal and 2 roti at home",
+                      "What am I low on?",
+                      "Stop suggesting paneer",
+                    ].map((q) => (
+                      <button
+                        key={q}
+                        type="button"
+                        onClick={() => send(q)}
+                        className={cn(
+                          focusRing,
+                          "rounded-full border border-border px-2.5 py-1 text-xs font-semibold transition hover:border-brand-500 hover:text-brand-500 active:scale-95"
+                        )}
+                      >
+                        {q}
+                      </button>
                     ))}
-                </dl>
-                <p className="text-xs text-muted-foreground">Applying updates your preferences and rebuilds today&apos;s meals. General wellness only, not medical advice.</p>
-                <div className="flex gap-2">
-                  <Button size="sm" onClick={applyPlan} disabled={thinking}>Use this plan</Button>
-                  <Button size="sm" variant="ghost" onClick={() => setPlan(null)}>Discard</Button>
-                </div>
+                  </div>
+                )}
+                <AnimatePresence initial={false}>
+                  {chat.map((c, i) => (
+                    <motion.div
+                      key={i}
+                      initial={{ opacity: 0, y: 6 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      className={cn(
+                        "flex max-w-[92%] flex-col gap-2",
+                        c.role === "you" ? "self-end" : "self-start"
+                      )}
+                    >
+                      <div
+                        className={cn(
+                          "flex items-end gap-2",
+                          c.role === "you" && "self-end"
+                        )}
+                      >
+                        {c.role === "bot" && (
+                          <ThinkingOrb
+                            state="breathing"
+                            size={20}
+                            color="#FF7A3D"
+                            dotSize={1.5}
+                            paused={i !== chat.length - 1}
+                            aria-hidden
+                            className="mb-1 shrink-0"
+                          />
+                        )}
+                        <p
+                          className={cn(
+                            "w-fit rounded-2xl px-3 py-2 leading-snug",
+                            c.role === "you"
+                              ? "rounded-br-sm bg-brand-500 text-white"
+                              : "rounded-bl-sm bg-muted"
+                          )}
+                        >
+                          {c.text}
+                        </p>
+                      </div>
+                      {c.results && (
+                        <ol className="flex flex-col gap-2">
+                          {c.results.map((r) => (
+                            <li
+                              key={r.index}
+                              className="flex items-center gap-3 rounded-xl border border-border bg-card p-2 shadow-soft"
+                            >
+                              <span className="relative size-14 shrink-0 overflow-hidden rounded-lg bg-muted">
+                                <DishImage
+                                  src={r.image_url}
+                                  alt=""
+                                  sizes="56px"
+                                />
+                              </span>
+                              <span className="min-w-0 flex-1">
+                                <span className="flex items-start gap-1.5 text-sm font-extrabold leading-tight">
+                                  <span className="mt-0.5">
+                                    <DietMarker veg={r.veg} />
+                                  </span>
+                                  {r.name}
+                                </span>
+                                <span className="mt-0.5 flex flex-wrap items-center gap-x-1.5 text-xs text-muted-foreground">
+                                  {r.rating ? (
+                                    <span className="flex items-center gap-1 font-bold text-foreground">
+                                      <RatingDot /> {r.rating.toFixed(1)}
+                                    </span>
+                                  ) : null}
+                                  <span>
+                                    {r.source === "instamart"
+                                      ? "Instamart"
+                                      : r.restaurant}
+                                  </span>
+                                </span>
+                                <span className="text-xs font-bold tabular-nums">
+                                  {formatINR(r.price)}
+                                </span>
+                              </span>
+                              <button
+                                type="button"
+                                disabled={thinking}
+                                onClick={() => send(`add ${r.index + 1}`)}
+                                className={cn(
+                                  focusRing,
+                                  "shrink-0 rounded-lg border border-rating px-3 py-1.5 text-xs font-extrabold text-rating transition hover:bg-rating hover:text-white active:scale-95 disabled:opacity-50"
+                                )}
+                              >
+                                Add
+                              </button>
+                            </li>
+                          ))}
+                          <li className="flex gap-1.5">
+                            <PoweredBy service="Swiggy" />
+                            {c.results.some(
+                              (r) => r.source === "instamart"
+                            ) && <PoweredBy service="Instamart" />}
+                          </li>
+                        </ol>
+                      )}
+                    </motion.div>
+                  ))}
+                </AnimatePresence>
+                {plan && (
+                  <div
+                    className="flex flex-col gap-2 self-start rounded-2xl rounded-bl-sm border border-brand-500/30 bg-brand-50 p-3 text-sm"
+                    role="group"
+                    aria-label="Diet plan found"
+                  >
+                    <p className="font-extrabold">
+                      Here&apos;s what I read from your plan
+                    </p>
+                    {plan.summary && (
+                      <p className="text-foreground/80">{plan.summary}</p>
+                    )}
+                    <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1">
+                      {(
+                        [
+                          ["Diet", plan.diet_type],
+                          ["Goal", plan.goal?.replace(/_/g, " ")],
+                          ["Allergies", plan.allergies.join(", ")],
+                          ["Eat more", plan.prefer.join(", ")],
+                          ["Avoid", plan.avoid.join(", ")],
+                        ] as const
+                      )
+                        .filter(([, v]) => v)
+                        .map(([k, v]) => (
+                          <div key={k} className="contents">
+                            <dt className="font-bold text-muted-foreground">
+                              {k}
+                            </dt>
+                            <dd className="capitalize">{v}</dd>
+                          </div>
+                        ))}
+                    </dl>
+                    <p className="text-xs text-muted-foreground">
+                      Applying updates your preferences and rebuilds
+                      today&apos;s meals. General wellness only, not medical
+                      advice.
+                    </p>
+                    <div className="flex gap-2">
+                      <Button size="sm" onClick={applyPlan} disabled={thinking}>
+                        Use this plan
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => setPlan(null)}
+                      >
+                        Discard
+                      </Button>
+                    </div>
+                  </div>
+                )}
+                {thinking && (
+                  <div className="flex items-center gap-2.5 self-start text-sm text-muted-foreground">
+                    <ThinkingOrb
+                      state={
+                        plan === null &&
+                        chat.at(-1)?.text.startsWith("Uploaded ")
+                          ? "weaving"
+                          : "searching"
+                      }
+                      size={32}
+                      color="#FF7A3D"
+                      dotSize={1.5}
+                    />
+                    {chat.at(-1)?.text.startsWith("Uploaded ")
+                      ? "Reading your diet plan…"
+                      : "Thinking…"}
+                  </div>
+                )}
+                <div ref={chatEnd} />
               </div>
-            )}
-            {thinking && (
-              <div className="flex items-center gap-2.5 self-start text-sm text-muted-foreground">
-                <ThinkingOrb state={plan === null && chat.at(-1)?.text.startsWith("Uploaded ") ? "weaving" : "searching"} size={32} color="#FF7A3D" dotSize={1.5} />
-                {chat.at(-1)?.text.startsWith("Uploaded ") ? "Reading your diet plan…" : "Thinking…"}
-              </div>
-            )}
-            <div ref={chatEnd} />
-          </div>
-          <form
-            className="flex gap-2"
-            onSubmit={(e) => {
-              e.preventDefault();
-              send();
-            }}
-          >
-            <label
-            title="Upload your diet plan (photo, PDF or text)"
-            className={cn("flex shrink-0 cursor-pointer items-center gap-1.5 rounded-xl border border-border px-3 py-2 text-sm font-bold text-foreground/80 transition hover:border-brand-500 hover:text-brand-600 focus-within:outline-2 focus-within:outline-offset-2 focus-within:outline-brand-500", "px-2.5")}
-          >
-            <Paperclip className="size-4" aria-hidden />
-            <span className="sr-only">Diet plan</span>
-            <input type="file" accept="image/png,image/jpeg,image/webp,application/pdf,text/plain" className="sr-only" aria-label="Upload your diet plan" onChange={(e) => { uploadPlan(e.target.files?.[0]); e.target.value = ""; }} />
-          </label>
-            <Input ref={chatInput} aria-label="Message" placeholder="Ask for a craving or log a meal" value={msg} onChange={(e) => setMsg(e.target.value)} />
-            <Button size="icon" type="submit" aria-label="Send" disabled={thinking}>
-              <Send />
-            </Button>
-          </form>
-        </motion.section>
-
+              <form
+                className="flex gap-2"
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  send();
+                }}
+              >
+                <label
+                  title="Upload your diet plan (photo, PDF or text)"
+                  className={cn(
+                    "flex shrink-0 cursor-pointer items-center gap-1.5 rounded-xl border border-border px-3 py-2 text-sm font-bold text-foreground/80 transition hover:border-brand-500 hover:text-brand-600 focus-within:outline-2 focus-within:outline-offset-2 focus-within:outline-brand-500",
+                    "px-2.5"
+                  )}
+                >
+                  <Paperclip className="size-4" aria-hidden />
+                  <span className="sr-only">Diet plan</span>
+                  <input
+                    type="file"
+                    accept="image/png,image/jpeg,image/webp,application/pdf,text/plain"
+                    className="sr-only"
+                    aria-label="Upload your diet plan"
+                    onChange={(e) => {
+                      uploadPlan(e.target.files?.[0]);
+                      e.target.value = "";
+                    }}
+                  />
+                </label>
+                <Input
+                  ref={chatInput}
+                  aria-label="Message"
+                  placeholder="Ask for a craving or log a meal"
+                  value={msg}
+                  onChange={(e) => setMsg(e.target.value)}
+                />
+                <Button
+                  size="icon"
+                  type="submit"
+                  aria-label="Send"
+                  disabled={thinking}
+                >
+                  <Send />
+                </Button>
+              </form>
+            </motion.section>
           </>
         )}
       </AnimatePresence>
@@ -1171,9 +2115,20 @@ export function TodayView({
         <button
           type="button"
           onClick={() => setChatOpen(true)}
-          className={cn(focusRing, "fixed bottom-5 right-5 z-40 flex items-center gap-2 rounded-full bg-foreground py-3 pl-3 pr-5 font-bold text-background shadow-layered transition hover:scale-[1.03] active:scale-95", cartBar && "bottom-24")}
+          className={cn(
+            focusRing,
+            "fixed bottom-5 right-5 z-40 flex items-center gap-2 rounded-full bg-foreground py-3 pl-3 pr-5 font-bold text-background shadow-layered transition hover:scale-[1.03] active:scale-95",
+            cartBar && "bottom-24"
+          )}
         >
-          <ThinkingOrb state="working" size={20} color="#FF7A3D" dotSize={1.5} aria-hidden /> Ask Forkcast
+          <ThinkingOrb
+            state="working"
+            size={20}
+            color="#FF7A3D"
+            dotSize={1.5}
+            aria-hidden
+          />{" "}
+          Ask Forkcast
         </button>
       )}
 
@@ -1188,24 +2143,43 @@ export function TodayView({
             transition={{ type: "spring", stiffness: 420, damping: 34 }}
             className="fixed inset-x-4 bottom-4 z-50 mx-auto flex max-w-xl items-center justify-between gap-3 rounded-xl bg-rating px-4 py-3 text-white shadow-layered"
           >
-            <LottiePlayer path="/animations/delivery-bike.json" className="-my-2 size-14 shrink-0" />
+            <LottiePlayer
+              path="/animations/delivery-bike.json"
+              className="-my-2 size-14 shrink-0"
+            />
             <span className="min-w-0 flex-1">
               <span className="block truncate text-sm font-extrabold">
-                {cartBar.outcome.mode === "dry_run" ? "Cart built on Swiggy" : "Order placed"} · {cartBar.title}
+                {cartBar.outcome.mode === "dry_run"
+                  ? "Cart built on Swiggy"
+                  : "Order placed"}{" "}
+                · {cartBar.title}
               </span>
               <span className="block text-xs text-white/85">
                 {cartBar.outcome.orders
                   .filter((o) => o.status !== "failed")
-                  .map((o) => `${o.platform === "food" ? "Restaurant (Powered by Swiggy)" : "Powered by Instamart"} ${formatINR(o.amount)}`)
+                  .map(
+                    (o) =>
+                      `${
+                        o.platform === "food"
+                          ? "Restaurant (Powered by Swiggy)"
+                          : "Powered by Instamart"
+                      } ${formatINR(o.amount)}`
+                  )
                   .join(" + ")}{" "}
-                to pay{cartBar.outcome.mode === "dry_run" ? " · dry run, nothing ordered" : ""}
+                to pay
+                {cartBar.outcome.mode === "dry_run"
+                  ? " · dry run, nothing ordered"
+                  : ""}
               </span>
             </span>
             <a
               href="https://www.swiggy.com/checkout"
               target="_blank"
               rel="noreferrer"
-              className={cn(focusRing, "flex shrink-0 items-center text-sm font-extrabold uppercase tracking-wide")}
+              className={cn(
+                focusRing,
+                "flex shrink-0 items-center text-sm font-extrabold uppercase tracking-wide"
+              )}
             >
               View cart <ChevronRight className="size-4" aria-hidden />
             </a>

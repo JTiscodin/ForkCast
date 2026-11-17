@@ -145,6 +145,15 @@ CREATE TABLE IF NOT EXISTS excluded_card (
     allergen_hit TEXT NOT NULL
 );
 
+CREATE TABLE IF NOT EXISTS push_subscription (
+    id         INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id    INTEGER NOT NULL,
+    endpoint   TEXT NOT NULL UNIQUE,
+    p256dh     TEXT NOT NULL,
+    auth       TEXT NOT NULL,
+    created_at TEXT DEFAULT (datetime('now'))
+);
+
 CREATE TABLE IF NOT EXISTS consumption_log (
     id         INTEGER PRIMARY KEY AUTOINCREMENT,
     user_id    INTEGER NOT NULL,

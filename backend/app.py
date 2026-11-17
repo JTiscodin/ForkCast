@@ -109,8 +109,11 @@ _CATALOG_CACHE = {}    # cache_key -> [Dish]
 _CATALOG_AT = {}       # cache_key -> fetch time (live TTL)
 CATALOG_TTL_S = int(os.environ.get("CATALOG_TTL_S", "1800"))
 
+import hf_backup
+hf_backup.restore()   # Hugging Face Space: pull the DB snapshot before init_db (no-op locally)
 init_db()
 _init_runtime()
+hf_backup.start()
 
 app = FastAPI(title="Forkcast")
 # per-user tokens (auth.py); registered before CORS so CORS wraps its 403s
@@ -119,6 +122,12 @@ app.middleware("http")(auth.middleware(get_conn))
 app.add_middleware(CORSMiddleware, allow_origins=os.environ.get(
     "FORKCAST_ORIGINS", "http://localhost:6001,http://localhost:3000").split(","), allow_methods=["*"],
                    allow_headers=["*"], expose_headers=["X-Forkcast-Token"])
+
+
+@app.get("/ping")
+def ping():
+    """Public, cheap liveness check for uptime monitors."""
+    return {"ok": True}
 
 class _AppetiteCache(dict):
     """user_id -> AppetiteProfile.
@@ -499,7 +508,7 @@ def mcp_addresses(request: Request):
         raise HTTPException(502, "Swiggy address lookup failed")
     if isinstance(raw, dict) and raw.get("isError"):
         raise HTTPException(502, "Swiggy rejected the address lookup")
-    entries = raw.get("addresses") or raw.get("data") or [] if isinstance(raw, dict) else []
+    entries = (raw.get("addresses") or raw.get("data") or []) if isinstance(raw, dict) else []
     if not isinstance(entries, list):
         entries = []
     out = []
@@ -525,7 +534,7 @@ class AddressIn(BaseModel):
 
 
 @app.post("/address")
-def set_address(body: AddressIn):
+def set_address(body: AddressIn, request: Request):
     """Pin the addressId all live searches and orders run against.
 
     Called from onboarding (the user's pick) and again on session restore, so
@@ -536,6 +545,9 @@ def set_address(body: AddressIn):
     aid = (body.address_id or "").strip()
     if not aid:
         raise HTTPException(400, "address_id is required")
+    # the address is server-wide (one Swiggy login), so only the owner's own machine may change it
+    if not auth.is_local(request):
+        return {"status": "ignored", "address_id": STATE["address_id"]}
     if aid != STATE["address_id"]:
         STATE["address_id"] = aid
         _CATALOG_CACHE.clear()
@@ -1061,6 +1073,7 @@ import threading
 from datetime import date as _date, datetime as _dt
 import daily
 import agent
+import push
 from typing import Optional
 
 # Canned Instamart rows for mock mode, so bundles + add-ons demo without a token.
@@ -1298,10 +1311,28 @@ def daily_regenerate(user_id: int, slot: str = None):
     return _daily(go)
 
 
+class CardEditIn(BaseModel):
+    sides: list[dict] = []
+    addon_id: str | None = None
+
+
+@app.get("/daily/{user_id}/card/{card_id}/options")
+def daily_card_options(user_id: int, card_id: int):
+    return _daily(lambda c, d: daily.card_options(c, user_id, card_id, d["dishes_fn"], d["im_fn"]))
+
+
+@app.post("/daily/{user_id}/card/{card_id}/edit")
+def daily_card_edit(user_id: int, card_id: int, body: CardEditIn):
+    return _daily(lambda c, d: daily.edit_card(c, user_id, card_id, body.sides, body.addon_id,
+                                               d["dishes_fn"], d["im_fn"]))
+
+
 @app.post("/daily/{user_id}/order/{card_id}")
-def daily_order(user_id: int, card_id: int, preview: bool = False):
+def daily_order(user_id: int, card_id: int, request: Request, preview: bool = False, address_id: str | None = None):
+    # a per-order address only from the owner's machine: the Swiggy account (and its addresses) is server-wide
+    pick = address_id if address_id and auth.is_local(request) else None
     return _daily(lambda c, d: daily.order(c, user_id, card_id, d["food_exec"], d["im_client"],
-                                           d["address_id"], confirm=True, preview=preview))
+                                           pick or d["address_id"], confirm=True, preview=preview))
 
 
 @app.post("/daily/{user_id}/feedback")
@@ -1405,6 +1436,28 @@ def daily_delete_account(user_id: int):
     return {"deleted": user_id}
 
 
+@app.get("/push/vapid-public-key")
+def push_vapid_key():
+    return {"key": push.vapid()["public"]}
+
+
+class PushSubIn(BaseModel):
+    endpoint: str
+    keys: dict
+
+
+@app.post("/daily/{user_id}/push")
+def push_subscribe(user_id: int, body: PushSubIn):
+    _daily(lambda c, d: push.subscribe(c, user_id, body.model_dump()))
+    return {"status": "subscribed"}
+
+
+@app.delete("/daily/{user_id}/push")
+def push_unsubscribe(user_id: int, endpoint: Optional[str] = None):
+    _daily(lambda c, d: push.unsubscribe(c, user_id, endpoint))
+    return {"status": "unsubscribed"}
+
+
 def run_nightly():
     """Refresh token -> recompute weights -> memory MD -> tomorrow's menus."""
     import swiggy_auth
@@ -1439,6 +1492,22 @@ def _scheduler():
 
 if os.environ.get("DAILY_SCHEDULER", "1") == "1":
     threading.Thread(target=_scheduler, daemon=True, name="daily-nightly").start()
+
+
+def _push_loop():
+    while True:
+        conn = get_conn()
+        try:
+            push.tick(conn)
+        except Exception as e:  # noqa: BLE001 — keep the reminder loop alive
+            print(f"[push] tick failed: {e}")
+        finally:
+            conn.close()
+        _time.sleep(60 - _time.time() % 60 + 1)   # wake just after each minute boundary
+
+
+if os.environ.get("DAILY_SCHEDULER", "1") == "1":
+    threading.Thread(target=_push_loop, daemon=True, name="push-reminders").start()
 
 
 def _warm_catalog():

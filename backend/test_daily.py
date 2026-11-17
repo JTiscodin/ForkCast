@@ -164,9 +164,18 @@ def test_budget_soft_cap(conn):
 
 def test_profile_validation(conn):
     for bad in ({"diet_type": "keto"}, {"weekday_overrides": {"9": "veg"}}, {"slots": []},
-                {"mode": "yolo"}, {"monthly_budget": 0}):
+                {"mode": "yolo"}, {"monthly_budget": 0},
+                {"windows": {"lunch": ["14:00", "13:00"]}}, {"windows": {"lunch": ["1pm", "2pm"]}},
+                {"windows": {"lunch": ["12:00"]}}):
         with pytest.raises(ValueError):
             daily.save_profile(conn, 1, bad)
+
+
+def test_meal_times_saved(conn):
+    daily.save_profile(conn, 1, {"windows": {"lunch": ["13:00", "14:30"], "dinner": daily.DEFAULT_WINDOWS["dinner"]}})
+    p = daily.get_profile(conn, 1)
+    assert p["windows"]["lunch"] == ["13:00", "14:30"]
+    assert p["windows"]["dinner"] == daily.DEFAULT_WINDOWS["dinner"]
 
 
 def test_parse_food_text():
@@ -660,3 +669,28 @@ def test_delete_user_erases_every_row(conn):
     assert conn.execute("SELECT COUNT(*) FROM menu_card").fetchone()[0] == 0
     assert conn.execute("SELECT COUNT(*) FROM users WHERE id = 1").fetchone()[0] == 0
     assert not (daily.MEMORY_DIR / "1.md").exists()
+
+
+def test_swap_sides_and_addon(conn):
+    v = view(conn)
+    card = next(c for s in v["slots"] for c in s["cards"] if any(i.get("side") for i in c["items"]))
+    opts = daily.card_options(conn, 1, card["id"], dishes_fn, im_fn)
+    assert opts["sides"] and all(o["restaurant_id"] == card["items"][0]["restaurant_id"] for o in opts["sides"])
+    assert opts["sides"][0]["group"] == "Breads and rice"
+    other = opts["sides"][-1]
+    c2 = daily.edit_card(conn, 1, card["id"], [{"id": other["id"], "quantity": 2}], None, dishes_fn, im_fn)
+    sides = [i for i in c2["items"] if i.get("side")]
+    assert [(i["id"], i["quantity"]) for i in sides] == [(other["id"], 2)]
+    assert not any(i.get("addon") for i in c2["items"])
+    assert c2["price"] == round(c2["items"][0]["price"] * c2["items"][0].get("quantity", 1) + other["price"] * 2, 2)
+    # removing everything leaves just the dish
+    c3 = daily.edit_card(conn, 1, card["id"], [], None, dishes_fn, im_fn)
+    assert len(c3["items"]) == 1
+    if opts["addons"]:
+        c4 = daily.edit_card(conn, 1, card["id"], [], opts["addons"][0]["id"], dishes_fn, im_fn)
+        assert c4["items"][-1]["addon"]
+    # forged ids and other people's cards are refused
+    with pytest.raises(ValueError):
+        daily.edit_card(conn, 1, card["id"], [{"id": "not-on-menu", "quantity": 1}], None, dishes_fn, im_fn)
+    with pytest.raises(ValueError):
+        daily.edit_card(conn, 2, card["id"], [], None, dishes_fn, im_fn)

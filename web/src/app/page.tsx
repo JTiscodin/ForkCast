@@ -168,7 +168,8 @@ export default function Home() {
         const next = current.addresses.find((item) => item.id === address?.id)
           ?? current.addresses[0]
           ?? null;
-        if (next?.id) {
+        // without a session the call is refused and the 403 would sign the user out; handleStart pins it later
+        if (next?.id && loadSession()?.token) {
           await api.setAddress(next.id).catch(() => {});
           if (mountedRef.current) setAddress(next);
         }
@@ -193,6 +194,7 @@ export default function Home() {
   const mountedRef = useRef(true);
 
   useEffect(() => {
+    mountedRef.current = true;   // strict mode mounts twice; the first cleanup must not stick
     return () => {
       mountedRef.current = false;
       reloginRef.current = false;
@@ -541,10 +543,21 @@ export default function Home() {
   const [view, setView] = useState<"today" | "you" | "month" | "setup">("today");
   useEffect(() => {
     if (!ready || !userId) return;
-    api
-      .dailyProfile(userId)
-      .then((r) => setDailyProfile(r.profile))
-      .catch(() => setDailyProfile(null));
+    let stop = false;
+    let timer: ReturnType<typeof setTimeout>;
+    // A failed load must not look like "no profile": that would open first-run setup and saving it would wipe saved allergies.
+    const load = (wait: number) =>
+      api
+        .dailyProfile(userId)
+        .then((r) => !stop && setDailyProfile(r.profile))
+        .catch(() => {
+          if (!stop) timer = setTimeout(() => load(Math.min(wait * 2, 15000)), wait);
+        });
+    load(1000);
+    return () => {
+      stop = true;
+      clearTimeout(timer);
+    };
   }, [ready, userId]);
 
   if (!ready) {
