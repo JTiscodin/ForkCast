@@ -111,18 +111,6 @@ export function ConnectSwiggy({
         </motion.p>
       )}
 
-      {onSkip && (
-        <button
-          type="button"
-          onClick={onSkip}
-          className={cn(
-            "rounded-md text-center text-sm leading-[1.4] text-muted-foreground underline-offset-4 hover:text-brand-600 hover:underline",
-            focusRing
-          )}
-        >
-          Skip for now and use demo mode (mock menu, no real orders)
-        </button>
-      )}
     </div>
   );
 }

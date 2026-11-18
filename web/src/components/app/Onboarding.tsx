@@ -333,14 +333,6 @@ export function Onboarding({
             We store your name, food preferences and what you order through Forkcast to improve your picks.
             Nothing is ordered without your tap, and you can delete everything any time.
           </p>
-
-          {!live && (
-            <p className="text-center text-sm leading-[1.4] text-muted-foreground">
-              {skippedAuth
-                ? "Demo mode: mock catalog, no real orders."
-                : "Running in demo mode: mock catalog, no real orders."}
-            </p>
-          )}
         </div>
         )}
       </motion.div>

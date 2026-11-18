@@ -1407,7 +1407,7 @@ export function TodayView({
             <input
               name="ask"
               aria-label="Ask Forkcast"
-              placeholder="Craving something? “spicy under ₹250”, “I had dal at home”…"
+              placeholder="Ask Forkcast anything about today's meals"
               className="min-w-0 flex-1 bg-transparent py-2 text-[15px] outline-none placeholder:text-muted-foreground"
             />
             <label

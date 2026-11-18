@@ -90,7 +90,7 @@ export function AppHeader({
               live ? "bg-success animate-pulse" : "bg-muted-foreground"
             )}
           />
-          {live ? "Swiggy connected" : "Demo mode"}
+          {live ? "Swiggy connected" : "Swiggy not connected"}
         </span>
       </div>
     </header>

@@ -51,11 +51,12 @@ Browser (Next.js 16)  ──HTTPS──>  Forkcast API (FastAPI, Python)
 
 ## 4. Redirect URIs
 - Development: `http://localhost:8765/callback`
-- Production: **TODO** `https://<backend address>/auth/swiggy/callback`
-  (backend address = the DuckDNS name set up in `docs/DEPLOY.md`)
+- Production: `https://forkcast-api.onrender.com/auth/swiggy/callback`
+  (the API on Render; the website is https://forkcast-tau-two.vercel.app)
 
 ## 5. Static egress IPs
-**TODO** — the reserved public IP of the Oracle Cloud VM (one address).
+Not on Swiggy's current application form. The API runs on Render (Singapore region), whose
+outbound addresses are shared ranges published by Render; we can move to a dedicated IP if Swiggy asks.
 
 ## 6. Security contact
 vardanagarwal11@gmail.com
