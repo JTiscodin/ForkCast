@@ -15,4 +15,5 @@ COPY --chown=user backend/ .
 RUN rm -f .env mealplanner.db
 
 EXPOSE 7860
-CMD ["python", "-m", "uvicorn", "app:app", "--host", "0.0.0.0", "--port", "7860"]
+# Render sets $PORT; Hugging Face uses 7860
+CMD ["sh", "-c", "python -m uvicorn app:app --host 0.0.0.0 --port ${PORT:-7860}"]
