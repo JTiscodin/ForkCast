@@ -1,0 +1,32 @@
+# Render Blueprint: the Forkcast API on Render's free plan (website stays on Vercel).
+# Secrets marked sync: false are typed into the Render dashboard, never committed.
+services:
+  - type: web
+    name: forkcast-api
+    runtime: docker
+    plan: free
+    region: singapore
+    dockerfilePath: deploy/hf-space/Dockerfile
+    dockerContext: .
+    healthCheckPath: /ping
+    envVars:
+      - key: SWIGGY_MODE
+        value: live
+      - key: TZ
+        value: Asia/Kolkata
+      - key: HF_BACKUP_REPO
+        value: vardanagarwal11/forkcast-backup
+      - key: FORKCAST_SECRET
+        generateValue: true
+      - key: FORKCAST_ORIGINS
+        sync: false
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: SWIGGY_CLIENT_ID
+        sync: false
+      - key: SWIGGY_MCP_TOKEN
+        sync: false
+      - key: SWIGGY_REFRESH_TOKEN
+        sync: false
+      - key: HF_TOKEN
+        sync: false
