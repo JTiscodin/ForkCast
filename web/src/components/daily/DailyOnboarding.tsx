@@ -287,17 +287,7 @@ export function DailyOnboarding({
         </div>
       </Section>
 
-      <Section n={7} title="City (for weather and season)">
-        <Input
-          aria-label="City"
-          placeholder="e.g. Bengaluru"
-          value={city}
-          onChange={(e) => setCity(e.target.value)}
-          className="w-full sm:w-64"
-        />
-      </Section>
-
-      <Section n={8} title={`Pick up to 5 dishes you love (${picks.length}/5)`}>
+      <Section n={7} title={`Pick up to 5 dishes you love (${picks.length}/5)`}>
         {quiz.map((d) => (
           <Chip
             key={d}
