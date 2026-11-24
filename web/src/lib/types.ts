@@ -1,206 +1,11 @@
 // Shared domain types mirroring the FastAPI backend response shapes.
 // Backend: d:\Studies\Projects\Swiggy-Builder\backend\app.py
 
-export type MealType = "breakfast" | "lunch" | "dinner";
-export type SlotStatus = "planned" | "confirmed" | "skipped" | "rescheduled";
-export type AppetiteLevel = "light" | "moderate" | "heavy" | "very_heavy";
-export type ChatAction = "need_more" | "ready_to_plan" | "chitchat";
-
-export interface Constraint {
-  dish_tag: string;
-  min_count: number;
-}
-
-export interface ParsedIntake {
-  budget: number | null;
-  constraints: Constraint[];
-  veg_only: boolean;
-  appetite_level: AppetiteLevel | null;
-  days: number;
-  source: "llm" | "fallback";
-  needs_appetite: boolean;
-}
-
-/** Role a dish plays in a meal — see backend/course.py. */
-export type Course = "bread" | "staple" | "curry" | "complete" | "side";
-
-export interface MealSlot {
-  id: number;
-  plan_id: number;
-  day: number;
-  meal_type: MealType;
-  dish_id: string;
-  dish_name: string;
-  restaurant_id: string;
-  restaurant_name?: string;
-  /** MAIN dish price only. For the real meal cost use slotTotal(). */
-  price: number;
-  rating?: number;
-  variant: string;
-  status: SlotStatus;
-  order_id?: string | null;
-  image_url?: string;
-  why_text?: string;
-  // --- meal composition: a curry carries a bread/rice accompaniment ---
-  course?: Course;
-  side_dish_id?: string;
-  side_dish_name?: string;
-  side_qty?: number;
-  /** qty x unit price, already multiplied. */
-  side_price?: number;
-  side_restaurant_name?: string;
-  side_image_url?: string;
-}
-
-/**
- * Full cost of a meal — main dish plus its accompaniment. `price` alone
- * undercounts every paired curry, so all money shown to the user goes
- * through this.
- */
-export function slotTotal(s: MealSlot): number {
-  return (s.price ?? 0) + (s.side_price ?? 0);
-}
-
-export interface ConstraintStatus {
-  [tag: string]: { got: number; needed: number };
-}
-
-export interface PlanSummary {
-  plan_id: number;
-  feasible: boolean;
-  total_cost: number;
-  budget: number;
-  leftover: number;
-  constraint_status: ConstraintStatus;
-  message: string;
-}
-
-/** One concrete way to bring a plan inside budget (POST /plan/feasibility). */
-export interface FeasibilityOption {
-  /** "budget" = raise the budget; "config" = change meals and/or appetite. */
-  kind: "budget" | "config";
-  label: string;
-  detail: string;
-  /** What this configuration would cost for the month. */
-  total: number;
-  fits: boolean;
-  changes: {
-    budget?: number;
-    meals?: MealType[];
-    appetite_level?: AppetiteLevel;
-  };
-}
-
-export interface FeasibilityReport {
-  feasible: boolean;
-  budget: number;
-  /** Cheapest achievable total for what the user actually asked for. */
-  floor: number;
-  shortfall: number;
-  current: {
-    appetite: AppetiteLevel;
-    meals: MealType[];
-    meals_label: string;
-    slots: number;
-    floor: number;
-    per_meal: number;
-  };
-  options: FeasibilityOption[];
-  /** One plain-language sentence explaining the situation. */
-  headline: string;
-}
-
-export interface PlanFull {
-  plan: {
-    id: number;
-    user_id: number;
-    month: string;
-    budget: number;
-    total_cost: number;
-    feasible: number;
-    status: string;
-    message: string;
-  };
-  slots: MealSlot[];
-}
-
-export interface WalletSummary {
-  month: string;
-  budget_allocated: number;
-  rolled_in: number;
-  total_spent: number;
-  balance: number;
-  status: string;
-}
-
-export interface DishAlternative {
-  dish_id: string;
-  name: string;
-  restaurant_id: string;
-  restaurant_name: string;
-  price: number;
-  variant: string;
-  rating: number;
-  veg: boolean;
-  image_url?: string;
-}
-
-export interface NotifyPayload {
-  slot_id: number;
-  prompt: string;
-  options: string[];
-}
-
 export interface SwiggyAddress {
   id: string;
   addressLine?: string;
   addressCategory?: string;
   addressTag?: string;
-}
-
-// Chat orchestration (POST /chat)
-export interface ChatSessionState {
-  budget?: number | null;
-  constraints?: Constraint[];
-  veg_only?: boolean;
-  appetite_level?: AppetiteLevel | null;
-  days?: number;
-}
-
-// The running "blueprint" the AI fills conversationally before a plan is built.
-export interface Blueprint {
-  budget: number | null;
-  appetite_level: AppetiteLevel | null;
-  veg_only: boolean;
-  /** Steers the catalog search toward protein-rich dishes. */
-  high_protein?: boolean;
-  constraints: Constraint[];
-  cuisines: string[];
-  meals: MealType[];
-  days: number;
-  // --- taste / diet (gathered in blueprint chat, sent to /plan taste_prefs) ---
-  veg_level?: string;
-  allergies?: string[];
-  health_goals?: string[];
-  spice_preference?: number;
-  disliked_foods?: string[];
-  portion_size?: string;
-  // internal _asked_* flags may also be present; ignore on the client
-  [key: string]: unknown;
-}
-
-export interface ChatResponse {
-  reply: string;
-  ready: boolean; // true -> show overview + Generate Plan
-  action: ChatAction;
-  blueprint: Blueprint; // echo full state back next turn (compact memory)
-  extracted: ChatSessionState; // legacy convenience shape
-}
-
-export interface AdjustResponse {
-  reply: string;
-  blueprint: Blueprint;
-  public: Blueprint;
 }
 
 // ---- daily personalization (docs/SPEC-daily-personalization.md) ----
@@ -265,7 +70,9 @@ export interface TodayView {
   season: string;
   weather: { hot?: boolean; rain?: boolean };
   profile: DailyProfile;
-  budget: { monthly: number; spent: number; remaining: number; days_left: number; daily_cap: number; rollover: number; saved_so_far: number };
+  budget: { monthly: number; spent: number; remaining: number; days_left: number; daily_cap: number; rollover: number; saved_so_far: number;
+    /** the budget month renews on the signup day: first and last day, ISO dates */
+    cycle_start: string; cycle_end: string };
   nutrition: {
     today: Nutrients;
     week_avg: Nutrients;
@@ -303,6 +110,25 @@ export interface ChatResult {
   source: "food" | "instamart";
   veg: boolean;
   kcal: number;
+}
+
+/** A place to go in person (outside the delivery area): from a Google-grounded lookup, no ordering. */
+export interface ChatPlace {
+  name: string;
+  area: string;
+  known_for: string;
+  price: string;
+  maps_url: string;
+}
+
+export interface ChatAnswer {
+  reply: string;
+  results?: ChatResult[];
+  places?: ChatPlace[];
+  sources?: { title: string; uri: string }[];
+  /** Google's Search Suggestions chip (HTML), shown with grounded answers as the Gemini API terms require. */
+  suggest_html?: string;
+  maps_url?: string;
 }
 
 export interface MemoryBullet {

@@ -1,0 +1,3 @@
+# Keep the launchers runnable however the repo is checked out or downloaded.
+start.bat text eol=crlf
+start.sh text eol=lf

@@ -43,9 +43,9 @@ export function usePrefersReducedMotion(): boolean {
 }
 
 /**
- * Decorative Lottie wrapper. Renders nothing during SSR and the first client
- * paint; pauses while scrolled offscreen; under `prefers-reduced-motion` it
- * renders a static first frame instead of animating.
+ * Decorative Lottie wrapper. Renders nothing during SSR (the player is loaded
+ * with `ssr: false`); pauses while scrolled offscreen; under
+ * `prefers-reduced-motion` it renders a static first frame instead of animating.
  */
 export function LottiePlayer({
   animationData,
@@ -54,12 +54,9 @@ export function LottiePlayer({
   className,
   speed,
 }: LottiePlayerProps) {
-  const [mounted, setMounted] = React.useState(false);
   const reduced = usePrefersReducedMotion();
   const containerRef = React.useRef<HTMLDivElement>(null);
   const handleRef = React.useRef<LottieHandle | null>(null);
-
-  React.useEffect(() => setMounted(true), []);
 
   // Pause offscreen so background tabs/scroll positions don't burn frames.
   React.useEffect(() => {
@@ -80,7 +77,7 @@ export function LottiePlayer({
 
   const src = path ?? animationData;
 
-  if (!mounted || !src) {
+  if (!src) {
     return <div ref={containerRef} className={className} aria-hidden="true" />;
   }
 

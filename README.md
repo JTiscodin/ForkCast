@@ -15,9 +15,9 @@ to you, plus small Instamart add-ons that cover what your day is missing. It sta
 your monthly food budget, follows your diet, keeps your allergies off the plate, reacts to
 the weather, and learns from what you order, like and skip.
 
-You stay in charge of ordering: one tap builds the real Swiggy cart and shows what you'll
-pay, a second tap places it. Out of the box it runs in **dry run**, which stops before
-the order is placed.
+You stay in charge of ordering. Out of the box Forkcast runs in **Cart only** mode (a dry
+run): **Add to cart** puts the meal in your real Swiggy cart and you check out on Swiggy.
+Switch to **Real orders** and one tap shows what Swiggy will charge, a second tap places it.
 
 > **Status:** working prototype against the live Swiggy Food and Instamart MCP servers.
 > Built by **Vardan Agarwal** and **Jatin Tilwani**.
@@ -74,7 +74,7 @@ flowchart LR
     A[Connect Swiggy<br/>OAuth 2.1 + PKCE] --> B[Name and address]
     B --> C[Diet, allergies,<br/>budget, meal times,<br/>favourite dishes]
     C --> D[Today page:<br/>4 meals x 3-4 cards]
-    D --> E{Build cart}
+    D --> E{Add to cart}
     E --> F[Live Swiggy cart summary:<br/>items, total, address, COD]
     F -->|dry run| G[Stops here]
     F -->|live mode, second tap| H[Order placed]
@@ -88,7 +88,10 @@ flowchart LR
 2. **Every day.** A nightly job builds the next day's plan. The Today page shows four meals,
    each with three or four cards that each have a job (your usual, fixes your gap, try
    something new, budget pick).
-3. **Order or not.** Tap **Build cart** to see Swiggy's live cart. In dry run it stops there.
+3. **Order or not.** Tap **Add to cart** and the meal is in your Swiggy cart, ready to check
+   out on Swiggy. The card shows **In your Swiggy cart**, and any other card of that meal can
+   **Swap into cart** instead. In **Real orders** mode the button is **Order now**, and a placed
+   order closes the meal.
 4. **Feedback.** Every like, skip, "never", rating and order changes tomorrow's plan.
 
 ---
@@ -192,6 +195,12 @@ that don't say "fried" in their name. The file is read once and not stored.
 A bar at the top of Today and a slide-in panel:
 
 - *"Something spicy under ₹250"* searches with all your rules applied.
+- *"Best rasmalai near me"* searches every restaurant that delivers to you, plain dish
+  first, best rated first, one per restaurant.
+- *"Best chole bhature in CP"* names a place your address isn't in, so Swiggy can't deliver
+  from there: the answer is where to go (places from a Google-grounded Gemini lookup, each
+  with a map link and no order button), plus what does deliver to you. A place you live in
+  ("in Gurgaon" from a Gurugram address) is a normal delivery search.
 - *"I had dal and 2 roti at home"* logs the meal and its nutrition.
 - *"What am I low on?"* reads your week.
 - *"Stop suggesting paneer"* changes what you see.
@@ -200,8 +209,12 @@ How it decides (`backend/agent.py`): Gemini picks one tool per step as JSON
 (`search`, `add`, `log`, `pref`, `explain`, `gaps`, `order`) for a few steps, and the
 reply is written from the tool results. Without Gemini a keyword router picks one tool,
 so every capability still works offline. Search runs live against Swiggy with the
-planner's hard filters. The `order` tool only asks you to confirm in the UI; the
-assistant cannot place an order itself.
+planner's hard filters. A search returns straight after its tool call, without a second
+model round. The place lookup sends Gemini the dish, the place and your city, never your
+address, and shows Google's search suggestions and sources with the answer, as the Gemini
+API terms require (`GEMINI_SEARCH_MODELS` picks the models that may use Google Search).
+The `order` tool only asks you to confirm in the UI; the assistant cannot place an order
+itself.
 
 ### Your data
 Everything learned is visible and editable on the You tab, and
@@ -282,8 +295,10 @@ flowchart LR
     F -- "no, second tap" --> H[place_food_order]
 ```
 
-- **Dry run is the default.** It builds your real Swiggy cart and stops before ordering.
-- **Live mode** needs a second, explicit confirmation to switch on.
+- **Cart only (dry run) is the default.** It builds your real Swiggy cart and stops before
+  ordering. Another card of the same meal can replace that cart; nothing is spent.
+- **Real orders** need a second, explicit confirmation to switch on. A placed order closes
+  the meal: no second order for it.
 - Before the final tap, every order shows a summary from Swiggy's live cart: items,
   amount to pay, delivery address and payment (cash on delivery).
 - Carts at ₹1000 or more are refused, as Swiggy requires (`backend/order_executor.py`).
@@ -388,23 +403,48 @@ errors Swiggy returns inside a successful response are raised, not ignored.
 
 ## Run it locally
 
-Requirements: Python 3.11+, Node 20+.
+Requirements: Python 3.11+ and Node.js 20+.
 
-```bash
-# backend
+**Windows:** double-click `start.bat`. It starts the backend and the website in two
+windows, **Forkcast backend** and **Forkcast website**, waits until both answer, then
+opens http://localhost:6001 in your browser. The first run also installs what's missing
+(the backend's Python packages, into `backend\.venv` if your Python doesn't have them,
+and the website's packages), which takes a few minutes. If a server fails, its window
+stays open with the error. To stop Forkcast, close the two windows. Running `start.bat`
+again while they are open reuses them.
+
+**macOS / Linux:** run `./start.sh`. It does the same first-run installs and runs both
+servers in that terminal. Open http://localhost:6001; Ctrl+C stops both.
+
+**By hand**, in two terminals (the same commands work in PowerShell, cmd and bash).
+
+Backend:
+
+```
 cd backend
-pip install -r requirements.txt
+python -m pip install -r requirements.txt
 python -m uvicorn app:app --port 8343
-
-# website (new terminal)
-cd web
-npm install
-NEXT_PUBLIC_API_URL=http://localhost:8343 npx next dev --port 6001
 ```
 
-Open http://localhost:6001, tap **Connect Swiggy** and sign in on Swiggy's own page.
+Website:
+
+```
+cd web
+npx --yes pnpm@12 install
+npm run dev -- --port 6001
+```
+
+`npx --yes pnpm@12 install` is only needed the first time. If `python` isn't found, use
+`py -3` on Windows or `python3` on macOS and Linux; if pip there refuses with
+"externally-managed-environment", first run `python3 -m venv .venv` and
+`source .venv/bin/activate` in `backend`. If Windows PowerShell says running scripts is
+disabled, type `npm.cmd` and `npx.cmd` instead.
+
+Then open http://localhost:6001, tap **Connect Swiggy** and sign in on Swiggy's own page.
 Without a Swiggy login the app runs on a built-in demo catalogue. After a restart the
-live catalogue takes about three minutes to load.
+live catalogue takes about three minutes to load. The website calls the backend at
+http://localhost:8343; `NEXT_PUBLIC_API_URL` is only needed when the backend runs
+somewhere else.
 
 First run walks through three steps: connect Swiggy, name and delivery address, then
 diet, allergies, budget and favourite dishes.
@@ -442,6 +482,7 @@ Settings live in `backend/.env` (never committed; see `backend/.env.example`).
 | `HF_BACKUP_MINUTES` | Backup interval (default 15). |
 | `TZ` | Time zone for reminders (default `Asia/Kolkata`). |
 | `GEMINI_MODEL` | Override the Gemini model. |
+| `GEMINI_SEARCH_MODELS` | Models tried, in order, for Google-grounded place lookups in chat (default `gemini-2.5-flash,gemini-3.5-flash-lite`: grounding has its own quota per model). |
 | `NEXT_PUBLIC_API_URL` | (web) Backend URL the website calls. |
 
 ## API routes

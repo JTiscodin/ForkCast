@@ -63,13 +63,14 @@ export async function enablePush(userId: number): Promise<boolean> {
   return true;
 }
 
+/** Stop server push. Throws when the server call fails; the flag then stays on, since the server keeps pushing. */
 export async function disablePush(userId: number) {
+  const sub = "serviceWorker" in navigator ? await (await navigator.serviceWorker.getRegistration())?.pushManager.getSubscription() : null;
+  await api.pushUnsubscribe(userId, sub?.endpoint);
   try {
     localStorage.removeItem(PUSH_KEY);
   } catch {
     /* ignore */
   }
-  const sub = "serviceWorker" in navigator ? await (await navigator.serviceWorker.getRegistration())?.pushManager.getSubscription() : null;
-  await api.pushUnsubscribe(userId, sub?.endpoint);
   await sub?.unsubscribe();
 }

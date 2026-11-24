@@ -4,24 +4,16 @@ import { useEffect, useRef, useState } from "react";
 import { motion } from "framer-motion";
 import { toast } from "sonner";
 
-import { api, ApiError } from "@/lib/api";
-import { cn } from "@/lib/utils";
-import { focusRing } from "@/lib/design";
+import { api } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Loader2, ExternalLink, ShieldCheck } from "lucide-react";
 
 /**
- * "Connect Swiggy" — kicks the backend OAuth flow (opens a browser on the
- * machine running the backend), then polls until connected. On success calls
- * onConnected() so the parent can flip to live mode.
+ * "Connect Swiggy" — kicks the backend OAuth flow and opens Swiggy's login in a
+ * popup tab, then polls until connected. On success calls onConnected() so the
+ * parent can flip to live mode.
  */
-export function ConnectSwiggy({
-  onConnected,
-  onSkip,
-}: {
-  onConnected: () => void;
-  onSkip?: () => void;
-}) {
+export function ConnectSwiggy({ onConnected }: { onConnected: () => void }) {
   const [phase, setPhase] = useState<"idle" | "running" | "failed">("idle");
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
@@ -39,10 +31,10 @@ export function ConnectSwiggy({
     let sent = false;
     try {
       await api.authStart(Boolean(popup));
-    } catch (e) {
+    } catch {
       popup?.close();   // don't leave a blank tab behind
       setPhase("failed");
-      toast.error(e instanceof ApiError ? e.message : "Could not start login");
+      toast.error("Swiggy sign-in didn't finish. Try again.");
       return;
     }
     // poll status until connected / failed
@@ -62,7 +54,7 @@ export function ConnectSwiggy({
           popup?.close();
           if (pollRef.current) clearInterval(pollRef.current);
           setPhase("failed");
-          toast.error(s.error ?? "Login failed");
+          toast.error("Swiggy sign-in didn't finish. Try again.");   // s.error is a raw server message
         }
       } catch {
         /* transient poll error — keep trying */
@@ -111,18 +103,6 @@ export function ConnectSwiggy({
         </motion.p>
       )}
 
-      {onSkip && (
-        <button
-          type="button"
-          onClick={onSkip}
-          className={cn(
-            "rounded-md text-center text-sm leading-[1.4] text-muted-foreground underline-offset-4 hover:text-brand-600 hover:underline",
-            focusRing
-          )}
-        >
-          Skip for now and use demo mode (mock menu, no real orders)
-        </button>
-      )}
     </div>
   );
 }

@@ -14,18 +14,12 @@ export interface Session {
   token?: string;      // per-user API token from POST /user (not the Swiggy token)
   name: string;
   address: SwiggyAddress | null;
-  planId: number | null;
-  month: string;
-  approved: boolean;
 }
 
 const EMPTY: Session = {
   userId: null,
   name: "",
   address: null,
-  planId: null,
-  month: new Date().toISOString().slice(0, 7),
-  approved: false,
 };
 
 export function loadSession(): Session {
@@ -49,10 +43,18 @@ export function saveSession(patch: Partial<Session>) {
   }
 }
 
+/** Remove this browser's per-device Forkcast settings (reminder and push flags). */
+function clearForkcastKeys() {
+  for (const k of Object.keys(window.localStorage)) {
+    if (k.startsWith("forkcast.")) window.localStorage.removeItem(k);
+  }
+}
+
 export function clearSession() {
   if (typeof window === "undefined") return;
   try {
     window.localStorage.removeItem(KEY);
+    clearForkcastKeys();
   } catch {
     /* ignore */
   }

@@ -104,7 +104,8 @@ def _deny(code, msg):
 
 def middleware(get_conn):
     async def check(request, call_next):
-        key = (request.method, request.url.path)
+        path = request.scope["path"]   # not request.url: that is built from the Host header, which a client sets
+        key = (request.method, path)
         if request.method == "OPTIONS" or key in PUBLIC:
             return await call_next(request)
         if key in LOOPBACK_ONLY:
@@ -112,7 +113,6 @@ def middleware(get_conn):
         uid = user_from(request.headers.get("authorization"))
         if uid is None:
             return _deny(403, "Sign in again: missing or invalid session")
-        path = request.url.path
         if (m := _USER_PATH.match(path)) and int(m[1]) != uid:
             return _deny(403, "Not your account")
         conn = get_conn()

@@ -35,7 +35,7 @@ backend/out*.txt
 /mealplanner.db
 backend/data/taste/
 backend/.auth_secret
-web/src/.swarm/
+.swarm/
 
 # app logos are part of the app
 !web/public/brand/*.png

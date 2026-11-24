@@ -14,8 +14,8 @@ import { Input } from "@/components/ui/input";
 const DIETS: DietType[] = ["veg", "eggetarian", "nonveg", "jain", "vegan"];
 const GOALS: { id: Goal; label: string }[] = [
   { id: "lose", label: "Lose weight" },
-  { id: "maintain", label: "Maintain" },
-  { id: "gain", label: "Gain" },
+  { id: "maintain", label: "Maintain weight" },
+  { id: "gain", label: "Gain weight" },
   { id: "high_protein", label: "High protein" },
 ];
 const SLOTS: DailySlotName[] = ["breakfast", "lunch", "snack", "dinner"];
@@ -27,8 +27,9 @@ const DEFAULT_WINDOWS: Record<DailySlotName, [string, string]> = {
   dinner: ["19:30", "22:30"],
 };
 const DAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
-const COMMON_ALLERGENS = ["peanut", "shellfish", "dairy", "gluten", "soy", "egg", "tree nut", "fish"];
+const COMMON_ALLERGENS = ["peanut", "shellfish", "dairy", "gluten", "soy", "egg", "tree nut", "fish", "sesame"];
 const SEVERE_DEFAULT = new Set(["peanut", "shellfish", "tree nut"]);
+const dietLabel = (d: DietType) => (d === "nonveg" ? "non-veg" : d);
 
 function Chip({ on, onClick, children }: { on: boolean; onClick: () => void; children: React.ReactNode }) {
   return (
@@ -69,13 +70,20 @@ export function DailyOnboarding({
 }) {
   const [diet, setDiet] = useState<DietType>(initial?.diet_type ?? "veg");
   const [overrides, setOverrides] = useState<Record<string, DietType>>(initial?.weekday_overrides ?? {});
-  const [allergies, setAllergies] = useState<{ name: string; severe: boolean }[]>(initial?.allergies ?? []);
-  const [otherAllergy, setOtherAllergy] = useState("");
+  // Chips hold the common allergens; other saved ones (typed under Other, or read from a diet plan) go back in the Other field.
+  const [allergies, setAllergies] = useState<{ name: string; severe: boolean }[]>(() =>
+    (initial?.allergies ?? []).filter((a) => COMMON_ALLERGENS.includes(a.name))
+  );
+  const [otherAllergy, setOtherAllergy] = useState(() =>
+    (initial?.allergies ?? []).filter((a) => !COMMON_ALLERGENS.includes(a.name)).map((a) => a.name).join(", ")
+  );
   const [goal, setGoal] = useState<Goal>(initial?.goal ?? "maintain");
   const [budget, setBudget] = useState(String(initial?.monthly_budget ?? 6000));
   const [slots, setSlots] = useState<DailySlotName[]>(initial?.slots ?? ["breakfast", "lunch", "snack", "dinner"]);
   const [windows, setWindows] = useState<Record<DailySlotName, [string, string]>>(initial?.windows ?? DEFAULT_WINDOWS);
   const [remind, setRemind] = useState(() => remindersOn());
+  // iPhone Safari in a normal tab has neither; it gets both once Forkcast is on the Home Screen
+  const canRemind = typeof window !== "undefined" && "Notification" in window && "PushManager" in window;
   const [city, setCity] = useState(initial?.city ?? "");
   const [quiz, setQuiz] = useState<string[]>([]);
   const [picks, setPicks] = useState<string[]>([]);
@@ -129,7 +137,8 @@ export function DailyOnboarding({
         .split(",")
         .map((s) => s.trim().toLowerCase())
         .filter(Boolean)
-        .map((name) => ({ name, severe: false }));
+        // this field can't mark "severe", so keep a saved one
+        .map((name) => ({ name, severe: (initial?.allergies ?? []).some((a) => a.name === name && a.severe) }));
       const r = await api.saveDailyProfile(userId, {
         diet_type: diet,
         weekday_overrides: overrides,
@@ -141,7 +150,7 @@ export function DailyOnboarding({
         city: city || null,
         quiz_picks: picks.filter((p) => !saved.includes(p.toLowerCase())),   // only new picks are learned again
       });
-      if (r.history_items) toast.success(`Learned from ${r.history_items} Instamart items you buy`);
+      if (r.history_items) toast.success(`Learned from ${r.history_items} of your past Swiggy and Instamart orders`);
       onDone(r.profile);
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Couldn't save");
@@ -161,13 +170,13 @@ export function DailyOnboarding({
           </ol>
         )}
         <h1 className="font-heading text-2xl font-extrabold tracking-[-0.02em]">{initial ? "Your preferences" : "What do you like to eat?"}</h1>
-        <p className="text-sm text-muted-foreground">{initial ? "Changes apply from your next plan." : "About a minute. Your first plan is built as soon as you save."}</p>
+        <p className="text-sm text-muted-foreground">{initial ? "Saving rebuilds today's meals you haven't ordered yet." : "About a minute. Your first plan is built as soon as you save."}</p>
       </header>
 
       <Section n={1} title="Diet">
         {DIETS.map((d) => (
           <Chip key={d} on={diet === d} onClick={() => setDiet(d)}>
-            {d === "nonveg" ? "non-veg" : d}
+            {dietLabel(d)}
           </Chip>
         ))}
       </Section>
@@ -176,7 +185,7 @@ export function DailyOnboarding({
         {DAYS.map((label, i) => (
           <Chip key={label} on={Boolean(overrides[String(i)])} onClick={() => cycleOverride(i)}>
             {label}
-            {overrides[String(i)] ? ` · ${overrides[String(i)]}` : ""}
+            {overrides[String(i)] ? ` · ${dietLabel(overrides[String(i)])}` : ""}
           </Chip>
         ))}
       </Section>
@@ -216,7 +225,7 @@ export function DailyOnboarding({
         ))}
       </Section>
 
-      <Section n={5} title="Monthly food budget (Rs)">
+      <Section n={5} title="Monthly food budget (₹)">
         <Input
           aria-label="Monthly budget in rupees"
           inputMode="numeric"
@@ -258,10 +267,11 @@ export function DailyOnboarding({
               </div>
             );
           })}
-          <label className="mt-1 flex cursor-pointer items-start gap-2.5 rounded-xl bg-muted/60 p-3 text-sm">
+          <label className={cn("mt-1 flex items-start gap-2.5 rounded-xl bg-muted/60 p-3 text-sm", canRemind && "cursor-pointer")}>
             <input
               type="checkbox"
               checked={remind}
+              disabled={!canRemind}
               onChange={async (e) => {
                 const want = e.target.checked;
                 if (want && "Notification" in window && Notification.permission !== "granted") {
@@ -273,31 +283,24 @@ export function DailyOnboarding({
                 setReminders(want);
                 setRemind(want);
                 // push failing (unsupported browser, no HTTPS) leaves the in-page reminder working
-                (want ? enablePush(userId) : disablePush(userId)).catch(() => {});
+                if (want) enablePush(userId).catch(() => {});
+                else disablePush(userId).catch(() => toast.error("Couldn't turn off reminders. Check your connection and try again."));
               }}
               className="mt-0.5 size-4 accent-brand-500"
             />
             <span>
               <span className="block font-bold">Remind me at meal times</span>
               <span className="text-muted-foreground">
-                When a meal&apos;s time starts, Forkcast sends a notification with its top pick and where it will deliver, so you can order in one tap.
+                {canRemind
+                  ? "When a meal's time starts, Forkcast sends a notification with its top pick and where it will deliver, so you can order in a couple of taps."
+                  : "This browser can't show reminders. On iPhone, add Forkcast to your Home Screen first."}
               </span>
             </span>
           </label>
         </div>
       </Section>
 
-      <Section n={7} title="City (for weather and season)">
-        <Input
-          aria-label="City"
-          placeholder="e.g. Bengaluru"
-          value={city}
-          onChange={(e) => setCity(e.target.value)}
-          className="w-full sm:w-64"
-        />
-      </Section>
-
-      <Section n={8} title={`Pick up to 5 dishes you love (${picks.length}/5)`}>
+      <Section n={7} title={`Pick up to 5 dishes you love (${picks.length}/5)`}>
         {quiz.map((d) => (
           <Chip
             key={d}

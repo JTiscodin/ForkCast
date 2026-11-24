@@ -4,3 +4,4 @@ uvicorn>=0.30
 # LLM (optional): set GEMINI_API_KEY env var to enable free-form intake parsing
 huggingface_hub>=0.24
 pywebpush
+tzdata   # Windows has no system time-zone database; reminders need Asia/Kolkata
