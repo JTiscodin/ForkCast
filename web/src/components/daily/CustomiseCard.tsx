@@ -70,7 +70,7 @@ export function CustomiseCard({ userId, card, onSaved }: { userId: number; card:
   if (!open) {
     return (
       <button type="button" onClick={start} className={cn(focusRing, "inline-flex w-fit items-center gap-1.5 rounded-full text-xs font-bold text-brand-600 hover:underline dark:text-brand-400")}>
-        <SlidersHorizontal className="size-3.5" aria-hidden /> Change sides and add-on
+        <SlidersHorizontal className="size-3.5" aria-hidden /> Change sides and add-ons
       </button>
     );
   }
@@ -125,14 +125,16 @@ export function CustomiseCard({ userId, card, onSaved }: { userId: number; card:
             </fieldset>
           </div>
           <div className="flex items-center gap-2 border-t border-border pt-2">
-            <span className="flex-1 font-bold tabular-nums">New total {formatINR(total)}</span>
+            <span className="flex-1 font-bold tabular-nums">
+              New total {formatINR(total)}
+              {total >= 1000 && <span className="block text-xs font-semibold text-danger">Swiggy orders must stay under ₹1000</span>}
+            </span>
             <button type="button" onClick={() => setOpen(false)} className={cn(focusRing, "rounded-lg px-3 py-1.5 font-bold text-muted-foreground")}>
               Cancel
             </button>
             <button
               type="button"
               disabled={saving || total >= 1000}
-              title={total >= 1000 ? "Swiggy orders must stay under ₹1000" : undefined}
               onClick={save}
               className={cn(focusRing, "inline-flex items-center gap-1.5 rounded-lg bg-brand-500 px-3 py-1.5 font-extrabold text-white disabled:opacity-50")}
             >

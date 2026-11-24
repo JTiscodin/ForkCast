@@ -33,10 +33,8 @@ export function Onboarding({
   /** Fired when a live call 401s on the dead saved JWT — parent auto-relogins. */
   onTokenExpired?: () => void;
 }) {
-  // When Swiggy is desired but not connected, show the connect step first —
-  // unless the user chose to skip into demo mode.
-  const [skippedAuth, setSkippedAuth] = useState(false);
-  const showConnect = needsAuth && !live && !skippedAuth;
+  // When Swiggy is desired but not connected, show the connect step first.
+  const showConnect = needsAuth && !live;
 
   const [name, setName] = useState("");
   const [addresses, setAddresses] = useState<SwiggyAddress[]>([]);
@@ -100,11 +98,10 @@ export function Onboarding({
         })
         .catch((e) => {
           if (!active) return;
-          // A dead JWT is recoverable: the parent kicks the OAuth re-login flow
-          // (browser opens for a fresh token). Don't dead-end onboarding with a
-          // generic error while that's in flight.
+          // A dead JWT is recoverable: the parent sends the user back to the
+          // Connect Swiggy step. Don't dead-end onboarding with a generic error.
           if (e instanceof ApiError && e.status === 401) {
-            setAddrError("Swiggy login expired — reopening the login page…");
+            setAddrError("Your Swiggy login expired. Connect again to see live menus.");
             onTokenExpired?.();
             return;
           }
@@ -127,7 +124,9 @@ export function Onboarding({
   // Live mode needs a delivery address, but a failed or empty address fetch
   // must not trap the user: they can continue without one (the backend falls
   // back to the account's first saved address) or retry the fetch.
-  const canStart = name.trim().length > 0 && (!live || selected !== null || addrError !== null);
+  const canStart = name.trim().length > 0 && !(live && loadingAddr);
+  // No list to pick from (demo mode, or a Swiggy account with no saved addresses): only ask the name.
+  const pickAddress = live && (loadingAddr || addresses.length > 0);
 
   const start = async () => {
     if (!canStart || starting) return;   // Enter twice must not create two accounts
@@ -181,20 +180,23 @@ export function Onboarding({
         </div>
 
         <h1 className="ob-step font-heading text-3xl font-extrabold tracking-[-0.02em] text-foreground">
-          {showConnect ? "Your meals for today, already picked" : "Where should we deliver?"}
+          {showConnect
+            ? "Your meals for today, already picked"
+            : pickAddress
+              ? "Where should we deliver?"
+              : "What should we call you?"}
         </h1>
         <p className="ob-step mt-2 text-sm leading-[1.4] text-muted-foreground">
           {showConnect
             ? "Forkcast picks breakfast, lunch, a snack and dinner from Swiggy restaurants near you, inside your budget, diet and allergies. Connect Swiggy to see real dishes and prices."
-            : "Tell us your name and pick a saved Swiggy address. Next you'll set your diet, allergies and budget."}
+            : pickAddress
+              ? "Tell us your name and pick a saved Swiggy address. Next you'll set your diet, allergies and budget."
+              : "Tell us your name. Next you'll set your diet, allergies and budget."}
         </p>
 
         {showConnect ? (
           <div className="ob-step mt-7">
-            <ConnectSwiggy
-              onConnected={() => onConnected?.()}
-              onSkip={() => setSkippedAuth(true)}
-            />
+            <ConnectSwiggy onConnected={() => onConnected?.()} />
           </div>
         ) : (
         <div className="ob-step mt-7 flex flex-col gap-4">

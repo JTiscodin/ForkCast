@@ -1,5 +1,3 @@
-import { cn } from "@/lib/utils";
-
 /**
  * Design system helpers for the Forkcast.
  *
@@ -94,53 +92,6 @@ export const mealTypes: Record<MealType, MealTypeStyle> = {
 };
 
 /* -------------------------------------------------------------------------
- * Plan status map (planned / confirmed / skipped / rescheduled)
- * ------------------------------------------------------------------------- */
-export type PlanStatus = "planned" | "confirmed" | "skipped" | "rescheduled";
-
-export interface StatusStyle {
-  /** Text color utility. */
-  text: string;
-  /** Dot / solid indicator utility. */
-  dot: string;
-  /** Full badge className (bg + text + ring). */
-  badge: string;
-  /** Human label. */
-  label: string;
-}
-
-export const planStatus: Record<PlanStatus, StatusStyle> = {
-  planned: {
-    text: "text-muted-foreground",
-    dot: "bg-muted-foreground",
-    badge:
-      "bg-muted text-muted-foreground ring-1 ring-inset ring-border rounded-full",
-    label: "Planned",
-  },
-  confirmed: {
-    text: "text-success",
-    dot: "bg-success",
-    badge:
-      "bg-success/12 text-success ring-1 ring-inset ring-success/25 rounded-full",
-    label: "Confirmed",
-  },
-  skipped: {
-    text: "text-danger",
-    dot: "bg-danger",
-    badge:
-      "bg-danger/12 text-danger ring-1 ring-inset ring-danger/25 rounded-full",
-    label: "Skipped",
-  },
-  rescheduled: {
-    text: "text-warning",
-    dot: "bg-warning",
-    badge:
-      "bg-warning/12 text-warning ring-1 ring-inset ring-warning/25 rounded-full",
-    label: "Rescheduled",
-  },
-};
-
-/* -------------------------------------------------------------------------
  * Small typed helpers
  * ------------------------------------------------------------------------- */
 
@@ -149,35 +100,8 @@ export function mealStyle(type: MealType): MealTypeStyle {
   return mealTypes[type];
 }
 
-/** Get plan-status styling. */
-export function statusStyle(status: PlanStatus): StatusStyle {
-  return planStatus[status];
-}
-
 /** A veg/non-veg dot color, Swiggy convention (green = veg, red = non-veg). */
 export const dietDot = {
   veg: "text-success border-success",
   nonveg: "text-danger border-danger",
 } as const;
-
-/* -------------------------------------------------------------------------
- * Diet indicator (veg / non-veg) as a colored LEFT BORDER on dish cards.
- * Backed by the muted --diet-veg / --diet-nonveg tokens in globals.css
- * (a desaturated forest-green / brick-red, tuned for both themes — NOT neon).
- * This is the canonical veg/non-veg signal, replacing the old dot/tag.
- * ------------------------------------------------------------------------- */
-export const dietBorderColor = {
-  veg: "border-diet-veg",
-  nonveg: "border-diet-nonveg",
-} as const;
-
-/**
- * Left-border className carrying the veg/non-veg signal on a dish card.
- * Returns a `border-l-4` plus the themed diet color; merge in extra classes.
- *
- *   <div className={dietBorder(veg)}>…</div>
- *   <div className={dietBorder(veg, "rounded-md")}>…</div>
- */
-export function dietBorder(veg: boolean, ...extra: string[]): string {
-  return cn("border-l-4", veg ? dietBorderColor.veg : dietBorderColor.nonveg, ...extra);
-}

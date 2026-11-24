@@ -75,7 +75,7 @@ class SwiggyMCPClient:
         self._id = 0
         self.timeout = timeout
 
-    def _rpc(self, method, params):
+    def _rpc(self, method, params, retry=True):
         self._id += 1
         payload = {"jsonrpc": "2.0", "id": self._id, "method": method, "params": params}
         req = urllib.request.Request(
@@ -118,6 +118,8 @@ class SwiggyMCPClient:
                 raise SwiggyMCPError(f"HTTP {e.code}: {body}", expired=expired) from e
             except (TimeoutError, OSError) as e:
                 last_err = e
+                if not retry:   # it may have gone through: a resend could order twice
+                    raise SwiggyMCPError(f"no answer from Swiggy ({e}); check the Swiggy app before trying again") from e
                 continue
         raise SwiggyMCPError(f"request failed after retry: {last_err}")
 
@@ -128,7 +130,8 @@ class SwiggyMCPClient:
         raise those so a failed cart update can't pass as a built cart.
         """
         result = _unwrap_tool_result(
-            self._rpc("tools/call", {"name": tool, "arguments": arguments}))
+            self._rpc("tools/call", {"name": tool, "arguments": arguments},
+                      retry=tool not in ("place_food_order", "checkout")))
         # two in-band shapes seen live: {success:false,error:{message}} and
         # {successful:false,statusMessage,errorCodes:[...]}
         if isinstance(result, dict) and (result.get("success") is False

@@ -1,27 +1,13 @@
 import { clearSession, loadSession, saveSession } from "./session";
 // Typed API client for the Forkcast backend (FastAPI on :8000).
 import type {
-  ParsedIntake,
-  PlanSummary,
-  PlanFull,
-  WalletSummary,
-  DishAlternative,
-  MealSlot,
-  NotifyPayload,
   SwiggyAddress,
-  ChatResponse,
-  Constraint,
-  AppetiteLevel,
-  Blueprint,
-  AdjustResponse,
-  MealType,
-  FeasibilityReport,
   DailyProfile,
   TodayView,
   OrderOutcome,
   MemoryBullet,
   DietPlanProposal,
-  ChatResult,
+  ChatAnswer,
   CardItem,
   MenuCard,
 } from "./types";
@@ -115,122 +101,6 @@ export const api = {
       body: { address_id },
     }),
 
-  intake: (user_id: number, text: string) =>
-    req<ParsedIntake>("/intake", { method: "POST", body: { user_id, text } }),
-
-  // Conversational blueprint builder. Echo the prior turn's `blueprint` back so
-  // the backend keeps context compact (no full-transcript resend). `history` is
-  // the last few messages, used only to nudge the LLM.
-  chat: (
-    user_id: number,
-    message: string,
-    blueprint?: Blueprint,
-    history?: { role: string; text: string }[]
-  ) =>
-    req<ChatResponse>("/chat", {
-      method: "POST",
-      body: { user_id, message, blueprint: blueprint ?? {}, history: history ?? [] },
-    }),
-
-  // Apply a natural-language tweak to an existing blueprint ("make it cheaper").
-  chatAdjust: (user_id: number, message: string, blueprint: Blueprint) =>
-    req<AdjustResponse>("/chat/adjust", {
-      method: "POST",
-      body: { user_id, message, blueprint },
-    }),
-
-  setAppetite: (
-    user_id: number,
-    appetite_level: AppetiteLevel,
-    roti_per_meal?: number,
-    rice_katori_per_meal?: number
-  ) =>
-    req("/appetite", {
-      method: "POST",
-      body: { user_id, appetite_level, roti_per_meal, rice_katori_per_meal },
-    }),
-
-  makePlan: (input: {
-    user_id: number;
-    month: string;
-    budget: number;
-    constraints?: Constraint[];
-    veg_only?: boolean;
-    days?: number;
-    /** Which slots to plan. Omit for all three. */
-    meals?: MealType[];
-    /** Fetch protein-rich dishes — changes the search, not just a filter. */
-    high_protein?: boolean;
-    /** Taste/diet/dietary profile → backend TasteProfile hard filters + re-rank. */
-    taste_prefs?: Record<string, unknown>;
-  }) => req<PlanSummary>("/plan", { method: "POST", body: input }),
-
-  /**
-   * Why a budget doesn't fit and what specifically would fix it. Probes the
-   * deterministic optimizer across budget / meals / appetite, so the UI can
-   * give real numbers instead of generic "raise your budget" advice.
-   */
-  planFeasibility: (input: {
-    user_id: number;
-    month: string;
-    budget: number;
-    constraints?: Constraint[];
-    veg_only?: boolean;
-    days?: number;
-    meals?: MealType[];
-    high_protein?: boolean;
-  }) =>
-    req<FeasibilityReport>("/plan/feasibility", {
-      method: "POST",
-      body: input,
-    }),
-
-  getPlan: (plan_id: number) => req<PlanFull>(`/plan/${plan_id}`),
-
-  approvePlan: (plan_id: number) =>
-    req<{ status: string; wallet: WalletSummary }>(
-      `/plan/${plan_id}/approve`,
-      { method: "POST" }
-    ),
-
-  notifySlot: (slot_id: number) =>
-    req<NotifyPayload>(`/slot/${slot_id}/notify`, { method: "POST" }),
-
-  respondSlot: (
-    slot_id: number,
-    answer: "yes" | "no" | "later" | "other",
-    extra?: { new_day?: number; new_meal_type?: string }
-  ) =>
-    req<Record<string, unknown>>(`/slot/${slot_id}/respond`, {
-      method: "POST",
-      body: { answer, ...extra },
-    }),
-
-  alternatives: (slot_id: number, opts?: { veg_only?: boolean }) =>
-    req<{ alternatives: DishAlternative[] }>(
-      `/slot/${slot_id}/alternatives?band=100${opts?.veg_only ? "&veg_only=true" : ""}`
-    ),
-
-  /** Persist a chosen alternative into the slot (survives refresh). */
-  swapSlot: (slot_id: number, alt: DishAlternative) =>
-    req<{ slot: MealSlot }>(`/slot/${slot_id}/swap`, {
-      method: "POST",
-      body: alt,
-    }),
-
-  why: (slot_id: number) =>
-    req<{ slot_id: number; why: string; cached: boolean }>(
-      `/slot/${slot_id}/why`
-    ),
-
-  wallet: (user_id: number, month: string) =>
-    req<WalletSummary>(`/wallet/${user_id}/${month}`),
-
-  closeMonth: (user_id: number, month: string) =>
-    req<{ rolled_over: number }>(`/wallet/${user_id}/${month}/close`, {
-      method: "POST",
-    }),
-
   // ---- daily personalization ----
   dailyProfile: (user_id: number) =>
     req<{ profile: DailyProfile | null; quiz_picks: string[]; city_guess: string | null }>(`/daily/${user_id}/profile`),
@@ -288,7 +158,7 @@ export const api = {
       body,
     }),
   agent: (user_id: number, message: string) =>
-    req<{ reply: string; results?: ChatResult[] }>(`/daily/${user_id}/agent`, { method: "POST", body: { message } }),
+    req<ChatAnswer>(`/daily/${user_id}/agent`, { method: "POST", body: { message } }),
 };
 
 export { ApiError };

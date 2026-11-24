@@ -26,7 +26,7 @@ import json
 import base64
 import hashlib
 import secrets
-import threading
+import time
 import webbrowser
 import urllib.parse
 import urllib.request
@@ -104,12 +104,17 @@ class _Catcher(BaseHTTPRequestHandler):
 
 
 def _wait_for_code(timeout=180):
+    # keep serving until Swiggy's redirect arrives: a browser's favicon or prefetch request
+    # used to be the one request handled, ending the login with no code
+    _Catcher.code = _Catcher.state = _Catcher.error = None   # a previous login's code must not leak in
     server = HTTPServer((REDIRECT_HOST, REDIRECT_PORT), _Catcher)
-    server.timeout = timeout
-    t = threading.Thread(target=server.handle_request, daemon=True)
-    t.start()
-    t.join(timeout)
-    server.server_close()
+    server.timeout = 1
+    end = time.monotonic() + timeout
+    try:
+        while time.monotonic() < end and not (_Catcher.code or _Catcher.error):
+            server.handle_request()
+    finally:
+        server.server_close()
     return _Catcher.code, _Catcher.state, _Catcher.error
 
 

@@ -10,6 +10,7 @@ excluded bucket, never-show, guardrail price, repetition) -> weighted score ->
 role picks (usual / gap / new / budget, restaurant once per day) -> Instamart
 gap add-on -> persist daily_menu + menu_card + excluded_card.
 """
+import calendar
 import json
 import math
 import re
@@ -337,36 +338,52 @@ def weather_score(name, day, wx):
 
 # ---------------------------------------------------------------- budget
 
-def budget(conn, user_id, profile, day):
-    """Daily soft cap = (monthly budget + last month's rollover - spent) / days left.
+def budget_cycle(day, anchor):
+    """[start, end) of the budget month holding `day`. It renews on the day of the month the
+    user signed up (joined on the 25th: 25 Nov - 24 Dec), not on the 1st, so a mid-month
+    signup gets a whole month for its budget. Clamped: joined on the 31st -> renews 28 Feb."""
+    def on(y, m):
+        return _date(y, m, min(anchor, calendar.monthrange(y, m)[1]))
 
-    Rollover: whatever last month's budget didn't spend carries into this month,
-    if the user was on Forkcast that month. A virtual ledger: no money is held.
+    def shift(y, m, k):
+        y, m = divmod(y * 12 + m - 1 + k, 12)
+        return y, m + 1
+    start = on(day.year, day.month)
+    if start > day:
+        start = on(*shift(day.year, day.month, -1))
+    return start, on(*shift(start.year, start.month, 1))
+
+
+def budget(conn, user_id, profile, day):
+    """Daily soft cap = (monthly budget + last cycle's rollover - spent) / days left in the cycle.
+
+    Rollover: whatever the last budget month didn't spend carries into this one, if the user
+    was on Forkcast then. A virtual ledger: no money is held.
     """
-    def spent_in(month):
+    def spent_in(a, b):
         return conn.execute(
             "SELECT COALESCE(SUM(o.amount),0) FROM order_record o JOIN menu_card c ON c.id=o.card_id "
-            "JOIN daily_menu m ON m.id=c.menu_id WHERE m.user_id=? AND substr(m.date,1,7)=? "
-            "AND o.status='placed'", (user_id, month)).fetchone()[0]
+            "JOIN daily_menu m ON m.id=c.menu_id WHERE m.user_id=? AND m.date>=? AND m.date<? "
+            "AND o.status='placed'", (user_id, a.isoformat(), b.isoformat())).fetchone()[0]
 
     monthly = profile["monthly_budget"]
-    spent = spent_in(day.strftime("%Y-%m"))
-    prev = (day.replace(day=1) - timedelta(days=1)).strftime("%Y-%m")
-    was_here = conn.execute("SELECT 1 FROM daily_menu WHERE user_id=? AND substr(date,1,7)=? LIMIT 1",
-                            (user_id, prev)).fetchone()
-    rollover = max(0.0, monthly - spent_in(prev)) if was_here else 0.0
-    nxt = (day.replace(day=28) + timedelta(days=4)).replace(day=1)
-    days_left = (nxt - day).days
-    days_in_month = (nxt - day.replace(day=1)).days
+    row = conn.execute("SELECT date(created_at) FROM users WHERE id=?", (user_id,)).fetchone()
+    joined = _date.fromisoformat(row[0]) if row and row[0] else day
+    start, end = budget_cycle(day, joined.day)
+    prev, _ = budget_cycle(start - timedelta(days=1), joined.day)
+    spent = spent_in(start, end)
+    was_here = conn.execute("SELECT 1 FROM daily_menu WHERE user_id=? AND date>=? AND date<? LIMIT 1",
+                            (user_id, prev.isoformat(), start.isoformat())).fetchone()
+    rollover = max(0.0, monthly - spent_in(prev, start)) if was_here else 0.0
+    days_left = (end - day).days
     remaining = monthly + rollover - spent
     # "unspent so far" only counts days this person has actually been on Forkcast
-    joined = conn.execute("SELECT date(created_at) FROM users WHERE id=?", (user_id,)).fetchone()
-    start = max(day.replace(day=1), _date.fromisoformat(joined[0]) if joined and joined[0] else day.replace(day=1))
-    days_here = max(0, (day - start).days)
+    days_here = max(0, (day - max(start, joined)).days)
     return {"monthly": monthly, "spent": round(spent, 2), "rollover": round(rollover, 2),
             "remaining": round(remaining, 2), "days_left": days_left,
+            "cycle_start": start.isoformat(), "cycle_end": (end - timedelta(days=1)).isoformat(),
             # unspent so far = budget for the days already gone, minus what was spent
-            "saved_so_far": round(max(0.0, monthly / days_in_month * days_here - spent), 2),
+            "saved_so_far": round(max(0.0, monthly / (end - start).days * days_here - spent), 2),
             "daily_cap": round(max(0.0, remaining) / days_left, 2)}
 
 # ---------------------------------------------------------------- nutrition state
@@ -483,8 +500,11 @@ GRAVY_WORDS = ("rajma", "chole", "chhole", "chana", "dal", "masala", "curry", "g
                "kadai", "kadhai", "paneer", "sabzi", "biryani", "kofta", "korma", "manchurian", "sambar")
 
 
-_ALLERGY_ALIASES = {"tree nut": "tree_nut", "nuts": "tree_nut", "cashew": "tree_nut", "almond": "tree_nut",
-                    "milk": "dairy", "lactose": "dairy", "wheat": "gluten", "prawn": "shellfish", "eggs": "egg"}
+_ALLERGY_ALIASES = {"tree nut": "tree_nut", "tree nuts": "tree_nut", "nuts": "tree_nut", "nut": "tree_nut",
+                    "cashew": "tree_nut", "cashews": "tree_nut", "almond": "tree_nut", "almonds": "tree_nut",
+                    "peanuts": "peanut", "groundnut": "peanut", "milk": "dairy", "lactose": "dairy",
+                    "wheat": "gluten", "prawn": "shellfish", "prawns": "shellfish", "shrimp": "shellfish",
+                    "eggs": "egg"}
 
 
 # Name words that mean an allergen is in the food. Used for anything without a dish
@@ -730,9 +750,9 @@ def filter_and_score(conn, user_id, profile, day, slot, drafts, ctx):
         if any(i["source"] == "instamart" and not _im_ready(i["name"]) for i in items):
             continue
         hit, note = _allergy_check(items, profile["allergies"])
-        if hit is None:   # items without a profile (Instamart, unseen dishes): judge by name
+        if hit is None:   # by name on every item: a profile only knows 9 allergens, not a typed "paneer"
             bare = [i for i in items if i.get("allergens") is None]
-            hit = next((a for a in (_name_allergen(i["name"], profile["allergies"]) for i in bare) if a), None) \
+            hit = next((a for a in (_name_allergen(i["name"], profile["allergies"]) for i in items) if a), None) \
                 or next((a for a in (tp.allergy_blocked(_as_dish(i), with_allergy) for i in bare) if a), None)
         if note:
             items = [{**items[0], "note": note}] + items[1:]
@@ -976,11 +996,17 @@ def _used_today(conn, user_id, day, exclude_slots=None):
     return rids, names
 
 
-def _ordered(conn, user_id, day, slot):
+def _ordered(conn, user_id, day, slot, statuses=("placed", "dry_run")):
     return conn.execute(
         "SELECT 1 FROM order_record o JOIN menu_card c ON c.id=o.card_id JOIN daily_menu m ON "
-        "m.id=c.menu_id WHERE m.user_id=? AND m.date=? AND m.slot=? AND o.status IN "
-        "('placed','dry_run')", (user_id, day.isoformat(), slot)).fetchone() is not None
+        f"m.id=c.menu_id WHERE m.user_id=? AND m.date=? AND m.slot=? AND o.status IN ({','.join('?' * len(statuses))})",
+        (user_id, day.isoformat(), slot, *statuses)).fetchone() is not None
+
+
+def _carted(conn, card_id):
+    """This card is the meal's dry-run Swiggy cart."""
+    return conn.execute("SELECT 1 FROM order_record WHERE card_id=? AND status='dry_run'",
+                        (card_id,)).fetchone() is not None
 
 # ---------------------------------------------------------------- view
 
@@ -1130,8 +1156,11 @@ def _order(conn, user_id, card_id, food_exec, im_client, address_id, confirm=Fal
     rec = (lambda *a, **k: _result(*a, **k)) if preview else (lambda *a, **k: _rec(conn, *a, **k))
     if card["price"] >= MAX_ORDER:
         raise ValueError(f"order total must stay under Rs {MAX_ORDER}")
-    if _ordered(conn, user_id, _date.fromisoformat(card["date"]), card["slot"]):
-        raise ValueError("this slot is already ordered")
+    # only a placed order closes the meal; a dry-run cart is replaced by the next tap (Swiggy keeps one cart)
+    if _ordered(conn, user_id, _date.fromisoformat(card["date"]), card["slot"], ("placed",)):
+        raise ValueError("this meal is already ordered")
+    again = _carted(conn, card_id)   # same card re-carted (double tap, new address): don't learn twice
+    before = conn.execute("SELECT COALESCE(MAX(id), 0) FROM order_record").fetchone()[0]
     results = []
     food = [i for i in card["items"] if i["source"] == "food"]
     groc = [i for i in card["items"] if i["source"] == "instamart"]
@@ -1168,7 +1197,14 @@ def _order(conn, user_id, card_id, food_exec, im_client, address_id, confirm=Fal
     if preview:
         return {"card_id": card_id, "mode": "preview", "orders": results, "logged": None}
     if ok:
+        # the earlier dry-run cart for this meal is superseded, with the meal it logged
+        if conn.execute("DELETE FROM order_record WHERE id<=? AND status='dry_run' AND card_id IN "
+                        "(SELECT id FROM menu_card WHERE menu_id=?)", (before, card["menu_id"])).rowcount:
+            conn.execute("DELETE FROM consumption_log WHERE user_id=? AND date=? AND slot=? AND source='app_order'",
+                         (user_id, card["date"], card["slot"]))
         log = log_food_items(conn, user_id, card)
+        if again:
+            return {"card_id": card_id, "mode": "dry_run" if dry else "live", "orders": results, "logged": log}
         record_card(conn, user_id, card, "ordered", card["position"])
         for other in conn.execute("SELECT * FROM menu_card WHERE menu_id=? AND id!=?",
                                   (card["menu_id"], card_id)).fetchall():
@@ -1445,8 +1481,10 @@ def edit_card(conn, user_id, card_id, sides, addons, dishes_fn, im_fn, menu_fn=N
     card = get_card(conn, card_id)
     if not card or card["user_id"] != user_id:
         raise ValueError("card not found")
-    if _ordered(conn, user_id, _date.fromisoformat(card["date"]), card["slot"]):
+    if _ordered(conn, user_id, _date.fromisoformat(card["date"]), card["slot"], ("placed",)):
         raise ValueError("this meal is already ordered")
+    if _carted(conn, card_id):
+        raise ValueError("this card is in your Swiggy cart; pick another card to change the meal")
     opts = card_options(conn, user_id, card_id, dishes_fn, im_fn, menu_fn)
     by_id = {o["id"]: o for o in opts["sides"]}
     keep = [i for i in card["items"] if not i.get("side") and not i.get("addon")]

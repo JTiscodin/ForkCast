@@ -238,8 +238,9 @@ def _executor():
 
 def svc():
     conn = get_conn()
+    # the old budget-plan flow has no dry-run, approval or local-only gate: it must never place real orders
     return conn, WalletService(conn), PlanService(conn, WalletService(conn),
-                                                  _executor(), _raw_variant_of)
+                                                  OrderExecutor(mode="mock"), _raw_variant_of)
 
 
 def _raw_variant_of(dish_id):
@@ -1127,11 +1128,12 @@ def _daily_deps():
             rows = _ims(im, STATE["address_id"], q, limit=10)
             _IM_CACHE[k] = (_time.time(), rows)
             return rows
-    def search_fn(query, veg_only):
+    def search_fn(query, veg_only, pages=1):
         f = STATE["fetcher"]
         if not _live() or f is None:
             return []
-        return [d for d in (f._map_item(it, "lunch") for it in f._search(STATE["address_id"], query, veg_only, 1)) if d]
+        return [d for d in (f._map_item(it, "lunch") for it in f._search(STATE["address_id"], query, veg_only, pages))
+                if d]
 
     def menu_fn(restaurant_id):
         """One restaurant's full menu (get_restaurant_menu), flattened; cached like the catalogue."""
@@ -1157,7 +1159,10 @@ def _daily_deps():
         return rows
 
     return {"dishes_fn": lambda veg_only: get_catalog(veg_only), "im_fn": im_fn, "search_fn": search_fn, "menu_fn": menu_fn,
-            "stock_fn": _stock if im is not None else None,
+            "stock_fn": _stock if im is not None else None, "area_fn": _area, "live": _live(),
+            # chat must not wait minutes for a cold catalogue: use what's cached, search live for the rest
+            "chat_dishes_fn": (lambda veg_only: _CATALOG_CACHE.get(f"{'veg' if veg_only else 'all'}@{STATE['address_id']}")
+                               or []) if _live() else (lambda veg_only: get_catalog(veg_only)),
             "food_exec": _executor(), "im_client": im, "address_id": STATE["address_id"]}
 
 
@@ -1188,16 +1193,28 @@ _CITIES = ("Bengaluru", "Bangalore", "Mumbai", "Delhi", "New Delhi", "Gurugram",
            "Ghaziabad", "Faridabad", "Navi Mumbai", "Thane", "Mysuru", "Vadodara")
 
 
+_AREA = {}   # address id -> its addressLine
+
+
+def _area():
+    """The active Swiggy address line, cached per address: the city for weather, and what
+    "near you" means in chat. It stays on the server (never sent to Gemini)."""
+    if not _live():
+        return ""
+    aid = str(STATE["address_id"] or "")
+    if aid not in _AREA:
+        try:
+            addrs = STATE["client"].call("get_addresses", {}).get("addresses") or []
+        except Exception:  # noqa: BLE001 — a soft signal only; retried on the next call
+            return ""
+        a = next((x for x in addrs if str(x.get("id")) == aid), addrs[0] if addrs else {})
+        _AREA[aid] = a.get("addressLine") or ""
+    return _AREA[aid]
+
+
 def _city_from_address():
     """Swiggy addresses carry no city field; find a known city in the active addressLine."""
-    if not _live():
-        return None
-    try:
-        addrs = STATE["client"].call("get_addresses", {}).get("addresses") or []
-    except Exception:  # noqa: BLE001 — city only drives the soft weather signal
-        return None
-    a = next((x for x in addrs if str(x.get("id")) == str(STATE["address_id"])), addrs[0] if addrs else {})
-    return _city_in(a.get("addressLine") or "")
+    return _city_in(_area())   # "" when Swiggy isn't connected -> None
 
 
 def _city_in(address_line):
@@ -1358,8 +1375,13 @@ def daily_card_edit(user_id: int, card_id: int, body: CardEditIn):
 def daily_order(user_id: int, card_id: int, request: Request, preview: bool = False, address_id: str | None = None):
     # a per-order address only from the owner's machine: the Swiggy account (and its addresses) is server-wide
     pick = address_id if address_id and auth.is_local(request) else None
-    return _daily(lambda c, d: daily.order(c, user_id, card_id, d["food_exec"], d["im_client"],
-                                           pick or d["address_id"], confirm=True, preview=preview))
+
+    def go(c, d):
+        if not preview and not _live() and (daily.get_profile(c, user_id) or {}).get("mode") == "live":
+            raise ValueError("Swiggy isn't connected, so no real order can be placed. Connect Swiggy and try again.")
+        return daily.order(c, user_id, card_id, d["food_exec"], d["im_client"],
+                           pick or d["address_id"], confirm=True, preview=preview)
+    return _daily(go)
 
 
 @app.post("/daily/{user_id}/feedback")

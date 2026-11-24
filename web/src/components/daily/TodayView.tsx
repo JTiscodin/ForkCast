@@ -10,6 +10,7 @@ import {
   CheckCircle2,
   ChevronRight,
   Clock,
+  ExternalLink,
   CloudRain,
   CloudSun,
   Leaf,
@@ -39,7 +40,7 @@ import { clearSession } from "@/lib/session";
 import type {
   SwiggyAddress,
   CardItem,
-  ChatResult,
+  ChatAnswer,
   DailySlot,
   DietPlanProposal,
   MemoryBullet,
@@ -105,8 +106,25 @@ const MACROS: { key: string; label: string; unit: string }[] = [
 ];
 const MICROS = ["iron", "b12", "vitd", "calcium", "sodium", "sugar"];
 const MICRO_LABEL: Record<string, string> = { b12: "B12", vitd: "Vitamin D" };
+const MICRO_UNIT: Record<string, string> = {
+  iron: "mg",
+  b12: "µg",
+  vitd: "µg",
+  calcium: "mg",
+  sodium: "mg",
+  sugar: "g",
+};
 const LIMITS = new Set(["sodium", "sugar"]);
 const DAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+
+/** "2026-12-24" -> "24 Dec" (local date, no time-zone shift) */
+function dayMonth(iso: string) {
+  const [y, m, d] = iso.split("-").map(Number);
+  return new Date(y, m - 1, d).toLocaleDateString("en-IN", {
+    day: "numeric",
+    month: "short",
+  });
+}
 
 function greeting(h: number) {
   return h < 12 ? "Good morning" : h < 17 ? "Good afternoon" : "Good evening";
@@ -224,13 +242,13 @@ function MicroBar({
       <div className="flex justify-between text-xs">
         <span className="font-semibold capitalize">{MICRO_LABEL[k] ?? k}</span>
         <span className="tabular-nums text-muted-foreground">
-          ~{Math.round(value)} / {Math.round(target)}
+          ~{Math.round(value)} / {Math.round(target)} {MICRO_UNIT[k] ?? ""}
         </span>
       </div>
       <div
         className="h-1.5 overflow-hidden rounded-full bg-muted"
         role="progressbar"
-        aria-label={k}
+        aria-label={MICRO_LABEL[k] ?? k}
         aria-valuenow={pct}
         aria-valuemin={0}
         aria-valuemax={100}
@@ -247,9 +265,14 @@ function MicroBar({
   );
 }
 
+const CHECKOUT = {
+  food: "https://www.swiggy.com/checkout",
+  instamart: "https://www.swiggy.com/instamart",
+};
+
 function MealCard({
   card,
-  locked,
+  slotOrder,
   dryRun,
   addressLabel,
   userId,
@@ -258,7 +281,8 @@ function MealCard({
   onChanged,
 }: {
   card: MenuCard;
-  locked: boolean;
+  /** the meal's cart (dry run) or order, whichever card it was */
+  slotOrder: DailySlot["ordered"];
   dryRun: boolean;
   addressLabel: string;
   userId: number;
@@ -299,12 +323,18 @@ function MealCard({
   );
   const veg = card.items.every((i) => i.veg);
   const role = ROLE_STYLE[card.role];
+  // This card is the meal's cart/order; or another card of the meal was really ordered.
+  const picked = slotOrder?.card_id === card.id;
+  const placed = slotOrder?.status === "placed" || slotOrder?.status === "unknown";
+  // a cart (dry run) can be swapped for another card or ordered for real; a placed order can't
+  const canOrder = !placed && !(picked && dryRun);
   return (
     <article
       data-reveal
       className={cn(
         "group/meal flex h-full flex-col overflow-hidden rounded-2xl border border-border/60 bg-card shadow-soft transition-shadow hover:shadow-layered",
-        locked && "opacity-75"
+        picked && "border-rating ring-2 ring-rating",
+        placed && !picked && "opacity-60"
       )}
     >
       {/* the photo carries the two things people scan for: rating and price */}
@@ -396,7 +426,9 @@ function MealCard({
           </ul>
         )}
 
-        {!grocery && !locked && <CustomiseCard userId={userId} card={card} onSaved={onChanged} />}
+        {!grocery && !picked && !placed && (
+          <CustomiseCard userId={userId} card={card} onSaved={onChanged} />
+        )}
         {why && !why.startsWith("We'll ask") && (
           <p className="flex items-start gap-1.5 text-[13px] leading-snug text-muted-foreground">
             <Sparkles
@@ -457,13 +489,14 @@ function MealCard({
               ] as const
             ).map(([k, label, unit]) => (
               <div key={k} className="flex flex-col py-1.5">
+                {/* label first for screen readers, value shown on top */}
+                <dt className="order-2 text-[11px] text-muted-foreground">
+                  {label}
+                </dt>
                 <dd className="order-1 text-sm font-extrabold tabular-nums">
                   {Math.round(card.nutrients[k] ?? 0)}
                   {unit}
                 </dd>
-                <dt className="order-2 text-[11px] text-muted-foreground">
-                  {label}
-                </dt>
               </div>
             ))}
           </dl>
@@ -490,7 +523,7 @@ function MealCard({
                           toast.error(
                             e instanceof Error
                               ? e.message
-                              : "Couldn't build the cart"
+                              : "Couldn't get the price from Swiggy"
                           );
                         }
                         setBusy(false);
@@ -510,18 +543,22 @@ function MealCard({
                       <Loader2 className="size-4 animate-spin" aria-hidden />
                     )}
                     {busy
-                      ? dryRun || !summary
-                        ? "Building cart"
-                        : "Placing"
+                      ? dryRun
+                        ? "Adding to cart…"
+                        : summary
+                        ? "Placing order…"
+                        : "Getting the final price…"
                       : summary
-                      ? `Place order ${formatINR(
+                      ? `Place order · ${formatINR(
                           summary.orders.reduce(
                             (t, o) =>
                               t + (o.status === "failed" ? 0 : o.amount),
                             0
                           )
                         )}`
-                      : `Confirm ${formatINR(card.price)}`}
+                      : dryRun
+                      ? `Add to cart · ${formatINR(card.price)}`
+                      : "Get the final price"}
                   </button>
                   {!busy && (
                     <button
@@ -612,29 +649,63 @@ function MealCard({
                   role="note"
                 >
                   {dryRun
-                    ? "Dry run: builds your real Swiggy cart, nothing is ordered. "
-                    : "Places a real order, paid by cash on delivery. "}
-                  Replaces your current Swiggy cart. Delivery fees and taxes are
-                  added at checkout.
+                    ? "Puts this in your Swiggy cart, replacing what's in it. Nothing is ordered until you check out on Swiggy, where delivery fee and taxes are added."
+                    : "Places a real order, paid by cash on delivery. It replaces what's in your Swiggy cart."}
                 </p>
               </div>
             ) : (
               <div className="flex flex-col gap-1.5">
-                {locked ? (
-                  <span className="flex items-center justify-center gap-1.5 rounded-xl bg-rating/10 px-3 py-2 text-sm font-bold text-rating">
-                    <CheckCircle2 className="size-4" aria-hidden /> Ordered
-                  </span>
-                ) : (
+                {picked && (
+                  <p className="flex items-center justify-between gap-2 rounded-xl bg-rating/10 px-3 py-2 text-sm font-bold text-rating">
+                    <span className="flex items-center gap-1.5">
+                      <CheckCircle2 className="size-4" aria-hidden />
+                      {slotOrder?.status === "unknown"
+                        ? "Sent: check the Swiggy app"
+                        : placed
+                        ? "Ordered"
+                        : "In your Swiggy cart"}
+                    </span>
+                    {!placed && (
+                      <a
+                        href={grocery ? CHECKOUT.instamart : CHECKOUT.food}
+                        target="_blank"
+                        rel="noreferrer"
+                        className={cn(
+                          focusRing,
+                          "inline-flex items-center gap-0.5 rounded text-xs font-extrabold underline-offset-2 hover:underline"
+                        )}
+                      >
+                        Check out
+                        <ExternalLink className="size-3" aria-hidden />
+                        <span className="sr-only">(opens Swiggy)</span>
+                      </a>
+                    )}
+                  </p>
+                )}
+                {placed && !picked && (
+                  <p className="rounded-xl bg-muted px-3 py-2 text-center text-xs font-semibold text-muted-foreground">
+                    You ordered another pick for this meal
+                  </p>
+                )}
+                {canOrder && (
                   <button
                     type="button"
                     onClick={() => setConfirming(true)}
                     className={cn(
                       focusRing,
-                      "flex w-full items-center justify-center gap-2 rounded-xl bg-brand-500 px-4 py-2.5 text-sm font-extrabold text-white transition hover:bg-brand-600 active:scale-[0.98]"
+                      "flex w-full items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-extrabold transition active:scale-[0.98]",
+                      // another card already fills the cart: switching is the quieter choice
+                      slotOrder && dryRun
+                        ? "border border-brand-500 text-brand-600 hover:bg-brand-500/10 dark:text-brand-400"
+                        : "bg-brand-500 text-white hover:bg-brand-600"
                     )}
                   >
                     <ShoppingBag className="size-4" aria-hidden />
-                    {dryRun ? "Build cart" : "Order now"}
+                    {!dryRun
+                      ? "Order now"
+                      : slotOrder
+                      ? "Swap into cart"
+                      : "Add to cart"}
                   </button>
                 )}
                 <div className="flex flex-wrap items-center justify-between gap-x-2 gap-y-1.5">
@@ -671,7 +742,10 @@ function MealCard({
                           "hover:bg-danger/10 hover:text-danger",
                         ],
                       ] as const
-                    ).map(([t, Icon, label, hover]) => (
+                    )
+                      // a meal with a cart or an order isn't rebuilt, so "swap it" would do nothing
+                      .filter(([t]) => !(slotOrder && t === "not_today"))
+                      .map(([t, Icon, label, hover]) => (
                       <button
                         key={t}
                         type="button"
@@ -704,7 +778,7 @@ function RateMeal({
   onRate,
 }: {
   slot: DailySlot;
-  onRate: (cardId: number, stars: number) => void;
+  onRate: (cardId: number, stars: number) => Promise<boolean>;
 }) {
   const cardId = slot.ordered!.card_id;
   const storeKey = `rated:${cardId}`;
@@ -727,8 +801,8 @@ function RateMeal({
             key={n}
             type="button"
             aria-label={`${n} star${n > 1 ? "s" : ""}`}
-            onClick={() => {
-              onRate(cardId, n);
+            onClick={async () => {
+              if (!(await onRate(cardId, n))) return; // failed: keep asking
               setDone(true);
               try {
                 localStorage.setItem(storeKey, "1");
@@ -759,7 +833,9 @@ function Nudge({
   const [text, setText] = useState("");
   return (
     <div className="flex flex-wrap items-center gap-2 rounded-2xl bg-card p-3 text-sm shadow-soft">
-      <span className="font-bold">What did you have for {slot.slot}?</span>
+      <span className="font-bold">
+        What did you have for {slot.slot === "snack" ? "your snack" : slot.slot}?
+      </span>
       <Input
         aria-label="Dish name (optional)"
         placeholder="dish (optional)"
@@ -803,7 +879,7 @@ export function TodayView({
     bullets: MemoryBullet[];
   }>({ facts: [], bullets: [] });
   const [chat, setChat] = useState<
-    { role: "you" | "bot"; text: string; results?: ChatResult[] }[]
+    ({ role: "you" | "bot"; text: string } & Omit<ChatAnswer, "reply">)[]
   >([]);
   const [msg, setMsg] = useState("");
   const [thinking, setThinking] = useState(false);
@@ -814,6 +890,8 @@ export function TodayView({
     outcome: OrderOutcome;
   } | null>(null);
   const [due, setDue] = useState<DailySlot["slot"] | null>(null);
+  const [loadFailed, setLoadFailed] = useState(false);
+  const [busyLabel, setBusyLabel] = useState("Thinking…");
   const rootRef = useRef<HTMLDivElement>(null);
 
   // Meal-time reminder: when a meal's window opens, show a banner and (if allowed) a notification with its top pick.
@@ -828,13 +906,18 @@ export function TodayView({
           setDue(s.slot);
           if (!remindersOn() || pushOn()) return; // push already notifies from the server
           const top = s.cards[0];
-          const n = new Notification(`${mealStyle(s.slot).label} time`, {
-            body: `${top.items[0].name} · ${formatINR(
-              top.price
-            )}. Deliver to ${addressLabel} now?`,
-            tag: `forkcast-${s.slot}`,
-            icon: "/brand/forkcast.png",
-          });
+          let n: Notification;
+          try {
+            n = new Notification(`${mealStyle(s.slot).label} time`, {
+              body: `${top.items[0].name} · ${formatINR(
+                top.price
+              )}. Deliver to ${addressLabel}?`,
+              tag: `forkcast-${s.slot}`,
+              icon: "/brand/forkcast.png",
+            });
+          } catch {
+            return; // Android Chrome only notifies from a service worker; the banner still shows
+          }
           n.onclick = () => {
             window.focus();
             document
@@ -849,14 +932,30 @@ export function TodayView({
   const chatEnd = useRef<HTMLDivElement>(null);
   const chatInput = useRef<HTMLInputElement>(null);
   const [chatOpen, setChatOpen] = useState(false);
+  const openedFrom = useRef<HTMLElement | null>(null);
+  // dialog focus: into the message box on open, back to what opened it on close
+  useEffect(() => {
+    if (chatOpen) {
+      openedFrom.current = document.activeElement as HTMLElement | null;
+      chatInput.current?.focus();
+    } else {
+      openedFrom.current?.focus();
+    }
+  }, [chatOpen]);
   const [armDelete, setArmDelete] = useState(false);
 
+  const loadSeq = useRef(0);
   const load = useCallback(async () => {
+    const seq = ++loadSeq.current;
     try {
       const [t, m] = await Promise.all([api.today(userId), api.memory(userId)]);
+      if (seq !== loadSeq.current) return;
       setData(t);
       setMemory(m);
+      setLoadFailed(false);
     } catch (e) {
+      if (seq !== loadSeq.current) return;
+      setLoadFailed(true);
       toast.error(e instanceof Error ? e.message : "Couldn't load today");
     }
   }, [userId]);
@@ -902,7 +1001,12 @@ export function TodayView({
           }
         );
       }
-      if (failed.length < r.orders.length)
+      // a timeout after sending: it may have gone through, so no "placed" bar and no retry button
+      if (r.orders.some((o) => o.status === "unknown"))
+        toast.warning(
+          "Swiggy didn't confirm this order. Check the Swiggy app before ordering again."
+        );
+      else if (failed.length < r.orders.length)
         setCartBar({ title: card.items[0].name, outcome: r });
       load();
     } catch (e) {
@@ -914,11 +1018,17 @@ export function TodayView({
     try {
       await api.feedback(userId, card.id, type);
       const dish = card.items[0].name;
+      if (type === "never" || type === "not_today") {
+        await api.regenerate(
+          userId,
+          data?.slots.find((s) => s.cards.some((c) => c.id === card.id))?.slot
+        );
+      }
       toast.success(
         {
-          up: `Learned: more ${dish}`,
-          down: `Learned: less ${dish}`,
-          not_today: `Swapping ${dish} out for today`,
+          up: `Got it, more like ${dish}`,
+          down: `Got it, less like ${dish}`,
+          not_today: `Swapped ${dish} out for today`,
           never: `${dish} won't be shown again`,
         }[type] ?? "Noted",
         type === "up" || type === "down"
@@ -928,12 +1038,6 @@ export function TodayView({
             }
           : undefined
       );
-      if (type === "never" || type === "not_today") {
-        await api.regenerate(
-          userId,
-          data?.slots.find((s) => s.cards.some((c) => c.id === card.id))?.slot
-        );
-      }
       load();
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Couldn't save");
@@ -951,31 +1055,33 @@ export function TodayView({
           : "Thanks for rating"
       );
       load();
+      return true;
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Couldn't save rating");
+      return false;
     }
   }
 
   async function logMeal(slot: string, kind: string, text = "") {
-    await api
-      .logMeal(userId, slot, kind, text)
-      .catch((e) => toast.error(String(e)));
-    toast.success("Logged");
-    load();
+    try {
+      await api.logMeal(userId, slot, kind, text);
+      toast.success("Logged");
+      load();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Couldn't log that");
+    }
   }
 
   async function send(text?: string) {
     const m = (text ?? msg).trim();
-    if (!m) return;
+    if (!m || thinking) return;
     setMsg("");
     setChat((c) => [...c, { role: "you", text: m }]);
+    setBusyLabel(/\b(?:in|near|at|around)\s+\S/i.test(m) ? "Looking it up…" : "Thinking…");
     setThinking(true);
     try {
-      const r = await api.agent(userId, m);
-      setChat((c) => [
-        ...c,
-        { role: "bot", text: r.reply, results: r.results },
-      ]);
+      const { reply, ...found } = await api.agent(userId, m);
+      setChat((c) => [...c, { role: "bot", text: reply, ...found }]);
       load();
     } catch (e) {
       setChat((c) => [
@@ -998,6 +1104,7 @@ export function TodayView({
     setChatOpen(true);
     setPlan(null);
     setChat((c) => [...c, { role: "you", text: `Uploaded ${file.name}` }]);
+    setBusyLabel("Reading your diet plan…");
     setThinking(true);
     try {
       const data = await new Promise<string>((resolve, reject) => {
@@ -1025,6 +1132,7 @@ export function TodayView({
 
   async function applyPlan() {
     if (!plan) return;
+    setBusyLabel("Applying your plan…");
     setThinking(true);
     try {
       await api.applyDietPlan(userId, plan);
@@ -1046,27 +1154,58 @@ export function TodayView({
 
   async function setMode(next: "live" | "dry_run") {
     setArmLive(false);
-    await api.saveDailyProfile(userId, { mode: next });
-    toast(
-      next === "live"
-        ? "Live: orders will really be placed (cash on delivery)"
-        : "Dry run: carts only, no orders"
-    );
-    load();
+    try {
+      await api.saveDailyProfile(userId, { mode: next });
+      toast(
+        next === "live"
+          ? "Real orders on: Forkcast places them, paid by cash on delivery"
+          : "Cart only: Forkcast fills your Swiggy cart and you check out"
+      );
+      load();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Couldn't change that");
+    }
   }
 
   async function editMemory(
     b: MemoryBullet,
     change: { delete?: boolean; weight?: number }
   ) {
-    setMemory(
-      await api.editMemory(userId, {
-        dimension: b.dimension,
-        key: b.key,
-        ...change,
-      })
+    try {
+      setMemory(
+        await api.editMemory(userId, {
+          dimension: b.dimension,
+          key: b.key,
+          ...change,
+        })
+      );
+      load();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Couldn't save that change");
+    }
+  }
+
+  if (!data && loadFailed) {
+    return (
+      <div className="mx-auto flex w-full max-w-md flex-col items-center gap-3 px-4 py-24 text-center">
+        <BowlIllustration className="size-24" />
+        <p className="font-heading text-lg font-extrabold">
+          Couldn&apos;t load today&apos;s meals
+        </p>
+        <p className="text-sm text-muted-foreground">
+          Forkcast or Swiggy didn&apos;t answer. Check your connection and try
+          again.
+        </p>
+        <Button
+          onClick={() => {
+            setLoadFailed(false);
+            load();
+          }}
+        >
+          Try again
+        </Button>
+      </div>
     );
-    load();
   }
 
   if (!data) {
@@ -1138,9 +1277,12 @@ export function TodayView({
     {
       icon: <Wallet className="size-4 text-brand-500" />,
       label: "Today's budget",
-      value: `${formatINR(data.budget.daily_cap)} · ${formatINR(
-        data.budget.remaining
-      )} left this month`,
+      value:
+        data.budget.remaining < 0
+          ? `${formatINR(-data.budget.remaining)} over budget until ${dayMonth(data.budget.cycle_end)}`
+          : `${formatINR(data.budget.daily_cap)} · ${formatINR(
+              data.budget.remaining
+            )} left until ${dayMonth(data.budget.cycle_end)}`,
     },
     {
       icon: <Zap className="size-4 text-rating" />,
@@ -1177,6 +1319,8 @@ export function TodayView({
     },
   ];
 
+  // only the newest result list can "add N": the server resolves N against the latest search
+  const lastResults = chat.findLastIndex((m) => !!m.results?.length);
   const liked = memory.bullets.filter(
     (b) => !b.blocked && b.weight > 0 && b.dimension === "dish"
   );
@@ -1303,7 +1447,9 @@ export function TodayView({
                 )}
               </p>
               <h1 className="text-[28px] font-extrabold leading-tight tracking-[-0.03em] sm:text-[32px]">
-                {upcoming
+                {upcoming === "snack"
+                  ? "What's your snack today?"
+                  : upcoming
                   ? `What's for ${mealStyle(
                       upcoming
                     ).label.toLowerCase()} today?`
@@ -1314,7 +1460,9 @@ export function TodayView({
               {/* Going live spends real money: it takes a second, explicit tap */}
               {armLive ? (
                 <span className="flex items-center gap-1 rounded-full bg-card p-1 text-xs font-bold text-foreground shadow-soft">
-                  <span className="px-2 text-danger">Place real orders?</span>
+                  <span className="px-2 text-danger">
+                    Place real orders (cash on delivery)?
+                  </span>
                   <button
                     type="button"
                     onClick={() => setMode("live")}
@@ -1323,7 +1471,7 @@ export function TodayView({
                       "rounded-full bg-danger px-2.5 py-1 text-white"
                     )}
                   >
-                    Go live
+                    Turn on
                   </button>
                   <button
                     type="button"
@@ -1341,6 +1489,12 @@ export function TodayView({
                   type="button"
                   role="switch"
                   aria-checked={live}
+                  aria-label="Place real orders"
+                  title={
+                    live
+                      ? "Forkcast places real orders"
+                      : "Forkcast only fills your Swiggy cart; you check out"
+                  }
                   onClick={() => (live ? setMode("dry_run") : setArmLive(true))}
                   className={cn(
                     focusRing,
@@ -1350,7 +1504,7 @@ export function TodayView({
                   <span
                     className={live ? "text-danger" : "text-muted-foreground"}
                   >
-                    {live ? "Live orders" : "Dry run"}
+                    {live ? "Real orders" : "Cart only"}
                   </span>
                   <span
                     className={cn(
@@ -1485,7 +1639,9 @@ export function TodayView({
                     {now_
                       ? "Now"
                       : s.ordered
-                      ? "Done"
+                      ? s.ordered.status === "dry_run"
+                        ? "In your cart"
+                        : "Ordered"
                       : `${s.window[0]}–${s.window[1]}`}
                   </span>
                 </span>
@@ -1530,8 +1686,8 @@ export function TodayView({
                 <span className="font-extrabold">
                   {mealStyle(s.slot).label} time.
                 </span>{" "}
-                {top.items[0].name} · {formatINR(top.price)}, delivered to{" "}
-                {addressLabel}. Order now?
+                Top pick: {top.items[0].name} · {formatINR(top.price)},
+                delivered to {addressLabel}.
               </p>
               <a
                 href={`#slot-${s.slot}`}
@@ -1579,9 +1735,11 @@ export function TodayView({
               {s.ordered && (
                 <span className="ml-auto inline-flex items-center gap-1 text-sm font-bold text-rating">
                   <CheckCircle2 className="size-4" aria-hidden />
-                  {s.ordered.status === "dry_run"
-                    ? "Cart built (dry run)"
-                    : "Ordered"}
+                  {s.ordered.status === "unknown"
+                    ? "Sent to Swiggy: check the app"
+                    : s.ordered.status === "placed"
+                    ? "Ordered"
+                    : "In your Swiggy cart"}
                 </span>
               )}
             </div>
@@ -1607,7 +1765,7 @@ export function TodayView({
                   <MealCard
                     key={c.id}
                     card={c}
-                    locked={Boolean(s.ordered)}
+                    slotOrder={s.ordered}
                     dryRun={!live}
                     addressLabel={addressLabel}
                     userId={userId}
@@ -1641,7 +1799,8 @@ export function TodayView({
                   ))}
                 </ul>
                 <p className="mt-1 text-xs text-muted-foreground">
-                  Never recommended. To add one anyway, ask in chat.
+                  Kept off your plan because of your allergies. Change them
+                  under Diet, allergies and budget.
                 </p>
               </details>
             )}
@@ -1657,16 +1816,20 @@ export function TodayView({
           <div className="-mx-4 -mt-4 flex items-center justify-between bg-[#03081F] px-4 py-3 text-white">
             <h2 className="flex items-center gap-2 font-extrabold">
               <Wallet className="size-4 text-brand-400" aria-hidden />
-              {now.toLocaleString("en-IN", { month: "long" })} food budget
+              Food budget · {dayMonth(data.budget.cycle_start)} to{" "}
+              {dayMonth(data.budget.cycle_end)}
             </h2>
             <span className="text-xs text-white/70">
-              {data.budget.days_left} days left
+              {data.budget.days_left} day{data.budget.days_left === 1 ? "" : "s"}{" "}
+              left
             </span>
           </div>
           <p className="flex items-baseline justify-between rounded-xl bg-brand-500 px-3 py-2.5 text-white">
-            <span className="text-sm font-bold">Left to spend</span>
+            <span className="text-sm font-bold">
+              {data.budget.remaining < 0 ? "Over budget by" : "Left to spend"}
+            </span>
             <span className="font-heading text-2xl font-extrabold tracking-[-0.02em] tabular-nums">
-              {formatINR(data.budget.remaining)}
+              {formatINR(Math.abs(data.budget.remaining))}
             </span>
           </p>
           <p className="-mt-1 text-xs text-muted-foreground">
@@ -1699,7 +1862,7 @@ export function TodayView({
             </div>
             <div className="rounded-xl bg-muted/60 p-2.5">
               <dt className="text-xs text-muted-foreground">
-                Spent this month
+                Spent so far
               </dt>
               <dd className="font-extrabold tabular-nums">
                 {formatINR(data.budget.spent)}
@@ -1831,7 +1994,11 @@ export function TodayView({
             />
             <motion.section
               role="dialog"
+              aria-modal="true"
               aria-label="Chat with Forkcast"
+              onKeyDown={(e) => {
+                if (e.key === "Escape") setChatOpen(false);
+              }}
               initial={{ x: "100%" }}
               animate={{ x: 0 }}
               exit={{ x: "100%" }}
@@ -1859,8 +2026,9 @@ export function TodayView({
                 </button>
               </div>
               <p className="text-xs text-muted-foreground">
-                Ask for a craving, log what you ate at home, or tell me what to
-                stop suggesting. I never place orders; you do.
+                Ask for a craving or the best spot for a dish anywhere, log what
+                you ate at home, or tell me what to stop suggesting. I never
+                place orders; you do.
               </p>
               <div
                 className="flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto text-sm"
@@ -1869,7 +2037,8 @@ export function TodayView({
                 {chat.length === 0 && (
                   <div className="flex flex-wrap gap-1.5">
                     {[
-                      "Something spicy under 250",
+                      "Something spicy under ₹250",
+                      "Best rasmalai near me",
                       "I had dal and 2 roti at home",
                       "What am I low on?",
                       "Stop suggesting paneer",
@@ -1927,8 +2096,104 @@ export function TodayView({
                           {c.text}
                         </p>
                       </div>
+                      {c.places && (
+                        <ol
+                          className="flex flex-col gap-2"
+                          aria-label="Places to visit"
+                        >
+                          {c.places.map((p) => (
+                            <li
+                              key={`${p.name}|${p.area}`}
+                              className="flex items-start gap-3 rounded-xl border border-border bg-card p-3 shadow-soft"
+                            >
+                              <MapPin
+                                className="mt-0.5 size-4 shrink-0 text-brand-500"
+                                aria-hidden
+                              />
+                              <span className="min-w-0 flex-1">
+                                <span className="block text-sm font-extrabold leading-tight">
+                                  {p.name}
+                                </span>
+                                <span className="block text-xs text-muted-foreground">
+                                  {[p.area, p.price].filter(Boolean).join(" · ")}
+                                </span>
+                                {p.known_for && (
+                                  <span className="mt-1 block text-xs leading-snug">
+                                    {p.known_for}
+                                  </span>
+                                )}
+                              </span>
+                              <a
+                                href={p.maps_url}
+                                target="_blank"
+                                rel="noreferrer"
+                                className={cn(
+                                  focusRing,
+                                  "shrink-0 rounded-lg border border-border px-2.5 py-1.5 text-xs font-extrabold transition hover:border-brand-500 hover:text-brand-600"
+                                )}
+                              >
+                                Map
+                                <span className="sr-only">
+                                  {" "}
+                                  for {p.name} (opens Google Maps)
+                                </span>
+                              </a>
+                            </li>
+                          ))}
+                        </ol>
+                      )}
+                      {(c.sources || c.maps_url) && (
+                        <p className="flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px] text-muted-foreground">
+                          {c.sources && (
+                            <span className="flex flex-wrap gap-x-1.5">
+                              Sources:
+                              {c.sources.map((src) => (
+                                <a
+                                  key={src.uri}
+                                  href={src.uri}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                  className="rounded underline underline-offset-2 hover:text-foreground"
+                                >
+                                  {src.title}
+                                </a>
+                              ))}
+                            </span>
+                          )}
+                          {c.maps_url && (
+                            <a
+                              href={c.maps_url}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="rounded font-bold text-brand-600 underline-offset-2 hover:underline dark:text-brand-400"
+                            >
+                              Search on Google Maps
+                            </a>
+                          )}
+                        </p>
+                      )}
+                      {c.suggest_html && (
+                        // Google's search chips must accompany grounded answers; sandboxed, no scripts
+                        <iframe
+                          title="Related Google searches"
+                          srcDoc={`<base target="_blank">${c.suggest_html}`}
+                          sandbox="allow-popups allow-popups-to-escape-sandbox"
+                          loading="lazy"
+                          className="h-14 w-full rounded-lg border-0"
+                        />
+                      )}
                       {c.results && (
-                        <ol className="flex flex-col gap-2">
+                        <ol
+                          className="flex flex-col gap-2"
+                          aria-label={
+                            c.maps_url ? "Delivers to you instead" : "Results"
+                          }
+                        >
+                          {c.maps_url && (
+                            <li className="pt-1 text-xs font-extrabold text-muted-foreground">
+                              Want it delivered? These come to you:
+                            </li>
+                          )}
                           {c.results.map((r) => (
                             <li
                               key={r.index}
@@ -1964,17 +2229,21 @@ export function TodayView({
                                   {formatINR(r.price)}
                                 </span>
                               </span>
-                              <button
-                                type="button"
-                                disabled={thinking}
-                                onClick={() => send(`add ${r.index + 1}`)}
-                                className={cn(
-                                  focusRing,
-                                  "shrink-0 rounded-lg border border-rating px-3 py-1.5 text-xs font-extrabold text-rating transition hover:bg-rating hover:text-white active:scale-95 disabled:opacity-50"
-                                )}
-                              >
-                                Add
-                              </button>
+                              {/* "add N" resolves against the latest search, so only its list can add */}
+                              {i === lastResults && (
+                                <button
+                                  type="button"
+                                  disabled={thinking}
+                                  onClick={() => send(`add ${r.index + 1}`)}
+                                  aria-label={`Add ${r.name} to today's meals`}
+                                  className={cn(
+                                    focusRing,
+                                    "shrink-0 rounded-lg border border-rating px-3 py-1.5 text-xs font-extrabold text-rating transition hover:bg-rating hover:text-white active:scale-95 disabled:opacity-50"
+                                  )}
+                                >
+                                  Add
+                                </button>
+                              )}
                             </li>
                           ))}
                           <li className="flex gap-1.5">
@@ -2043,18 +2312,13 @@ export function TodayView({
                   <div className="flex items-center gap-2.5 self-start text-sm text-muted-foreground">
                     <ThinkingOrb
                       state={
-                        plan === null &&
-                        chat.at(-1)?.text.startsWith("Uploaded ")
-                          ? "weaving"
-                          : "searching"
+                        busyLabel.startsWith("Reading") ? "weaving" : "searching"
                       }
                       size={32}
                       color="#FF7A3D"
                       dotSize={1.5}
                     />
-                    {chat.at(-1)?.text.startsWith("Uploaded ")
-                      ? "Reading your diet plan…"
-                      : "Thinking…"}
+                    {busyLabel}
                   </div>
                 )}
                 <div ref={chatEnd} />
@@ -2106,14 +2370,14 @@ export function TodayView({
           </>
         )}
       </AnimatePresence>
-      {!chatOpen && (
-        <button
+      <button
           type="button"
           onClick={() => setChatOpen(true)}
           className={cn(
             focusRing,
             "fixed bottom-5 right-5 z-40 flex items-center gap-2 rounded-full bg-foreground py-3 pl-3 pr-5 font-bold text-background shadow-layered transition hover:scale-[1.03] active:scale-95",
-            cartBar && "bottom-24"
+            cartBar && "bottom-24",
+            chatOpen && "hidden"
           )}
         >
           <ThinkingOrb
@@ -2125,7 +2389,6 @@ export function TodayView({
           />{" "}
           Ask Forkcast
         </button>
-      )}
 
       {/* Swiggy's green cart bar: the one piece of feedback an order needs */}
       <AnimatePresence>
@@ -2145,7 +2408,7 @@ export function TodayView({
             <span className="min-w-0 flex-1">
               <span className="block truncate text-sm font-extrabold">
                 {cartBar.outcome.mode === "dry_run"
-                  ? "Cart built on Swiggy"
+                  ? "Added to your Swiggy cart"
                   : "Order placed"}{" "}
                 · {cartBar.title}
               </span>
@@ -2154,21 +2417,31 @@ export function TodayView({
                   .filter((o) => o.status !== "failed")
                   .map(
                     (o) =>
-                      `${
-                        o.platform === "food"
-                          ? "Restaurant (Powered by Swiggy)"
-                          : "Powered by Instamart"
-                      } ${formatINR(o.amount)}`
+                      `${o.platform === "food" ? "Restaurant" : "Instamart"} ${formatINR(o.amount)}`
                   )
                   .join(" + ")}{" "}
                 to pay
                 {cartBar.outcome.mode === "dry_run"
-                  ? " · dry run, nothing ordered"
-                  : ""}
+                  ? " · not ordered yet"
+                  : " · cash on delivery"}
+                {" · Powered by "}
+                {cartBar.outcome.orders.some(
+                  (o) => o.status !== "failed" && o.platform === "food"
+                )
+                  ? "Swiggy"
+                  : "Instamart"}
               </span>
             </span>
             <a
-              href="https://www.swiggy.com/checkout"
+              href={
+                cartBar.outcome.mode !== "dry_run"
+                  ? "https://www.swiggy.com/my-account/orders"
+                  : cartBar.outcome.orders.some(
+                      (o) => o.status !== "failed" && o.platform === "food"
+                    )
+                  ? CHECKOUT.food
+                  : CHECKOUT.instamart
+              }
               target="_blank"
               rel="noreferrer"
               className={cn(
@@ -2176,7 +2449,8 @@ export function TodayView({
                 "flex shrink-0 items-center text-sm font-extrabold uppercase tracking-wide"
               )}
             >
-              View cart <ChevronRight className="size-4" aria-hidden />
+              {cartBar.outcome.mode === "dry_run" ? "View cart" : "Track order"}{" "}
+              <ChevronRight className="size-4" aria-hidden />
             </a>
           </motion.div>
         )}

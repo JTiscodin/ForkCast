@@ -53,9 +53,9 @@ def chat(prompt, system=None, timeout=30, file=None) -> str:
     chain on 429 so one model's spent daily quota doesn't silently downgrade the
     whole app to heuristics.
     """
-    key = os.environ.get("GEMINI_API_KEY")
-    if not key:
+    if not has_key():   # the one switch: tests turn Gemini off by patching has_key
         return ""
+    key = os.environ["GEMINI_API_KEY"]
 
     for model in [GEMINI_MODEL] + FALLBACK_MODELS:
         if model in _EXHAUSTED:
@@ -81,44 +81,88 @@ def chat(prompt, system=None, timeout=30, file=None) -> str:
 
 def _call(model, key, prompt, system, timeout, file=None):
     """One attempt. Returns (text, quota) where quota is None|"minute"|"day"."""
+    parts = [{"text": prompt}]
+    if file:   # (mime, base64): an image or PDF for the model to read
+        parts.append({"inline_data": {"mime_type": file[0], "data": file[1]}})
+    body = {"contents": [{"parts": parts}]}
+    if system:
+        body["system_instruction"] = {"parts": [{"text": system}]}
+    data, quota = _post(model, key, body, timeout)
+    text, _ = _text(data)
+    if data is not None and not text:
+        print(f"[gemini] {model} returned no text")
+    return text, quota
+
+
+def _text(data):
+    """(all text parts joined, first candidate) of a generateContent response."""
+    cand = ((data or {}).get("candidates") or [{}])[0]
+    return "".join(p.get("text", "") for p in (cand.get("content") or {}).get("parts") or []).strip(), cand
+
+
+# Grounding with Google Search has its own per-model quota. Measured on this key
+# (2026-11): gemini-2.5-flash allows it on the free tier, the 3.x flash models 429.
+SEARCH_MODELS = [m.strip() for m in os.environ.get(
+    "GEMINI_SEARCH_MODELS", "gemini-2.5-flash,gemini-3.5-flash-lite").split(",") if m.strip()]
+
+
+def search(prompt, timeout=30):
+    """A Gemini answer grounded in Google Search -> (text, sources, suggestions_html).
+
+    sources: [{"title", "uri"}] the answer is based on. suggestions_html: Google's
+    Search Suggestions chip, which the Gemini API terms require next to a grounded
+    answer. ("", [], "") without a key or when every model fails; never raises.
+    """
+    if not has_key():
+        return "", [], ""
+    key = os.environ["GEMINI_API_KEY"]
+    body = {"contents": [{"parts": [{"text": prompt}]}], "tools": [{"google_search": {}}]}
+    for model in SEARCH_MODELS:   # any failure (quota, retired model) is worth the next model
+        data, _ = _post(model, key, body, timeout)
+        text, cand = _text(data)
+        if text:
+            meta = cand.get("groundingMetadata") or {}
+            sources = {}
+            for ch in meta.get("groundingChunks") or []:
+                web = ch.get("web") or {}
+                if web.get("uri") and web.get("title"):
+                    sources.setdefault(web["title"], web["uri"])
+            return (text, [{"title": t, "uri": u} for t, u in list(sources.items())[:4]],
+                    (meta.get("searchEntryPoint") or {}).get("renderedContent") or "")
+    return "", [], ""
+
+
+def _post(model, key, body, timeout):
+    """One generateContent call -> (response json or None, quota None|"minute"|"day")."""
     try:
-        url = (f"https://generativelanguage.googleapis.com/v1beta/models/"
-               f"{model}:generateContent")
-        parts = [{"text": prompt}]
-        if file:   # (mime, base64): an image or PDF for the model to read
-            parts.append({"inline_data": {"mime_type": file[0], "data": file[1]}})
-        body = {"contents": [{"parts": parts}]}
-        if system:
-            body["system_instruction"] = {"parts": [{"text": system}]}
         req = urllib.request.Request(
-            url, data=json.dumps(body).encode(),
-            headers={"Content-Type": "application/json",
-                     "X-goog-api-key": key})
+            f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent",
+            data=json.dumps(body).encode(),
+            headers={"Content-Type": "application/json", "X-goog-api-key": key})
         with urllib.request.urlopen(req, timeout=timeout) as resp:
-            data = json.loads(resp.read())
-        return data["candidates"][0]["content"]["parts"][0]["text"].strip(), None
+            return json.loads(resp.read()), None
     except urllib.error.HTTPError as e:
         # LOG, don't just swallow. Callers fall back silently, so a spent quota
         # looked exactly like "the heuristics handled it" — an adjust request
         # came back with no constraints and nothing said why.
-        body = ""
+        detail = ""
         try:
-            body = e.read().decode(errors="replace")
+            detail = e.read().decode(errors="replace")
         except Exception:  # noqa: BLE001
             pass
         if e.code in (500, 503):
             # overloaded/unavailable is transient like a minute quota: try the
             # next model now, keep this one in rotation
             print(f"[gemini] {model} HTTP {e.code} (overloaded); trying next model")
-            return "", "minute"
+            return None, "minute"
         if e.code != 429:
-            print(f"[gemini] {model} HTTP {e.code}: {body[:200]}")
-            return "", None
+            print(f"[gemini] {model} HTTP {e.code}: {detail[:200]}")
+            return None, None
         # Distinguish a per-minute burst (recovers in ~60s) from a spent daily
         # cap (dead until midnight Pacific) — they need opposite handling.
-        kind = "day" if "PerDay" in body else "minute"
+        kind = "day" if "PerDay" in detail else "minute"
         print(f"[gemini] {model} 429 ({kind} quota)")
-        return "", kind
+        return None, kind
     except Exception as e:  # noqa: BLE001
         print(f"[gemini] {model} failed: {type(e).__name__}: {e}")
-        return "", None
+        return None, None

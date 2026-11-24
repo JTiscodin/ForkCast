@@ -80,17 +80,31 @@ def test_weekday_override_changes_cards(conn):
     assert all(i["veg"] for s in v["slots"] for c in s["cards"] for i in c["items"])
 
 
-def test_order_dry_run_logs_and_blocks_double(conn):
+def test_dry_run_cart_can_be_swapped_but_a_placed_order_locks_the_meal(conn):
     v = view(conn)
-    card = v["slots"][1]["cards"][0]
+    card, other = v["slots"][1]["cards"][:2]
     ex = OrderExecutor(mode="mock")
+    count = lambda t: conn.execute(f"SELECT COUNT(*) FROM {t}").fetchone()[0]  # noqa: E731
     r = daily.order(conn, 1, card["id"], ex, None, None, confirm=True)
     assert r["mode"] == "dry_run" and all(o["status"] == "dry_run" for o in r["orders"])
-    assert conn.execute("SELECT COUNT(*) FROM consumption_log").fetchone()[0] == 1
-    w, _ = daily.weights(conn, 1)
-    assert w[("dish", daily._norm(card["items"][0]["name"]))] == pytest.approx(3, abs=0.01)
+    assert count("consumption_log") == 1
+    key = ("dish", daily._norm(card["items"][0]["name"]))
+    assert daily.weights(conn, 1)[0][key] == pytest.approx(3, abs=0.01)
+    daily.order(conn, 1, card["id"], ex, None, None, confirm=True)       # double tap: same cart, learned once
+    assert count("consumption_log") == 1 and daily.weights(conn, 1)[0][key] == pytest.approx(3, abs=0.01)
     with pytest.raises(ValueError):
-        daily.order(conn, 1, card["id"], ex, None, None, confirm=True)
+        daily.edit_card(conn, 1, card["id"], [], [], dishes_fn, im_fn)    # the carted card is frozen
+    daily.order(conn, 1, other["id"], ex, None, None, confirm=True)      # swap: the new cart replaces the old
+    slot = view(conn)["slots"][1]
+    assert slot["ordered"]["card_id"] == other["id"] and slot["ordered"]["status"] == "dry_run"
+    assert count("consumption_log") == 1
+    assert conn.execute("SELECT COUNT(*) FROM order_record WHERE card_id=?", (card["id"],)).fetchone()[0] == 0
+    daily.save_profile(conn, 1, {"mode": "live"})
+    daily.order(conn, 1, card["id"], ex, None, None, confirm=True)       # a dry run doesn't block a real order
+    assert view(conn)["slots"][1]["ordered"]["status"] == "placed"
+    for c in (card, other):                                              # but a real order locks the meal
+        with pytest.raises(ValueError):
+            daily.order(conn, 1, c["id"], ex, None, None, confirm=True)
 
 
 def test_two_platform_card_is_two_orders(conn):
@@ -157,9 +171,18 @@ def test_nutrition_lookup_and_gaps(conn):
     assert 0 < ns["gap"]["protein"] < 1
 
 
-def test_budget_soft_cap(conn):
-    b = daily.budget(conn, 1, daily.get_profile(conn, 1), DAY)
-    assert b["days_left"] == 27 and b["daily_cap"] == pytest.approx(9000 / 27, abs=0.01)
+def test_budget_month_runs_from_the_signup_day(conn):
+    p = daily.get_profile(conn, 1)
+    conn.execute("UPDATE users SET created_at='2026-10-25 08:00:00' WHERE id=1")   # joined on the 25th
+    b = daily.budget(conn, 1, p, DAY)                                              # 4 Nov: the 25 Oct - 24 Nov month
+    assert (b["cycle_start"], b["cycle_end"]) == ("2026-10-25", "2026-11-24")
+    assert b["days_left"] == 21 and b["daily_cap"] == pytest.approx(9000 / 21, abs=0.01)
+    b = daily.budget(conn, 1, p, date(2026, 11, 25))                               # renews on the 25th, full budget
+    assert b["cycle_start"] == "2026-11-25" and b["days_left"] == 30
+    from datetime import date as d
+    assert daily.budget_cycle(d(2027, 2, 10), 31) == (d(2027, 1, 31), d(2027, 2, 28))   # joined on the 31st
+    assert daily.budget_cycle(d(2027, 2, 28), 31) == (d(2027, 2, 28), d(2027, 3, 31))
+    assert daily.budget_cycle(d(2026, 12, 30), 25) == (d(2026, 12, 25), d(2027, 1, 25))  # across the year end
 
 
 def test_profile_validation(conn):
@@ -294,7 +317,7 @@ def test_sides_and_dish_dupes_never_become_cards(conn):
 def test_in_band_swiggy_failure_raises(monkeypatch):
     import swiggy_mcp
     c = swiggy_mcp.SwiggyMCPClient.__new__(swiggy_mcp.SwiggyMCPClient)
-    monkeypatch.setattr(c, "_rpc", lambda m, p: {"structuredContent": {
+    monkeypatch.setattr(c, "_rpc", lambda m, p, **k: {"structuredContent": {
         "success": False, "error": {"message": "addressId is required"}}}, raising=False)
     with pytest.raises(swiggy_mcp.SwiggyMCPError, match="addressId is required"):
         c.call("get_food_cart", {})
@@ -554,18 +577,93 @@ def test_instamart_offers_only_ready_to_eat_food():
         assert daily._im_ready(ok), ok
 
 
+HOME = "Flat 2, Sector 21, Gurugram, Haryana 122016, India"
+
+
 def test_chat_search_goes_to_swiggy_for_dishes_outside_todays_menu(conn):
+    daily.save_profile(conn, 1, {"city": "Gurugram"})
     base = next(x for x in mock_catalog() if x.veg)
-    live = [replace(base, dish_id="x1", name="Rasmalai (2 Pcs)", restaurant_id="s1", restaurant_name="Bikanervala",
-                    rating=4.6, price=120, dish_kind="sweet"),
-            replace(base, dish_id="x2", name="Kesar Rasmalai", restaurant_id="s2", restaurant_name="Haldiram",
-                    rating=4.2, price=110, dish_kind="sweet")]
+    sweet = lambda i, name, rid, rating, price: replace(  # noqa: E731
+        base, dish_id=i, name=name, restaurant_id=rid, restaurant_name="R" + rid, rating=rating, price=price,
+        dish_kind="sweet")
+    live = [sweet("x1", "Rasmalai (2 Pcs)", "s1", 4.6, 120), sweet("x2", "Kesar Rasmalai", "s2", 4.2, 110),
+            sweet("x3", "Rasmalai Cake - 1Kg", "s3", 5.0, 650), sweet("x4", "Rasmalai Shake", "s1", 4.6, 90)]
+    asked = []
     deps = {"dishes_fn": lambda veg: [], "im_fn": lambda q: [{"id": "i1", "name": "Rasmalai Tin", "price": 99}],
-            "search_fn": lambda q, veg: live if "rasmalai" in q else []}
-    out = agent.run(conn, 1, "best rasmalai in gurugram", deps, now=NOW)
-    names = [r["name"] for r in out["results"]]
-    assert names == ["Rasmalai (2 Pcs)", "Kesar Rasmalai"]          # restaurants, best rated first, no Instamart tin
-    assert out["results"][0]["restaurant"] == "Bikanervala" and "rasmalai" in out["reply"].lower()
+            "search_fn": lambda q, veg, pages=1: asked.append((q, pages)) or (live if "rasmalai" in q else []),
+            "area_fn": lambda: HOME}
+    for msg in ("best rasmalai in gurgaon", "best rasmalai near me"):   # Gurgaon is where the user lives
+        out = agent.run(conn, 1, msg, deps, now=NOW)
+        # the plain dish first, then best rated, one per restaurant; the 1 kg cake last; no Instamart tin
+        assert [r["name"] for r in out["results"]] == ["Rasmalai (2 Pcs)", "Kesar Rasmalai", "Rasmalai Cake - 1Kg"]
+        assert "places" not in out and "delivers to you" in out["reply"]
+    assert asked == [("rasmalai", 2), ("rasmalai", 2)]               # "gurgaon" never reaches Swiggy's search
+
+
+def test_best_dish_in_a_far_place_says_where_to_go_instead_of_ordering(conn, monkeypatch):
+    daily.save_profile(conn, 1, {"city": "Gurugram"})
+    agent._PLACES.clear()
+    asked = []
+    monkeypatch.setattr(gemini, "has_key", lambda: True)
+    monkeypatch.setattr(gemini, "chat", lambda prompt, **k: json.dumps(
+        {"tool": "search", "args": {"query": "chole bhature", "place": "Connaught Place, Delhi"}}))
+    monkeypatch.setattr(gemini, "search", lambda prompt, **k: (asked.append(prompt) or json.dumps(
+        {"places": [{"name": "Sita Ram Diwan Chand", "area": "Paharganj", "known_for": "Pindi chole since 1950",
+                     "price": "₹150 for one"}, {"area": "no name, dropped"}]}),
+        [{"title": "zomato.com", "uri": "https://example.com/z"}], "<div>chips</div>"))
+    base = next(x for x in mock_catalog() if x.veg)
+    near = [replace(base, dish_id="c1", name="Chole Bhature", restaurant_id="n1", restaurant_name="Haldiram",
+                    rating=4.3, price=180)]
+    deps = {"dishes_fn": lambda veg: [], "im_fn": lambda q: [], "area_fn": lambda: HOME,
+            "search_fn": lambda q, veg, pages=1: near if "chole" in q else []}
+    out = agent.run(conn, 1, "best chole bhature in CP", deps, now=NOW)
+    assert [p["name"] for p in out["places"]] == ["Sita Ram Diwan Chand"]
+    assert "google.com/maps" in out["places"][0]["maps_url"] and out["sources"] and out["suggest_html"]
+    assert "outside your delivery area" in out["reply"] and "Connaught Place" in out["reply"]
+    assert [r["name"] for r in out["results"]] == ["Chole Bhature"]   # what does deliver, offered separately
+    assert "Gurugram" in asked[0] and "Sector 21" not in asked[0]      # only the city leaves the server
+    # the model reads the city from memory: a place the user never said is dropped
+    assert "place" not in agent._search_args({"query": "rasmalai", "place": "Gurugram"}, "best rasmalai")
+
+
+def test_place_parsing():
+    p = agent._place_in
+    assert p("best chole bhature in CP") == "CP"
+    assert p("momos in lajpat nagar under 200") == "lajpat nagar"
+    assert p("best biryani in Hyderabad for dinner") == "Hyderabad"
+    for none in ("best rasmalai near me", "something high in protein", "something light in the evening",
+                 "spicy paneer under ₹250", "what can I eat at home", "rasmalai"):
+        assert p(none) is None, none
+    assert agent._local("Gurgaon", HOME) and agent._local("CP", "Connaught Place, New Delhi 110001")
+    assert not agent._local("Connaught Place, Delhi", HOME)
+
+
+def test_chat_says_when_swiggy_is_not_connected_and_stale_adds_are_refused(conn):
+    deps = {"dishes_fn": lambda veg: [], "im_fn": lambda q: [], "search_fn": lambda q, veg, pages=1: [],
+            "live": False}
+    assert "isn't connected" in agent.run(conn, 1, "rasmalai", deps, now=NOW)["reply"]
+    assert "search again" in agent.run(conn, 1, "add 3", deps, now=NOW)["reply"]
+
+
+def test_grounded_search_falls_back_across_models_and_keeps_sources(monkeypatch):
+    monkeypatch.setattr(gemini, "has_key", lambda: True)
+    monkeypatch.setenv("GEMINI_API_KEY", "k")
+    tried = []
+
+    def fake_post(model, key, body, timeout):
+        tried.append(model)
+        assert body["tools"] == [{"google_search": {}}]
+        if len(tried) == 1:
+            return None, "minute"                       # first model: no grounding quota
+        web = [{"web": {"uri": "u1", "title": "zomato.com"}}, {"web": {"uri": "u2", "title": "zomato.com"}}]
+        return {"candidates": [{"content": {"parts": [{"text": "{\"places\": []}"}]},
+                                "groundingMetadata": {"groundingChunks": web,
+                                                      "searchEntryPoint": {"renderedContent": "<div/>"}}}]}, None
+    monkeypatch.setattr(gemini, "_post", fake_post)
+    assert gemini.search("q") == ('{"places": []}', [{"title": "zomato.com", "uri": "u1"}], "<div/>")
+    assert tried == gemini.SEARCH_MODELS[:2]
+    monkeypatch.setattr(gemini, "has_key", lambda: False)
+    assert gemini.search("q") == ("", [], "") and gemini.chat("q") == ""   # tests switch Gemini off here
 
 
 def test_diet_plan_is_clamped_and_applied(conn, monkeypatch):
